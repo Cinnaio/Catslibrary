@@ -54,7 +54,7 @@ let paragraphIndent = "\u{3000}\u{3000}"
 /// 阅读器：滚动/翻页双模式、纸面主题、点击翻页开关、正文双向滑动、按段/页恢复进度。
 ///
 /// 布局：正文占满阅读区（点击中部可收起/展开阅读控制），顶部为系统导航条
-/// （纸面底色），底部安全区保留上一章/下一章/页码控制，避免正文被遮挡。
+/// （透明背景），底部安全区只在控制栏自身使用材质，保留稳定的阅读区域。
 struct ReaderView: View {
     let novel: Novel
     let preloadedChapters: [ChapterMeta]
@@ -116,8 +116,10 @@ struct ReaderView: View {
     @State private var interactionFeedback = 0
     @State private var fontRevision = 0
     @State private var chapterIsSaved = false
-    /// 底部控制区的稳定高度；隐藏时仍保留这段安全区，避免正文上下跳动。
-    private let readerChromeHeight: CGFloat = 78
+    /// 同一宽度与字阶下只增加保留高度，避免进度文字换行导致分页反复重排。
+    @State private var measuredChromeSize = CGSize(width: 0, height: 78)
+    @State private var measuredChromeTypeSize: DynamicTypeSize?
+    private var readerChromeHeight: CGFloat { measuredChromeSize.height }
     /// Scroll target before the chapter title. Paragraph IDs start at zero.
     private let readerTopScrollID = -1
     @State private var chapterThoughts: [Thought] = []
@@ -139,6 +141,10 @@ struct ReaderView: View {
 
     private var previousChapter: ChapterMeta? {
         chapterMetas.filter { $0.order < chapterOrder }.max { $0.order < $1.order }
+    }
+
+    private var nextChapter: ChapterMeta? {
+        chapterMetas.first { $0.order == chapterOrder + 1 }
     }
 
     private var statisticsVisible: Bool {
@@ -215,7 +221,7 @@ struct ReaderView: View {
     }
 
     private var percentText: String {
-        "已读 \(Int((progressPercent * 100).rounded()))%"
+        "本章已读 \(Int((progressPercent * 100).rounded()))%"
     }
 
     private var atChapterEnd: Bool {
@@ -243,7 +249,6 @@ struct ReaderView: View {
             if edgeContext != nil {
                 ReaderEdgeBar(store: edgeStore, open: openReaderEdge)
                     .foregroundStyle(ink)
-                    .background(paper)
                     .opacity(scenePhase == .active ? 1 : 0)
                     .accessibilityHidden(scenePhase != .active)
             }
@@ -267,14 +272,26 @@ struct ReaderView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationTitle(chapter?.title ?? "阅读")
         // 顶部系统区域保持固定占位；只切换控制内容，避免正文在收起控制时重新布局。
-        .toolbarBackground(paper, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar(.visible, for: .navigationBar)
         .toolbar(.hidden, for: .bottomBar)
         .toolbar(.hidden, for: .tabBar)
         .statusBarHidden(false)
         .persistentSystemOverlays(.automatic)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("第 \(chapterOrder) 章")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(ink.opacity(0.8))
+                    .lineLimit(1)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .appGlassEffect(.regular, fallback: paper, in: Capsule())
+                    .opacity(showChrome ? 1 : 0)
+                    .accessibilityHidden(!showChrome)
+                    .accessibilityLabel(chapter?.title ?? "阅读")
+                    .accessibilityValue("第 \(chapterOrder) 章")
+            }
             if showChrome {
                 ToolbarItem(placement: .topBarTrailing) {
                     readerToolbarGroup
@@ -499,6 +516,7 @@ struct ReaderView: View {
             illustrationViews(items: mediaByPosition[-1] ?? [])
             Text(chapter.title)
                 .font(readerTitleFont)
+                .accessibilityAddTraits(.isHeader)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(ink)
                 .frame(maxWidth: .infinity)
@@ -519,9 +537,7 @@ struct ReaderView: View {
                 illustrationViews(items: mediaByPosition[index] ?? [])
             }
             illustrationViews(items: mediaByPosition[paragraphs.count] ?? [])
-            if hasNextChapter {
-                nextChapterButton
-            }
+            chapterEnding
         }
     }
 
@@ -735,11 +751,9 @@ struct ReaderView: View {
             .scrollIndicators(.hidden)
             .ignoresSafeArea(edges: .horizontal)
             .background(paper)
-            // 使用系统滚动边缘材质连接正文和固定导航/底部玻璃控制。
-            .scrollEdgeEffectStyle(.soft, for: .top)
-            .scrollEdgeEffectStyle(.soft, for: .bottom)
-            // 收起底栏仍保留安全区高度以稳定正文位置，但移除底部边缘效果。
-            .scrollEdgeEffectHidden(!showChrome, for: .bottom)
+            // 导航与安全区保持通透，仅控件自身采样玻璃材质。
+            .scrollEdgeEffectHidden(true, for: .top)
+            .scrollEdgeEffectHidden(true, for: .bottom)
             .contentShape(Rectangle())
             .accessibilityHint("正文左滑下一章，右滑上一章；轻点中央显示阅读控制")
             .accessibilityAction(named: showChrome ? "隐藏阅读控制" : "显示阅读控制") {
@@ -870,6 +884,8 @@ struct ReaderView: View {
                                                     maximumHeight: max(60, contentHeight - 90))
                                 }
                                 .scrollIndicators(.hidden)
+                                .scrollEdgeEffectHidden(true, for: .top)
+                                .scrollEdgeEffectHidden(true, for: .bottom)
                                 .frame(width: contentWidth, height: contentHeight)
                             } else {
                                 pagedPage(pages[index], pageIndex: index, width: contentWidth, height: contentHeight)
@@ -923,6 +939,8 @@ struct ReaderView: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .scrollIndicators(.hidden)
+        .scrollEdgeEffectHidden(true, for: .top)
+        .scrollEdgeEffectHidden(true, for: .bottom)
         .frame(width: width, height: height, alignment: .top)
         .contentShape(Rectangle())
         // 单页内仅有正文；轻点手势不再包住文末按钮或覆盖原生横向滑动。
@@ -1021,32 +1039,36 @@ struct ReaderView: View {
         }
     }
 
-    /// 底部阅读控制：上一章/页码/下一章。翻页到章末时变为居中的“下一章”按钮。
+    /// 同时布局普通控制与章末按钮，切换时不改变正文可用高度。
     private var readerChrome: some View {
-        GlassEffectContainer(spacing: 12) {
-            Group {
-                if atChapterEnd {
-                    nextChapterButton
-                } else {
-                    GlassEffectContainer(spacing: 8) {
-                        HStack(spacing: 8) {
-                            chromeSegmentButton(systemName: "chevron.left", label: "上一章", isEnabled: hasPreviousChapter) {
-                                go(to: chapterOrder - 1)
-                            }
-                            readerStatusPill
-                            chromeSegmentButton(systemName: "chevron.right", label: "下一章", isEnabled: hasNextChapter) {
-                                go(to: chapterOrder + 1)
-                            }
-                        }
-                    }
-                    .frame(height: 52)
-                }
-            }
-            .padding(.horizontal, 20)
+        ZStack {
+            readerControlBar
+                .opacity(atChapterEnd ? 0 : 1)
+                .allowsHitTesting(!atChapterEnd)
+                .accessibilityHidden(atChapterEnd)
+            nextChapterButton
+                .opacity(atChapterEnd ? 1 : 0)
+                .allowsHitTesting(atChapterEnd)
+                .accessibilityHidden(!atChapterEnd)
         }
-        .padding(.top, 14)
-        .padding(.bottom, 12)
+        .frame(maxWidth: 560)
+        .padding(.horizontal, 20)
         .frame(maxWidth: .infinity)
+        .padding(.vertical, 13)
+        .fixedSize(horizontal: false, vertical: true)
+        .onGeometryChange(for: CGSize.self) { geometry in
+            geometry.size
+        } action: { size in
+            guard size.width.isFinite, size.height.isFinite, size.width > 0, size.height > 0 else { return }
+            let newHeight = max(78, size.height.rounded(.up))
+            let changedLayout = abs(size.width - measuredChromeSize.width) > 1
+                || measuredChromeTypeSize != dynamicTypeSize
+            let height = changedLayout ? newHeight : max(measuredChromeSize.height, newHeight)
+            if abs(size.width - measuredChromeSize.width) > 0.5 || abs(height - measuredChromeSize.height) > 0.5 {
+                measuredChromeSize = CGSize(width: size.width, height: height)
+            }
+            if measuredChromeTypeSize != dynamicTypeSize { measuredChromeTypeSize = dynamicTypeSize }
+        }
         .frame(height: readerChromeHeight, alignment: .bottom)
         .offset(y: (reduceMotion || showChrome) ? 0 : 20)
         .scaleEffect((reduceMotion || showChrome) ? 1 : 0.96)
@@ -1055,34 +1077,55 @@ struct ReaderView: View {
         .accessibilityHidden(!showChrome)
     }
 
+    private var readerControlBar: some View {
+        HStack(spacing: 4) {
+            chromeSegmentButton(systemName: "chevron.left", label: "上一章", isEnabled: hasPreviousChapter) {
+                go(to: chapterOrder - 1)
+            }
+            readerStatusText
+                .frame(maxWidth: .infinity)
+            chromeSegmentButton(systemName: "chevron.right", label: "下一章", isEnabled: hasNextChapter) {
+                go(to: chapterOrder + 1)
+            }
+        }
+        .padding(4)
+        .appGlassEffect(.regular, fallback: paper, in: RoundedRectangle(cornerRadius: 22))
+    }
+
     private var chapterAvailabilityLabel: String {
         if !offlineOnly && ContentAccessStore.shared.mode == "adult" { return chapterIsSaved ? "已缓存" : "阅读缓存" }
         return chapterIsSaved ? "离线可读" : "未缓存"
     }
 
-    private var readerStatusPill: some View {
+    private var readerStatusText: some View {
         VStack(spacing: 2) {
-            Text("第 \(chapterOrder)/\(totalOrderCount) 章")
-                .font(.footnote.weight(.semibold))
+            Text("第 \(chapterOrder) / \(totalOrderCount) 章")
+                .font(.footnote.weight(.medium))
                 .monospacedDigit()
                 .contentTransition(.numericText())
-                .foregroundStyle(AppTheme.primary.opacity(0.92))
-            HStack(spacing: 4) {
-                Text(percentText)
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-                Image(systemName: chapterIsSaved ? "arrow.down.circle.fill" : "icloud.slash")
-                    .contentTransition(.symbolEffect(.replace))
-                    .accessibilityHidden(true)
-                Text(chapterAvailabilityLabel)
+                .foregroundStyle(ink)
+                .appTextLineLimit(1)
+            Group {
+                if dynamicTypeSize >= .xxxLarge {
+                    VStack(spacing: 2) {
+                        Text(percentText).monospacedDigit().contentTransition(.numericText())
+                        Text(chapterAvailabilityLabel)
+                    }
+                } else {
+                    HStack(spacing: 5) {
+                        Text(percentText).monospacedDigit().contentTransition(.numericText())
+                        Text("·").accessibilityHidden(true)
+                        Text(chapterAvailabilityLabel)
+                    }
+                }
             }
             .font(.caption2)
-            .foregroundStyle(AppTheme.primary.opacity(0.7))
+            .foregroundStyle(ink.opacity(0.72))
+            .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 6)
         .frame(minHeight: 44)
-        .appGlassEffect(AppTheme.glassClear, in: Capsule())
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel("第 \(chapterOrder) / \(totalOrderCount) 章，\(percentText)，\(chapterAvailabilityLabel)")
         .accessibilityIdentifier("reader.progress")
     }
@@ -1092,19 +1135,67 @@ struct ReaderView: View {
             interactionFeedback += 1
             go(to: chapterOrder + 1)
         } label: {
-            Label("下一章", systemImage: "arrow.forward")
-                .font(.subheadline.weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
+            HStack(spacing: 12) {
+                Text("下一章").frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "arrow.right").accessibilityHidden(true)
+            }
+            .font(.subheadline.weight(.medium))
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .contentShape(Rectangle())
         }
-        .foregroundStyle(AppTheme.primary)
-        .buttonStyle(AppGlassButtonStyle(
-            glass: AppTheme.glassProminent,
-            fallback: AppTheme.primaryLight
-        ))
+        .foregroundStyle(ink)
+        .buttonStyle(AppGlassButtonStyle(glass: AppTheme.glassClear, fallback: paper))
         .accessibilityLabel("下一章")
+        .accessibilityHint(nextChapter?.title ?? "打开下一章")
         .accessibilityIdentifier("reader.next-chapter")
+    }
+
+    private var chapterEnding: some View {
+        VStack(spacing: 16) {
+            Text("本章完")
+                .font(.caption)
+                .foregroundStyle(ink.opacity(0.65))
+                .frame(maxWidth: .infinity)
+            if hasNextChapter {
+                Button {
+                    interactionFeedback += 1
+                    go(to: chapterOrder + 1)
+                } label: {
+                    HStack(spacing: 16) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("下一章")
+                                .font(.caption)
+                                .foregroundStyle(ink.opacity(0.72))
+                            if let nextChapter {
+                                Text(nextChapter.title)
+                                    .font(serifFont(.headline, .medium))
+                                    .foregroundStyle(ink)
+                                    .appTextLineLimit(2)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        Image(systemName: "arrow.right")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(ink)
+                            .accessibilityHidden(true)
+                    }
+                    .padding(16)
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .contentShape(RoundedRectangle(cornerRadius: 18))
+                }
+                .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
+                .appGlassEffect(AppTheme.glassClear, fallback: paper, in: RoundedRectangle(cornerRadius: 18))
+                .accessibilityLabel("下一章")
+                .accessibilityHint(nextChapter?.title ?? "打开下一章")
+                .accessibilityIdentifier("reader.next-chapter")
+            } else {
+                Text(offlineOnly ? "本机暂无下一章。" : "已到当前目录末尾。")
+                    .font(.footnote)
+                    .foregroundStyle(ink.opacity(0.72))
+            }
+        }
+        .padding(.top, 20)
     }
 
     private var readerChromeRevealButton: some View {
@@ -1245,9 +1336,9 @@ struct ReaderView: View {
                 .font(.system(size: 15, weight: .semibold))
                 .frame(width: 44, height: 44)
         }
-        .foregroundStyle(AppTheme.primary.opacity(isEnabled ? 0.95 : 0.28))
+        .foregroundStyle(ink.opacity(isEnabled ? 0.9 : 0.28))
         .disabled(!isEnabled)
-        .buttonStyle(AppGlassButtonStyle(glass: AppTheme.glassClear))
+        .buttonStyle(ScaleButtonStyle(pressedScale: 0.92))
         .accessibilityLabel(label)
     }
 
