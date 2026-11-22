@@ -653,9 +653,13 @@ struct NovelDetailView: View {
     private func bookCover(size: CGSize) -> some View {
         CachedAsyncImage(
             url: APIClient.shared.coverURL(novelId: currentNovel.id, updatedAt: currentNovel.updatedAt),
-            targetSize: size
+            targetSize: size,
+            previewTitle: currentNovel.title
         ) { image in
-            image.resizable().scaledToFill()
+            image.resizable()
+                .scaledToFill()
+                .frame(width: size.width, height: size.height)
+                .clipped()
         } placeholder: {
             ZStack {
                 ReadingSpace.paper
@@ -663,11 +667,11 @@ struct NovelDetailView: View {
                     .font(.largeTitle)
                     .foregroundStyle(AppTheme.primary)
             }
+            .accessibilityHidden(true)
         }
         .frame(width: size.width, height: size.height)
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .shadow(color: AppTheme.cardShadow, radius: 10, y: 5)
-        .accessibilityHidden(true)
     }
 
     private var bookInformation: some View {

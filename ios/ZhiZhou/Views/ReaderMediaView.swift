@@ -20,7 +20,6 @@ struct ReaderMediaView: View {
     @State private var loadedDataSize: Int = 0
     @State private var errorMessage: String?
     @State private var retry = 0
-    @State private var previewOpen = false
 
     private var identity: String { "\(path):\(ContentAccessStore.shared.revision)" }
     private var currentImage: UIImage? { loadedKey == identity ? loadedImage : nil }
@@ -32,14 +31,19 @@ struct ReaderMediaView: View {
                 ZStack {
                     AppTheme.controlFill
                     if let image = currentImage {
-                        Button { previewOpen = true } label: {
+                        ImagePreviewButton(
+                            image: image,
+                            caption: caption,
+                            accessibilityLabel: caption.isEmpty ? "放大查看插图" : "放大查看插图：\(caption)",
+                            accessRevision: ContentAccessStore.shared.revision,
+                            byteCount: loadedDataSize
+                        ) {
                             Image(uiImage: image)
                                 .resizable()
                                 .scaledToFit()
                                 .frame(width: geometry.size.width, height: height)
                         }
-                        .buttonStyle(ReaderImageTapButtonStyle())
-                        .accessibilityLabel(caption.isEmpty ? "放大查看插图" : "放大查看插图：\(caption)")
+                        .id(identity)
                     } else if let errorMessage {
                         VStack(spacing: 8) {
                             Text(errorMessage).font(.caption).multilineTextAlignment(.center)
@@ -92,19 +96,7 @@ struct ReaderMediaView: View {
                 errorMessage = AppCopy.friendlyError(error)
             }
         }
-        .onChange(of: identity) { _, _ in previewOpen = false }
         .accessibilityIdentifier("reader.media.\(path)")
-        .fullScreenCover(isPresented: $previewOpen) {
-            if let image = currentImage {
-                ReaderImagePreview(image: image, caption: caption, byteCount: loadedDataSize)
-            }
-        }
-    }
-
-    private struct ReaderImageTapButtonStyle: ButtonStyle {
-        func makeBody(configuration: Configuration) -> some View {
-            configuration.label
-        }
     }
 
     nonisolated private static func decode(_ data: Data) -> UIImage? {
@@ -119,10 +111,133 @@ struct ReaderMediaView: View {
     }
 }
 
-private struct ReaderImagePreview: View {
+struct ImagePreviewButton<Label: View>: View {
     let image: UIImage
     let caption: String
+    let accessibilityLabel: String
+    let accessRevision: UUID
     var byteCount: Int? = nil
+    @ViewBuilder let label: () -> Label
+
+    @State private var previewOpen = false
+    @State private var saveStatus: ImageSaveStatus = .ready
+    @State private var saveMessage: String?
+
+    private var hasImageAccess: Bool { accessRevision == ContentAccessStore.shared.revision }
+
+    var body: some View {
+        Button(action: openPreview) {
+            label().contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityActions {
+            if saveStatus == .ready {
+                Button("保存到相册", action: saveImageToAlbum)
+            }
+        }
+        .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .contextMenu {
+            Button("查看大图", systemImage: "arrow.up.left.and.arrow.down.right", action: openPreview)
+            Button(saveStatus.title, systemImage: saveStatus.icon, action: saveImageToAlbum)
+                .disabled(saveStatus != .ready)
+        } preview: {
+            let scale = min(280 / image.size.width, 340 / image.size.height)
+            Image(uiImage: image)
+                .resizable()
+                .frame(width: image.size.width * scale, height: image.size.height * scale)
+        }
+        .imageSaveNotice($saveMessage, isActive: !previewOpen)
+        .fullScreenCover(isPresented: $previewOpen) {
+            if hasImageAccess {
+                ImagePreview(
+                    image: image, caption: caption, byteCount: byteCount,
+                    saveStatus: $saveStatus, onSave: saveImageToAlbum
+                )
+                .imageSaveNotice($saveMessage)
+            }
+        }
+        .onChange(of: hasImageAccess) { _, hasAccess in
+            if !hasAccess {
+                previewOpen = false
+                saveMessage = nil
+            }
+        }
+    }
+
+    private func openPreview() {
+        guard hasImageAccess else { return }
+        previewOpen = true
+    }
+
+    private func saveImageToAlbum() {
+        guard saveStatus == .ready, hasImageAccess else { return }
+        saveStatus = .saving
+
+        Task {
+            defer {
+                if saveStatus == .saving { saveStatus = .ready }
+            }
+            let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
+            guard hasImageAccess else { return }
+            guard status == .authorized || status == .limited else {
+                saveMessage = "未获得相册权限，请在系统设置中允许 Cat’s Library 添加照片。"
+                AppFeedback.error()
+                return
+            }
+
+            do {
+                try await PHPhotoLibrary.shared().performChanges {
+                    PHAssetChangeRequest.creationRequestForAsset(from: image)
+                }
+                guard hasImageAccess else { return }
+                saveStatus = .saved
+                if !previewOpen { saveMessage = "已保存到相册。" }
+                AppFeedback.success()
+            } catch {
+                guard hasImageAccess else { return }
+                saveMessage = "保存失败，请稍后重试。"
+                AppFeedback.error()
+            }
+        }
+    }
+}
+
+private enum ImageSaveStatus: Equatable {
+    case ready
+    case saving
+    case saved
+
+    var title: String {
+        switch self {
+        case .ready: return "保存到相册"
+        case .saving: return "正在保存…"
+        case .saved: return "已保存"
+        }
+    }
+
+    var icon: String { self == .saved ? "checkmark" : "arrow.down.to.line" }
+}
+
+private extension View {
+    func imageSaveNotice(_ message: Binding<String?>, isActive: Bool = true) -> some View {
+        alert("保存到相册", isPresented: Binding(
+            get: { isActive && message.wrappedValue != nil },
+            set: { if !$0 { message.wrappedValue = nil } }
+        )) {
+            Button("好", role: .cancel) {}
+        } message: {
+            Text(message.wrappedValue ?? "")
+        }
+    }
+}
+
+private struct ImagePreview: View {
+    let image: UIImage
+    let caption: String
+    let byteCount: Int?
+    @Binding var saveStatus: ImageSaveStatus
+    let onSave: () -> Void
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -131,8 +246,6 @@ private struct ReaderImagePreview: View {
     @State private var lastPanOffset: CGSize = .zero
     @State private var dragOffset: CGSize = .zero
     @State private var showChrome = true
-    @State private var isSaving = false
-    @State private var isSavedSuccess = false
     @GestureState private var magnification: CGFloat = 1.0
 
     private var currentZoom: CGFloat {
@@ -233,7 +346,7 @@ private struct ReaderImagePreview: View {
                                 .font(.caption.monospacedDigit())
                                 .foregroundStyle(Color.white.opacity(0.72))
 
-                            HStack(spacing: 16) {
+                            AppAdaptiveRow(spacing: 16) {
                                 ShareLink(
                                     item: Image(uiImage: image),
                                     preview: SharePreview(caption.isEmpty ? "小说插图" : caption, image: Image(uiImage: image))
@@ -244,32 +357,30 @@ private struct ReaderImagePreview: View {
                                     }
                                     .font(.subheadline.weight(.medium))
                                     .foregroundStyle(Color.white)
-                                    .frame(minWidth: 110, minHeight: 38)
+                                    .frame(minWidth: 110, minHeight: AppLayout.minimumTouchTarget)
                                     .background(Color.white.opacity(0.14), in: Capsule())
                                 }
 
-                                Button {
-                                    saveImageToAlbum()
-                                } label: {
+                                Button(action: onSave) {
                                     HStack(spacing: 6) {
-                                        if isSaving {
+                                        if saveStatus == .saving {
                                             ProgressView()
                                                 .controlSize(.small)
                                                 .tint(.white)
                                         } else {
-                                            Image(systemName: isSavedSuccess ? "checkmark" : "arrow.down.to.line")
+                                            Image(systemName: saveStatus.icon)
                                         }
-                                        Text(isSaving ? "正在保存…" : (isSavedSuccess ? "已保存" : "保存到相册"))
+                                        Text(saveStatus.title)
                                     }
                                     .font(.subheadline.weight(.medium))
-                                    .foregroundStyle(isSavedSuccess ? AppTheme.primary : Color.white)
-                                    .frame(minWidth: 130, minHeight: 38)
+                                    .foregroundStyle(saveStatus == .saved ? AppTheme.primary : Color.white)
+                                    .frame(minWidth: 130, minHeight: AppLayout.minimumTouchTarget)
                                     .background(
-                                        isSavedSuccess ? AppTheme.primaryLight.opacity(0.28) : Color.white.opacity(0.14),
+                                        saveStatus == .saved ? AppTheme.primaryLight.opacity(0.28) : Color.white.opacity(0.14),
                                         in: Capsule()
                                     )
                                 }
-                                .disabled(isSaving || isSavedSuccess)
+                                .disabled(saveStatus != .ready)
                             }
                             .padding(.bottom, 22)
                         }
@@ -392,38 +503,6 @@ private struct ReaderImagePreview: View {
             } else {
                 withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.82)) {
                     dragOffset = .zero
-                }
-            }
-        }
-    }
-
-    private func saveImageToAlbum() {
-        guard !isSaving else { return }
-        isSaving = true
-
-        Task {
-            let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
-            guard status == .authorized || status == .limited else {
-                await MainActor.run {
-                    isSaving = false
-                    AppFeedback.error("未获得相册权限，请在系统设置中允许 Cat’s Library 写入照片")
-                }
-                return
-            }
-
-            do {
-                try await PHPhotoLibrary.shared().performChanges {
-                    PHAssetChangeRequest.creationRequestForAsset(from: image)
-                }
-                await MainActor.run {
-                    isSaving = false
-                    isSavedSuccess = true
-                    AppFeedback.success("已保存到相册")
-                }
-            } catch {
-                await MainActor.run {
-                    isSaving = false
-                    AppFeedback.error("保存失败，请稍后重试")
                 }
             }
         }

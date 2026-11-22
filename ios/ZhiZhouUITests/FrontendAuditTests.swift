@@ -218,6 +218,12 @@ final class FrontendAuditTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["图片预览"].waitForExistence(timeout: 10))
         capture("reader-illustration-preview", app: app)
         tap(app.buttons["完成"])
+        XCTAssertTrue(picture.waitForExistence(timeout: 10))
+        picture.press(forDuration: 0.8)
+        XCTAssertTrue(app.buttons["保存到相册"].waitForExistence(timeout: 10))
+        tap(app.buttons["查看大图"])
+        XCTAssertTrue(app.navigationBars["图片预览"].waitForExistence(timeout: 10))
+        tap(app.buttons["完成"])
         tap(app.buttons["阅读设置"])
         let visibility = app.switches["reader.settings.illustrations"]
         reveal(visibility, app: app)

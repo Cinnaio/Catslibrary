@@ -169,6 +169,7 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
     let url: URL?
     let targetSize: CGSize
     let showsRetry: Bool
+    let previewTitle: String?
     let content: (Image) -> Content
     let placeholder: () -> Placeholder
 
@@ -176,12 +177,14 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
         url: URL?,
         targetSize: CGSize = CGSize(width: 120, height: 168),
         showsRetry: Bool = true,
+        previewTitle: String? = nil,
         @ViewBuilder content: @escaping (Image) -> Content,
         @ViewBuilder placeholder: @escaping () -> Placeholder
     ) {
         self.url = url
         self.targetSize = targetSize
         self.showsRetry = showsRetry
+        self.previewTitle = previewTitle
         self.content = content
         self.placeholder = placeholder
     }
@@ -190,7 +193,21 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
         Group {
             if let displayedImage = (loadedKey == taskKey ? image : nil)
                 ?? ImageCache.decodedImageCache.object(forKey: taskKey as NSString) {
-                content(Image(uiImage: displayedImage))
+                let image = Image(uiImage: displayedImage)
+                if let previewTitle {
+                    let accessRevision = ContentAccessStore.shared.revision
+                    ImagePreviewButton(
+                        image: displayedImage,
+                        caption: previewTitle,
+                        accessibilityLabel: "放大查看封面：\(previewTitle)",
+                        accessRevision: accessRevision
+                    ) {
+                        content(image)
+                    }
+                    .id("\(taskKey)-\(accessRevision)")
+                } else {
+                    content(image)
+                }
             } else {
                 ZStack {
                     placeholder()
@@ -226,7 +243,7 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
                 loadedKey = nil
             }
             loadFailed = false
-            let maxPixel = max(targetSize.width, targetSize.height) * displayScale
+            let maxPixel = previewTitle == nil ? max(targetSize.width, targetSize.height) * displayScale : 2400
             guard !Task.isCancelled else { return }
             if let cached = ImageCache.decodedImageCache.object(forKey: key as NSString) {
                 image = cached
@@ -248,6 +265,7 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
         let pixelWidth = Int((targetSize.width * displayScale).rounded(.up))
         let pixelHeight = Int((targetSize.height * displayScale).rounded(.up))
         let imageKey = url.map { ImageCache.cacheKey(for: $0) } ?? ""
+        if previewTitle != nil { return "\(imageKey)-preview" }
         return "\(imageKey)-\(pixelWidth)x\(pixelHeight)"
     }
 

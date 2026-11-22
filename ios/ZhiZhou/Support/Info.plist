@@ -45,6 +45,6 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>保存小说插图至系统相册</string>
+	<string>将你选择的书籍封面、插图或配图保存到系统相册。</string>
 </dict>
 </plist>
