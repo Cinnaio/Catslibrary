@@ -98,7 +98,10 @@ struct AdminAIAgentView: View {
                             .allowsHitTesting(sidebarExpanded)
                             .accessibilityHidden(!sidebarExpanded)
                     }
-                    navigationPane(isWide: isWide, historyVisible: historyVisible, drawerOpen: drawerOpen)
+                    navigationPane(
+                        isWide: isWide, historyVisible: historyVisible, drawerOpen: drawerOpen,
+                        showsCreationPortrait: geometry.size.height >= 540 && !dynamicTypeSize.isAccessibilitySize
+                    )
                         .disabled(drawerOpen)
                         .allowsHitTesting(!drawerOpen)
                         .accessibilityHidden(drawerOpen)
@@ -152,10 +155,12 @@ struct AdminAIAgentView: View {
     }
 
     // The tab owns its navigation inside the moving pane. Pushed entries retain their parent stack and back button.
-    @ViewBuilder private func navigationPane(isWide: Bool, historyVisible: Bool, drawerOpen: Bool) -> some View {
+    @ViewBuilder private func navigationPane(
+        isWide: Bool, historyVisible: Bool, drawerOpen: Bool, showsCreationPortrait: Bool
+    ) -> some View {
         if isTabRoot {
             NavigationStack {
-                mainWorkspace(historyPresented: drawerOpen)
+                mainWorkspace(historyPresented: drawerOpen, showsCreationPortrait: showsCreationPortrait)
                     .background(ReadingSpace.profilePaper)
                     .navigationTitle("")
                     .navigationBarTitleDisplayMode(.inline)
@@ -210,7 +215,7 @@ struct AdminAIAgentView: View {
         )
     }
 
-    @ViewBuilder private func mainWorkspace(historyPresented: Bool) -> some View {
+    @ViewBuilder private func mainWorkspace(historyPresented: Bool, showsCreationPortrait: Bool = false) -> some View {
         if let activeSession, let user = appState.user, let token = APIClient.shared.token {
             AdminAIAgentConversationView(session: activeSession, userID: user.id, token: token,
                                          historyPresented: historyPresented, usesWorkspaceSurface: true)
@@ -218,16 +223,23 @@ struct AdminAIAgentView: View {
         } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("继续你的故事")
-                            .font(serifFont(.largeTitle, .medium))
-                            .foregroundStyle(ReadingSpace.ink)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .accessibilityAddTraits(.isHeader)
-                        Text("聊聊下一幕，或一起推敲文字。")
-                            .font(.subheadline)
-                            .foregroundStyle(ReadingSpace.profileMuted)
-                            .fixedSize(horizontal: false, vertical: true)
+                    if showsCreationPortrait {
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: 12) {
+                                creationTitle
+                                    .fixedSize(horizontal: true, vertical: false)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                Image(decorative: "CreationPortrait")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 100, height: 132)
+                                    .allowsHitTesting(false)
+                                    .accessibilityHidden(true)
+                            }
+                            creationTitle
+                        }
+                    } else {
+                        creationTitle
                     }
 
                     creationPanel
@@ -245,6 +257,20 @@ struct AdminAIAgentView: View {
             .scrollDismissesKeyboard(.interactively)
             .scrollEdgeEffectHidden(true, for: .top)
             .refreshable { await loadBooks() }
+        }
+    }
+
+    private var creationTitle: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("继续你的故事")
+                .font(serifFont(.largeTitle, .medium))
+                .foregroundStyle(ReadingSpace.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+            Text("聊聊下一幕，或一起推敲文字。")
+                .font(.subheadline)
+                .foregroundStyle(ReadingSpace.profileMuted)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
