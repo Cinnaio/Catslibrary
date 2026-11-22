@@ -96,7 +96,7 @@ final class ReaderTextSystemTests: XCTestCase {
         var quoteRange: NSRange?
         view.onThought = { quote = $0; quoteRange = $1 }
         view.selectedRange = NSRange(location: 0, length: view.textStorage.length)
-        view.addThoughtFromSelection(nil)
+        view.addThought(from: view.selectedRange)
         XCTAssertEqual(quote, body.string)
         XCTAssertEqual(quoteRange, NSRange(location: 0, length: body.length))
 
@@ -110,6 +110,22 @@ final class ReaderTextSystemTests: XCTestCase {
         XCTAssertTrue(view.thoughtMarkerButton.isHidden)
         XCTAssertEqual(view.attributedText.string, body.string)
         XCTAssertEqual(view.textContainerInset, .zero)
+    }
+
+    @MainActor
+    func testSelectionMenuListsWriteThoughtBeforeSystemActions() throws {
+        let view = ThoughtSelectableTextView()
+        view.setBodyText(NSAttributedString(string: "引用原文"), thoughtCount: 1, markerColor: .systemOrange)
+        let selection = NSValue(range: NSRange(location: 0, length: 2))
+        let markerRange = NSValue(range: try XCTUnwrap(view.thoughtMarkerRange))
+        let copy = UIAction(title: "拷贝") { _ in }
+
+        let menu = try XCTUnwrap(view.textView(view, editMenuForTextInRanges: [selection], suggestedActions: [copy]))
+        XCTAssertEqual(menu.children.map(\.title), ["写段评", "拷贝"])
+        XCTAssertNil(view.textView(view, editMenuForTextInRanges: [markerRange], suggestedActions: [copy]))
+
+        view.isThoughtActionEnabled = false
+        XCTAssertNil(view.textView(view, editMenuForTextInRanges: [selection], suggestedActions: [copy]))
     }
 
     @MainActor

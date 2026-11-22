@@ -2,11 +2,10 @@ import SwiftUI
 import UIKit
 
 /// 可选中的正文文本：保留 iOS 原生选区手柄、复制菜单和选择反馈，
-/// 并在选区菜单中增加“写段评”。
+/// 并在选区菜单的第一项提供“写段评”。
 struct SelectableTextView: UIViewRepresentable {
     let attributedText: NSAttributedString
     let textColor: UIColor
-    let menuTitle: String
     let isThoughtActionEnabled: Bool
     var accessibilityID: String? = nil
     var thoughtCount: Int = 0
@@ -40,7 +39,6 @@ struct SelectableTextView: UIViewRepresentable {
     }
 
     private func configure(_ view: ThoughtSelectableTextView) {
-        view.menuTitle = menuTitle
         view.isThoughtActionEnabled = isThoughtActionEnabled
         view.accessibilityIdentifier = accessibilityID
         if view.textColor?.isEqual(textColor) != true {
@@ -79,7 +77,6 @@ struct SelectableTextView: UIViewRepresentable {
 }
 
 final class ThoughtSelectableTextView: UITextView, UITextViewDelegate {
-    var menuTitle = "写段评"
     var isThoughtActionEnabled = true
     var onThought: ((String, NSRange) -> Void)?
     var onSelectionChange: ((Bool) -> Void)?
@@ -240,11 +237,15 @@ final class ThoughtSelectableTextView: UITextView, UITextViewDelegate {
     }
 
     private var selectedBodyRange: NSRange {
+        bodyRange(in: selectedRange)
+    }
+
+    private func bodyRange(in selection: NSRange) -> NSRange {
         let length = sourceTextLength ?? textStorage.length
-        guard selectedRange.location != NSNotFound, selectedRange.location < length else {
+        guard selection.location != NSNotFound, selection.location < length else {
             return NSRange(location: 0, length: 0)
         }
-        return NSRange(location: selectedRange.location, length: min(selectedRange.length, length - selectedRange.location))
+        return NSRange(location: selection.location, length: min(selection.length, length - selection.location))
     }
 
     private var hasSelection: Bool {
@@ -266,32 +267,26 @@ final class ThoughtSelectableTextView: UITextView, UITextViewDelegate {
         if let selectedTextValue { UIPasteboard.general.string = selectedTextValue }
     }
 
-    override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
-        if action == #selector(addThoughtFromSelection(_:)) {
-            return isThoughtActionEnabled && hasSelection
+    func textView(
+        _ textView: UITextView,
+        editMenuForTextInRanges ranges: [NSValue],
+        suggestedActions: [UIMenuElement]
+    ) -> UIMenu? {
+        guard isThoughtActionEnabled, ranges.count == 1,
+              let selection = ranges.first?.rangeValue, bodyRange(in: selection).length > 0
+        else { return nil }
+
+        let writeThought = UIAction(title: "写段评") { [weak self] _ in
+            self?.addThought(from: selection)
         }
-        return super.canPerformAction(action, withSender: sender)
+        return UIMenu(children: [writeThought] + suggestedActions)
     }
 
-    override func buildMenu(with builder: UIMenuBuilder) {
-        super.buildMenu(with: builder)
-        guard isThoughtActionEnabled, hasSelection else { return }
-
-        let command = UICommand(
-            title: menuTitle,
-            action: #selector(addThoughtFromSelection(_:))
-        )
-        let thoughtMenu = UIMenu(
-            title: "",
-            options: .displayInline,
-            children: [command]
-        )
-        builder.insertChild(thoughtMenu, atStartOfMenu: .edit)
-    }
-
-    @objc func addThoughtFromSelection(_ sender: Any?) {
-        guard let selectedText = selectedTextValue, hasSelection else { return }
-        onThought?(selectedText, selectedBodyRange)
+    func addThought(from selection: NSRange) {
+        let range = bodyRange(in: selection)
+        guard isThoughtActionEnabled, range.length > 0 else { return }
+        let quote = (textStorage.string as NSString).substring(with: range)
+        onThought?(quote, range)
     }
 }
 

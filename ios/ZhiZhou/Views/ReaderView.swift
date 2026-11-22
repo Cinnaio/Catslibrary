@@ -637,7 +637,6 @@ struct ReaderView: View {
                 renderKey: renderKey
             ),
             textColor: inkUIColor,
-            menuTitle: thoughts.isEmpty ? "写段评" : "查看段评",
             isThoughtActionEnabled: !offlineOnly,
             accessibilityID: "reader.paragraph.\(index)",
             thoughtCount: thoughts.count,
@@ -650,7 +649,7 @@ struct ReaderView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        .accessibilityHint("选中文字后从菜单进入段评")
+        .accessibilityHint(offlineOnly ? "" : "选中文字后，在菜单中选择写段评")
     }
 
     private func paragraphAttributedText(
@@ -930,7 +929,6 @@ struct ReaderView: View {
                 SelectableTextView(
                     attributedText: text,
                     textColor: inkUIColor,
-                    menuTitle: "段评",
                     isThoughtActionEnabled: !offlineOnly
                 ) { selectedText, selectedRange in
                     guard pageRanges.indices.contains(pageIndex) else { return }
