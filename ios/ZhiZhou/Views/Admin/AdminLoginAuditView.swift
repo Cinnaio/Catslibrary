@@ -16,14 +16,18 @@ struct AdminLoginAuditView: View {
     @State private var loadingMore = false
     @State private var paginationError: String?
     @State private var requests = ListRequestGuard<[String]>()
+    @State private var displayedQuery: [String]?
+
+    private var showingPreviousResults: Bool { !audits.isEmpty && displayedQuery != query }
 
     private var query: [String] {
         [statusFilter, username.trimmingCharacters(in: .whitespacesAndNewlines)]
     }
 
     var body: some View {
-        List {
-            Section {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("登录审计")
+            Group {
                 AdminFilterBar {
                     AdminFilterMenu("状态", value: auditStatusLabel) {
                         Picker("状态", selection: $statusFilter) {
@@ -34,19 +38,21 @@ struct AdminLoginAuditView: View {
                         }
                     }
                 }
-                TextField("按用户名筛选", text: $username)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
+                AdminWorkspaceInput("用户名") {
+                    TextField("按用户名筛选", text: $username)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                }
             }
 
             if isLoading && audits.isEmpty {
-                Section {
+                Group {
                     ProgressView("加载中…")
                         .frame(maxWidth: .infinity, minHeight: 160)
                         .listRowBackground(Color.clear)
                 }
             } else if let errorMessage, audits.isEmpty {
-                Section {
+                Group {
                     ContentUnavailableView {
                         Label("加载失败", systemImage: "wifi.slash")
                     } description: {
@@ -58,7 +64,7 @@ struct AdminLoginAuditView: View {
                     .listRowSeparator(.hidden)
                 }
             } else if audits.isEmpty {
-                Section {
+                Group {
                     ContentUnavailableView {
                         Label("暂无记录", systemImage: "lock.shield")
                     } description: {
@@ -73,9 +79,12 @@ struct AdminLoginAuditView: View {
                         Task { await load() }
                     }
                 }
-                Section("共 \(totalCount) 条") {
-                    ForEach(audits) { item in
-                        auditRow(item)
+                if showingPreviousResults {
+                    AdminWorkspaceResultsNotice(failed: errorMessage != nil && !isLoading)
+                }
+                AdminWorkspaceSection("共 \(totalCount) 条") {
+                    ForEach(Array(audits.enumerated()), id: \.element.id) { index, item in
+                        auditRow(item).readingSpaceEntrance(index)
                     }
                     if offset + pageSize < totalCount {
                         if let paginationError {
@@ -97,12 +106,10 @@ struct AdminLoginAuditView: View {
                         .disabled(isLoading || loadingMore || errorMessage != nil)
                     }
                 }
+                .opacity(showingPreviousResults ? 0.45 : 1)
+                .disabled(showingPreviousResults)
             }
         }
-        .scrollContentBackground(.hidden)
-        .appListStyle(.settings)
-        .navigationTitle("登录审计")
-        .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
         .task(id: query) {
             try? await Task.sleep(nanoseconds: 400_000_000)
@@ -199,6 +206,7 @@ struct AdminLoginAuditView: View {
             )
             guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
             audits = result.audits
+            displayedQuery = ticket.query
             totalCount = result.total
             offset = 0
             errorMessage = nil

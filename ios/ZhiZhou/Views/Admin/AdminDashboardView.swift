@@ -11,27 +11,28 @@ struct AdminDashboardView: View {
     @State private var requests = ListRequestGuard<String>()
 
     var body: some View {
-        List {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("后台总览")
             if let stats {
                 if let errorMessage {
                     LoadErrorNotice(message: errorMessage, isLoading: isLoading) { Task { await load() } }
                 }
-                Section("内容规模") {
+                AdminWorkspaceSection("内容规模") {
                     statsGrid(stats.totals)
                     LabeledContent("数据库占用", value: AdminFormat.byteSize(stats.totals.dbSize))
                 }
-                Section("抓取任务状态") {
+                AdminWorkspaceSection("抓取任务状态") {
                     jobStatusRow(stats.jobStatus)
                 }
                 if !stats.recentJobs.isEmpty {
-                    Section("最近抓取任务") {
+                    AdminWorkspaceSection("最近抓取任务") {
                         ForEach(stats.recentJobs) { job in
                             NavigationLink { AdminJobsView(jobID: job.id) } label: { jobRow(job) }
                         }
                     }
                 }
                 if !stats.recentNovels.isEmpty {
-                    Section("最近更新") {
+                    AdminWorkspaceSection("最近更新") {
                         ForEach(stats.recentNovels) { novel in
                             NavigationLink { AdminNovelWorkspaceLoader(novelID: novel.id) } label: { novelRow(novel) }
                         }
@@ -53,8 +54,6 @@ struct AdminDashboardView: View {
                     .listRowBackground(Color.clear)
             }
         }
-        .listStyle(.insetGrouped)
-        .navigationTitle("后台总览")
         .refreshable { await load() }
         .task { await load() }
     }
@@ -158,7 +157,7 @@ struct AdminDashboardView: View {
         Label {
             VStack(alignment: .leading, spacing: 4) {
                 Text(novel.title)
-                    .font(.headline)
+                    .font(serifFont(.body, .medium))
                 Text("\(novel.author.isEmpty ? "佚名" : novel.author) · \(novel.chapterCount) 章 · \(AdminFormat.relativeTime(novel.updatedAt))")
                     .font(.footnote)
                     .foregroundStyle(.secondary)

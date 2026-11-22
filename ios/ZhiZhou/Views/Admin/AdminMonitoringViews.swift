@@ -8,12 +8,11 @@ struct AdminTaskCenterView: View {
 
 struct AdminCallsView: View {
     var body: some View {
-        List {
-            NavigationLink { AdminAIUsageView() } label: { AppIconLabel("AI 调用与用量", systemImage: "chart.bar.xaxis") }
-            NavigationLink { AdminOutboundRecordsView() } label: { AppIconLabel("出站请求", systemImage: "network") }
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("调用与用量")
+            NavigationLink { AdminAIUsageView() } label: { AdminWorkspaceEntry("AI 调用与用量", systemImage: "chart.bar.xaxis") }
+            NavigationLink { AdminOutboundRecordsView() } label: { AdminWorkspaceEntry("出站请求", systemImage: "network") }
         }
-        .appListStyle(.settings)
-        .navigationTitle("调用与用量")
     }
 }
 
@@ -82,19 +81,24 @@ struct AdminOperationsView: View {
         }
         .sheet(isPresented: $showFilters) {
             NavigationStack {
-                Form {
+                AdminWorkspaceList {
+                    AdminWorkspaceHeading("审计筛选")
                     Picker("结果", selection: $status) {
                         Text("全部").tag("all")
                         Text("等待中").tag("pending")
                         Text("成功").tag("completed")
                         Text("失败").tag("failed")
                     }
-                    TextField("动作名称", text: $action).textInputAutocapitalization(.never).autocorrectionDisabled()
-                    TextField("操作者用户名", text: $username).textInputAutocapitalization(.never).autocorrectionDisabled()
+                    AdminWorkspaceInput("动作名称") {
+                        TextField("动作名称", text: $action).textInputAutocapitalization(.never).autocorrectionDisabled()
+                    }
+                    AdminWorkspaceInput("操作者用户名") {
+                        TextField("操作者用户名", text: $username).textInputAutocapitalization(.never).autocorrectionDisabled()
+                    }
                 }
-                .navigationTitle("审计筛选")
                 .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { showFilters = false } } }
             }
+            .presentationBackground(ReadingSpace.profilePaper)
         }
     }
 }

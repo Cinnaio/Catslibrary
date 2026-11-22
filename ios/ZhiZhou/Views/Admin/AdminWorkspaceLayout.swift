@@ -78,6 +78,36 @@ struct AdminWorkspaceSection<Content: View>: View {
     }
 }
 
+/// 无需跨字段管理焦点的后台表单共用此输入样式。
+struct AdminWorkspaceInput<Content: View>: View {
+    let title: String
+    private let content: Content
+    @FocusState private var focused: Bool
+
+    init(_ title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        AccountSettingsField(title, isFocused: focused) {
+            content.focused($focused)
+        }
+    }
+}
+
+struct AdminWorkspaceResultsNotice: View {
+    let failed: Bool
+
+    var body: some View {
+        Label(failed ? "新条件加载失败，以下仍是上次的结果" : "正在读取新条件，以下仍是上次的结果",
+              systemImage: failed ? "exclamationmark.circle" : "arrow.triangle.2.circlepath")
+            .font(.footnote)
+            .foregroundStyle(failed ? AppTheme.warning : ReadingSpace.profileMuted)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
 struct AdminWorkspaceEntry: View {
     let title: String
     let systemImage: String

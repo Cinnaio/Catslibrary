@@ -13,7 +13,8 @@ struct AdminAnnouncementView: View {
     private let maxLength = 240
 
     var body: some View {
-        Group {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("站点公告")
             if isLoading {
                 ProgressView("加载中…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -26,27 +27,19 @@ struct AdminAnnouncementView: View {
                     Button("重试") { Task { await load() } }
                 }
             } else {
-                Form {
-                    Section("公告内容") {
-                        TextEditor(text: $text)
-                            .font(.body)
-                            .frame(minHeight: 180)
-                            .focused($isEditing)
-                            .disabled(isSaving)
-                            .accessibilityLabel("公告内容")
-                    }
-                    Section {
-                        Text("\(text.count)/\(maxLength)")
-                            .font(.footnote.monospacedDigit())
-                            .foregroundStyle(text.count > maxLength ? AppTheme.danger : AppTheme.textSecondary)
-                    }
+                AccountSettingsField("公告内容", isFocused: isEditing) {
+                    TextEditor(text: $text)
+                        .scrollContentBackground(.hidden)
+                        .frame(minHeight: 180)
+                        .focused($isEditing)
+                        .disabled(isSaving)
+                        .accessibilityLabel("公告内容")
                 }
-                .appListStyle(.settings)
-                .scrollDismissesKeyboard(.interactively)
+                Text("\(text.count)/\(maxLength)")
+                    .font(.footnote.monospacedDigit())
+                    .foregroundStyle(text.count > maxLength ? AppTheme.danger : ReadingSpace.profileMuted)
             }
         }
-        .navigationTitle("站点公告")
-        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button {

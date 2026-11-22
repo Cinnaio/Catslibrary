@@ -18,8 +18,9 @@ struct SourceAccountSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
+            AdminWorkspaceList {
+                AdminWorkspaceHeading("\(source.name) 账号")
+                AdminWorkspaceSection("账号状态") {
                     LabeledContent("当前状态") {
                         Text(statusText)
                             .foregroundStyle(statusColor)
@@ -34,17 +35,18 @@ struct SourceAccountSheet: View {
                                 .foregroundStyle(AppTheme.danger)
                         }
                     }
-                } header: {
-                    Text("\(source.name) 账号")
-                } footer: {
-                    Text("密码和 Cookie 仅在服务端加密保存，不会回显。")
+                    AccountSettingsNote("密码和 Cookie 仅在服务端加密保存，不会回显。")
                 }
 
-                Section("账号登录") {
-                    TextField("\(source.name) 登录账号", text: $username)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                    SecureField(status?.hasPassword == true ? "留空表示保持原密码" : "\(source.name) 登录密码", text: $password)
+                AdminWorkspaceSection("账号登录") {
+                    AdminWorkspaceInput("登录账号") {
+                        TextField("\(source.name) 登录账号", text: $username)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    }
+                    AdminWorkspaceInput("登录密码") {
+                        SecureField(status?.hasPassword == true ? "留空表示保持原密码" : "\(source.name) 登录密码", text: $password)
+                    }
                     Button("保存账号") { Task { await saveAccount() } }
                         .disabled(isLoading || username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     Button("获取验证码") { Task { await loadCaptcha() } }
@@ -63,38 +65,37 @@ struct SourceAccountSheet: View {
                                 .foregroundStyle(AppTheme.warning)
                         }
                         if challenge.captchaRequired {
-                            TextField("验证码", text: $captchaText)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
+                            AdminWorkspaceInput("验证码") {
+                                TextField("验证码", text: $captchaText)
+                                    .textInputAutocapitalization(.never)
+                                    .autocorrectionDisabled()
+                            }
                         }
                         Button("提交登录") { Task { await login() } }
                             .disabled(isLoading || (challenge.captchaRequired && captchaText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
                     }
                 }
 
-                Section {
-                    TextEditor(text: $sessionCookie)
-                        .frame(minHeight: 90)
-                        .font(.footnote)
+                AdminWorkspaceSection("浏览器 Cookie 兜底") {
+                    AdminWorkspaceInput("会话 Cookie") {
+                        TextEditor(text: $sessionCookie)
+                            .scrollContentBackground(.hidden)
+                            .accessibilityLabel("会话 Cookie")
+                            .frame(minHeight: 90)
+                            .font(.footnote)
+                    }
                     Button("加密保存 Cookie") { Task { await saveCookie() } }
                         .disabled(isLoading || sessionCookie.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                } header: {
-                    Text("浏览器 Cookie 兜底")
-                } footer: {
-                    Text("在浏览器登录 \(source.name) 后，将会话 Cookie 粘贴到这里。")
+                    AccountSettingsNote("在浏览器登录 \(source.name) 后，将会话 Cookie 粘贴到这里。")
                 }
 
-                Section {
+                Group {
                     Button("测试当前会话") { Task { await testSession() } }
                         .disabled(isLoading || status?.hasSession != true)
                     Button("清除 \(source.name) 账号", role: .destructive) { showClearConfirmation = true }
                         .disabled(isLoading || status?.configured != true)
                 }
             }
-            .scrollContentBackground(.hidden)
-            .appListStyle(.settings)
-            .navigationTitle("\(source.name) 账号")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { dismiss() }
@@ -103,13 +104,13 @@ struct SourceAccountSheet: View {
             .task { await loadStatus() }
             .overlay {
                 if isLoading {
-                    ProgressView()
+                    ProgressView("正在处理…")
                         .padding(18)
-                        .appMaterialBackground(
-                            .regularMaterial,
-                            fallback: AppTheme.surface,
+                        .background(
+                            ReadingSpace.profileFill,
                             in: RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
                         )
+                        .allowsHitTesting(false)
                 }
             }
             .alert("操作未完成", isPresented: Binding(

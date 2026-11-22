@@ -28,8 +28,9 @@ struct AdminAccountActionSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("目标账号") {
+            AdminWorkspaceList {
+                AdminWorkspaceHeading(operation.title)
+                AdminWorkspaceSection("目标账号") {
                     LabeledContent("用户名", value: operation.user.username)
                     LabeledContent("当前角色", value: operation.user.roleLabel)
                     if operation.action == "user-role" {
@@ -40,27 +41,25 @@ struct AdminAccountActionSheet: View {
                         }
                     }
                 }
-                Section {
-                    TextField("操作原因（必填）", text: $reason, axis: .vertical)
-                    if operation.action == "delete-user" {
-                        TextField("输入完整用户名确认删除", text: $confirmUsername)
-                            .textInputAutocapitalization(.never).autocorrectionDisabled()
+                AdminWorkspaceSection("操作确认") {
+                    AdminWorkspaceInput("操作原因（必填）") {
+                        TextField("操作原因（必填）", text: $reason, axis: .vertical)
                     }
-                } header: {
-                    Text("操作确认")
-                } footer: {
-                    Text(operation.action == "reset-password"
+                    if operation.action == "delete-user" {
+                        AdminWorkspaceInput("输入用户名确认删除") {
+                            TextField("输入完整用户名确认删除", text: $confirmUsername)
+                                .textInputAutocapitalization(.never).autocorrectionDisabled()
+                        }
+                    }
+                    AccountSettingsNote(operation.action == "reset-password"
                          ? "发送到用户已验证的邮箱。用户通过邮件设置新密码后才撤销旧密码和登录会话。"
                          : operation.action == "delete-user"
                          ? "永久删除用户及其书架、书签、想法和阅读进度，无法撤销。"
                          : "提交时重新检查角色与状态；操作会撤销目标账号的全部会话和待确认邮件链接。")
                 }
-                if let errorMessage { Section { Text(errorMessage).foregroundStyle(AppTheme.danger) } }
+                if let errorMessage { Group { Text(errorMessage).foregroundStyle(AppTheme.danger) } }
             }
-            .appListStyle(.settings)
             .disabled(busy)
-            .navigationTitle(operation.title)
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() }.disabled(busy) }
                 ToolbarItem(placement: .confirmationAction) {

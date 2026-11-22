@@ -4,7 +4,6 @@ import SwiftUI
 struct AdminRecordList<Item: Decodable & Identifiable, Row: View>: View where Item.ID: Hashable {
     let title: String
     var query = ""
-    var usesWorkspaceLayout = false
     let fetch: (Int) async throws -> AdminRecordPage<Item>
     let row: (Item) -> Row
     @State private var items: [Item] = []
@@ -17,19 +16,11 @@ struct AdminRecordList<Item: Decodable & Identifiable, Row: View>: View where It
     @State private var retryMore = false
 
     var body: some View {
-        Group {
-            if usesWorkspaceLayout {
-                AdminWorkspaceList {
-                    AdminWorkspaceHeading(title)
-                    recordRows
-                }
-                .buttonStyle(.borderless)
-            } else {
-                List { recordRows }
-                    .appListStyle(.settings)
-                    .navigationTitle(title)
-            }
+        AdminWorkspaceList {
+            AdminWorkspaceHeading(title)
+            recordRows
         }
+        .buttonStyle(.borderless)
         .refreshable { await load(more: false) }
         .task(id: query + ContentAccessStore.shared.accountRevision.uuidString) {
             items = []; offset = 0; total = 0; error = nil
@@ -48,12 +39,8 @@ struct AdminRecordList<Item: Decodable & Identifiable, Row: View>: View where It
                 ContentUnavailableView("暂无记录", systemImage: "tray")
                     .listRowBackground(Color.clear)
             }
-            if usesWorkspaceLayout {
-                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                    row(item).readingSpaceEntrance(index)
-                }
-            } else {
-                ForEach(items) { row($0) }
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                row(item).readingSpaceEntrance(index)
             }
             if !exhausted && offset < total {
                 Button(loading ? "加载中…" : "加载更多（\(items.count)/\(total)）") {

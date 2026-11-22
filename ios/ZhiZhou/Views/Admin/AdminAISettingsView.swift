@@ -97,15 +97,16 @@ struct AdminAISettingsView: View {
     }
 
     var body: some View {
-        Form {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("运行参数")
             if isLoading {
-                Section {
+                Group {
                     ProgressView("加载中…")
                         .frame(maxWidth: .infinity, minHeight: 160)
                         .listRowBackground(Color.clear)
                 }
             } else if let errorMessage {
-                Section {
+                Group {
                     ContentUnavailableView {
                         Label("加载失败", systemImage: "wifi.slash")
                     } description: {
@@ -118,7 +119,7 @@ struct AdminAISettingsView: View {
                 }
             } else {
                 if hasUnsavedChanges {
-                    Section {
+                    Group {
                         Label("有未保存的修改", systemImage: "exclamationmark.circle")
                             .font(.footnote)
                             .foregroundStyle(AppTheme.warning)
@@ -131,11 +132,8 @@ struct AdminAISettingsView: View {
                 opsSection
             }
         }
-        .appListStyle(.settings)
         .disabled(saving)
         .scrollDismissesKeyboard(.interactively)
-        .navigationTitle("运行参数")
-        .navigationBarTitleDisplayMode(.inline)
         .refreshable { await load() }
         .task { await load() }
         .toolbar {
@@ -259,14 +257,10 @@ struct AdminAISettingsView: View {
                 .foregroundStyle(AppTheme.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
             if !dynamicTypeSize.isAccessibilitySize { Spacer() }
-            TextField(label, value: bounded(value, to: range), format: .number)
-                .keyboardType(.numberPad)
-                .multilineTextAlignment(dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
-                .foregroundStyle(AppTheme.textSecondary)
-                .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : 160)
-                .frame(minHeight: AppLayout.minimumTouchTarget)
-                .focused($focusedField, equals: label)
-                .accessibilityLabel(label)
+            numberField(label) {
+                TextField(label, value: bounded(value, to: range), format: .number)
+                    .keyboardType(.numberPad)
+            }
         }
     }
 
@@ -276,28 +270,41 @@ struct AdminAISettingsView: View {
                 .foregroundStyle(AppTheme.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
             if !dynamicTypeSize.isAccessibilitySize { Spacer() }
-            TextField(label, value: bounded(value, to: range), format: .number)
-                .keyboardType(.decimalPad)
-                .multilineTextAlignment(dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
-                .foregroundStyle(AppTheme.textSecondary)
-                .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : 160)
-                .frame(minHeight: AppLayout.minimumTouchTarget)
-                .focused($focusedField, equals: label)
-                .accessibilityLabel(label)
+            numberField(label) {
+                TextField(label, value: bounded(value, to: range), format: .number)
+                    .keyboardType(.decimalPad)
+            }
         }
     }
 
+    private func numberField<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
+        content()
+            .textFieldStyle(.plain)
+            .monospacedDigit()
+            .multilineTextAlignment(dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
+            .focused($focusedField, equals: label)
+            .accessibilityLabel(label)
+            .padding(.horizontal, 12)
+            .frame(minHeight: AppLayout.minimumTouchTarget)
+            .frame(maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : 160)
+            .background(ReadingSpace.profileFill, in: RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius))
+            .overlay {
+                if focusedField == label {
+                    RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius)
+                        .strokeBorder(AppTheme.primary, lineWidth: 1.5)
+                        .allowsHitTesting(false)
+                }
+            }
+    }
+
     private func promptEditor(_ label: String, text: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label)
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
+        AccountSettingsField(label, isFocused: focusedField == label) {
             TextEditor(text: text)
+                .scrollContentBackground(.hidden)
                 .frame(minHeight: 96)
-                .font(.subheadline)
                 .focused($focusedField, equals: label)
+                .accessibilityLabel(label)
         }
-        .padding(.vertical, 2)
     }
 
     private var numericRowLayout: AnyLayout {

@@ -8,11 +8,12 @@ struct AdminSiteSettingsView: View {
     @State private var error: String?
     @State private var requestID = UUID()
     var body: some View {
-        List {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("站点设置")
             if let error { LoadErrorNotice(message: error, isLoading: loading) { Task { await load() } } }
             if loading && branding == nil { ProgressView("读取站点设置…") }
             if let branding {
-                Section("站点信息") {
+                AdminWorkspaceSection("站点信息") {
                     LabeledContent("站点名称", value: branding.name)
                     LabeledContent("标语", value: branding.tagline)
                     LabeledContent("首页标题", value: branding.homeTitle)
@@ -22,7 +23,7 @@ struct AdminSiteSettingsView: View {
                 }
             }
             if let security {
-                Section("安全验证") {
+                AdminWorkspaceSection("安全验证") {
                     LabeledContent("Turnstile", value: security.configured ? "已配置" : "未就绪")
                     LabeledContent("密钥", value: security.secretSet ? "已设置" : "未设置")
                     LabeledContent("加密环境", value: security.encryptionReady ? "已就绪" : "未就绪")
@@ -33,13 +34,12 @@ struct AdminSiteSettingsView: View {
                     }
                 }
             }
-            Section {
+            Group {
                 AdminWebLink(title: "在 Web 编辑站点信息", path: "/admin/site-settings?view=branding")
                 AdminWebLink(title: "在 Web 配置安全验证", path: "/admin/site-settings?view=security")
-            } footer: { Text("浏览器需单独登录管理员账号。此页只读，不显示验证密钥。") }
+                AccountSettingsNote("浏览器需单独登录管理员账号。此页只读，不显示验证密钥。")
+            }
         }
-        .appListStyle(.settings)
-        .navigationTitle("站点设置")
         .refreshable { await load() }
         .task(id: ContentAccessStore.shared.accountRevision) { branding = nil; security = nil; error = nil; await load() }
     }

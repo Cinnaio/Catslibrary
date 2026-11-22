@@ -28,15 +28,16 @@ struct AdminAIProviderView: View {
     }
 
     var body: some View {
-        Form {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("供应商配置")
             if isLoading {
-                Section {
+                Group {
                     ProgressView("加载中…")
                         .frame(maxWidth: .infinity, minHeight: 160)
                         .listRowBackground(Color.clear)
                 }
             } else if let errorMessage {
-                Section {
+                Group {
                     ContentUnavailableView {
                         Label("加载失败", systemImage: "wifi.slash")
                     } description: {
@@ -65,7 +66,7 @@ struct AdminAIProviderView: View {
                     saveScope: "image"
                 )
 
-                Section("连通性测试") {
+                AdminWorkspaceSection("连通性测试") {
                     Button {
                         Task { await test() }
                     } label: {
@@ -115,11 +116,7 @@ struct AdminAIProviderView: View {
 
             }
         }
-        .scrollContentBackground(.hidden)
         .disabled(saving)
-        .appListStyle(.settings)
-        .navigationTitle("供应商配置")
-        .navigationBarTitleDisplayMode(.inline)
         .refreshable { await load() }
         .task { await load() }
         .alert("操作失败", isPresented: errorAlertBinding) {
@@ -137,17 +134,23 @@ struct AdminAIProviderView: View {
         hasKey: Bool,
         saveScope: String
     ) -> some View {
-        Section(title) {
-            TextField("Base URL", text: baseUrl)
-                .keyboardType(.URL)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            TextField("模型", text: model)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            SecureField(hasKey ? "已设置密钥（留空不修改）" : "API Key", text: apiKey)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
+        AdminWorkspaceSection(title) {
+            AdminWorkspaceInput("Base URL") {
+                TextField("Base URL", text: baseUrl)
+                    .keyboardType(.URL)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+            }
+            AdminWorkspaceInput("模型") {
+                TextField("模型", text: model)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+            }
+            AdminWorkspaceInput("API Key") {
+                SecureField(hasKey ? "已设置密钥（留空不修改）" : "API Key", text: apiKey)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+            }
             Button {
                 Task { await save(scope: saveScope, baseUrl: baseUrl.wrappedValue, model: model.wrappedValue, apiKey: apiKey.wrappedValue, clearKey: false) }
             } label: {

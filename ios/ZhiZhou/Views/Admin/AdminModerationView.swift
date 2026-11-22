@@ -26,12 +26,16 @@ struct AdminModerationView: View {
     @State private var pendingReport: CommentReport?
     @State private var busyActionKey: String?
     @State private var requests = ListRequestGuard<[String]>()
+    @State private var displayedQuery: [String]?
+
+    private var showingPreviousResults: Bool { !itemsEmpty && displayedQuery != query }
 
     private var query: [String] { [mode.rawValue, statusFilter, search] }
 
     var body: some View {
-        List {
-            Section {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("内容审核")
+            Group {
                 Picker("类型", selection: $mode) {
                     ForEach(Mode.allCases) { m in
                         Text(m.rawValue).tag(m)
@@ -44,13 +48,13 @@ struct AdminModerationView: View {
             }
 
             if isLoading && itemsEmpty {
-                Section {
+                Group {
                     ProgressView("加载中…")
                         .frame(maxWidth: .infinity, minHeight: 120)
                         .listRowBackground(Color.clear)
                 }
             } else if let errorMessage, itemsEmpty {
-                Section {
+                Group {
                     ContentUnavailableView {
                         Label("加载失败", systemImage: "wifi.slash")
                     } description: {
@@ -62,7 +66,7 @@ struct AdminModerationView: View {
                     .listRowSeparator(.hidden)
                 }
             } else if itemsEmpty {
-                Section {
+                Group {
                     ContentUnavailableView(
                         "这里空空如也",
                         systemImage: "checkmark.circle",
@@ -78,11 +82,15 @@ struct AdminModerationView: View {
                         Task { await load() }
                     }
                 }
-                Section("共 \(totalCount) 条") {
+                if showingPreviousResults {
+                    AdminWorkspaceResultsNotice(failed: errorMessage != nil && !isLoading)
+                }
+                AdminWorkspaceSection("共 \(totalCount) 条") {
                     switch mode {
                     case .comments:
-                        ForEach(comments) { comment in
+                        ForEach(Array(comments.enumerated()), id: \.element.id) { index, comment in
                             commentRow(comment)
+                                .readingSpaceEntrance(index)
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                     if comment.status == "visible" {
                                         Button("隐藏") { Task { await hide(comment: comment) } }
@@ -95,16 +103,18 @@ struct AdminModerationView: View {
                                 }
                         }
                     case .reports:
-                        ForEach(reports) { report in
+                        ForEach(Array(reports.enumerated()), id: \.element.id) { index, report in
                             reportRow(report)
+                                .readingSpaceEntrance(index)
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                     Button("处理") { pendingReport = report }
                                         .tint(AppTheme.primary)
                                 }
                         }
                     case .thoughts:
-                        ForEach(thoughts) { thought in
+                        ForEach(Array(thoughts.enumerated()), id: \.element.id) { index, thought in
                             thoughtRow(thought)
+                                .readingSpaceEntrance(index)
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                     if thought.status == "visible" {
                                         Button("隐藏") { Task { await hide(thought: thought) } }
@@ -118,12 +128,10 @@ struct AdminModerationView: View {
                         }
                     }
                 }
+                .opacity(showingPreviousResults ? 0.45 : 1)
+                .disabled(showingPreviousResults)
             }
         }
-        .scrollContentBackground(.hidden)
-        .appListStyle(.settings)
-        .navigationTitle("内容审核")
-        .navigationBarTitleDisplayMode(.large)
         .searchable(text: $search, prompt: "搜索内容 / 用户名 / 书名")
         .task(id: query) {
             try? await Task.sleep(for: .milliseconds(350))
@@ -266,6 +274,7 @@ struct AdminModerationView: View {
                 thoughts = r.thoughts
                 totalCount = r.total
             }
+            displayedQuery = ticket.query
             errorMessage = nil
         } catch {
             guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
@@ -318,7 +327,7 @@ struct AdminModerationView: View {
     }
 
     private func runAction(key: String, operation: () async throws -> Void) async {
-        guard busyActionKey == nil else { return }
+        guard busyActionKey == nil, !showingPreviousResults else { return }
         busyActionKey = key
         defer { busyActionKey = nil }
         do {

@@ -8,20 +8,21 @@ struct AdminAIStatusView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        List {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("状态与用量")
             if let errorMessage, status != nil {
                 LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
                     Task { await load() }
                 }
             }
             if isLoading && status == nil {
-                Section {
+                Group {
                     ProgressView("加载中…")
                         .frame(maxWidth: .infinity, minHeight: 160)
                         .listRowBackground(Color.clear)
                 }
             } else if let errorMessage, status == nil {
-                Section {
+                Group {
                     ContentUnavailableView {
                         Label("加载失败", systemImage: "wifi.slash")
                     } description: {
@@ -33,7 +34,7 @@ struct AdminAIStatusView: View {
                     .listRowSeparator(.hidden)
                 }
             } else {
-                Section("配置状态") {
+                AdminWorkspaceSection("配置状态") {
                     LabeledContent("已配置") {
                         Text(status?.configured == true ? "是" : "否")
                             .foregroundStyle(status?.configured == true ? AppTheme.success : AppTheme.textSecondary)
@@ -56,7 +57,7 @@ struct AdminAIStatusView: View {
                     }
                 }
 
-                Section("配额") {
+                AdminWorkspaceSection("配额") {
                     if let quota = status?.quota {
                         if quota.limit == -1 {
                             LabeledContent("已用", value: "\(quota.used ?? 0) 次（管理员不限额）")
@@ -77,16 +78,12 @@ struct AdminAIStatusView: View {
                 usageSection(title: "近 30 天用量", summary: usage?.last30d)
             }
         }
-        .scrollContentBackground(.hidden)
-        .appListStyle(.settings)
-        .navigationTitle("状态与用量")
-        .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
         .task { await load() }
     }
 
     private func usageSection(title: String, summary: AiUsageSummary?) -> some View {
-        Section(title) {
+        AdminWorkspaceSection(title) {
             LabeledContent("调用次数", value: "\(summary?.calls ?? 0)")
             LabeledContent("输入 Tokens", value: "\(summary?.promptTokens ?? 0)")
             LabeledContent("输出 Tokens", value: "\(summary?.completionTokens ?? 0)")

@@ -10,7 +10,8 @@ struct AdminPolicyView: View {
     @State private var actionError: String?
 
     var body: some View {
-        Group {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("内容安全")
             if isLoading {
                 ProgressView("加载中…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -23,30 +24,21 @@ struct AdminPolicyView: View {
                     Button("重试") { Task { await load() } }
                 }
             } else {
-                List {
-                    Section {
-                        HStack(spacing: 8) {
-                            Toggle("允许成人内容", isOn: $adultEnabled)
-                                .disabled(isSaving)
-                                .onChange(of: adultEnabled) { _, newValue in
-                                    // 加载完成前的赋值与回滚赋值都不算用户操作，避免误保存/死循环
-                                    guard !isLoading, newValue != savedValue else { return }
-                                    Task { await save(newValue) }
-                                }
-                            if isSaving {
-                                AdminInlineProgress()
-                            }
+                HStack(spacing: 8) {
+                    Toggle("允许成人内容", isOn: $adultEnabled)
+                        .disabled(isSaving)
+                        .onChange(of: adultEnabled) { _, newValue in
+                            // 加载完成前的赋值与回滚赋值都不算用户操作，避免误保存。
+                            guard !isLoading, newValue != savedValue else { return }
+                            Task { await save(newValue) }
                         }
-                    } footer: {
-                        Text("开启后，读者仍需确认成年并完成人机验证，才能在当前登录会话中在线阅读限制级作品。关闭后读者授权将失效。")
+                    if isSaving {
+                        AdminInlineProgress()
                     }
                 }
-                .scrollContentBackground(.hidden)
+                AccountSettingsNote("开启后，读者仍需确认成年并完成人机验证，才能在当前登录会话中在线阅读限制级作品。关闭后读者授权将失效。")
             }
         }
-        .appListStyle(.settings)
-        .navigationTitle("内容安全")
-        .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .alert("操作未完成", isPresented: Binding(
             get: { actionError != nil },

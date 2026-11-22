@@ -32,6 +32,7 @@ struct AdminUsersView: View {
             }
             .sheet(item: $accountOperation) { operation in
                 AdminAccountActionSheet(operation: operation) { Task { await load() } }
+                    .presentationBackground(ReadingSpace.profilePaper)
             }
     }
 
@@ -54,20 +55,21 @@ struct AdminUsersView: View {
 
     /// 页面主体：恒渲染 List，加载态 / 错误态 / 内容按条件填充（与书架页同款可靠模式）。
     private var listHost: some View {
-        List {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("账户与注册")
             if let errorMessage, overview != nil {
                 LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
                     Task { await load() }
                 }
             }
             if isLoading && overview == nil {
-                Section {
+                Group {
                     ProgressView("加载中…")
                         .frame(maxWidth: .infinity, minHeight: 200)
                         .listRowBackground(Color.clear)
                 }
             } else if let errorMessage, overview == nil {
-                Section {
+                Group {
                     ContentUnavailableView {
                         Label("加载失败", systemImage: "wifi.slash")
                     } description: {
@@ -79,7 +81,7 @@ struct AdminUsersView: View {
                     .listRowSeparator(.hidden)
                 }
             } else if let overview {
-                Section("注册模式") {
+                AdminWorkspaceSection("注册模式") {
                     HStack(spacing: 8) {
                         Picker("注册模式", selection: $registerMode) {
                             Text("开放注册").tag("open")
@@ -104,9 +106,10 @@ struct AdminUsersView: View {
 
                 inviteSection(overview.invites)
 
-                Section("用户（\(overview.users.count)）") {
-                    ForEach(overview.users) { user in
+                AdminWorkspaceSection("用户（\(overview.users.count)）") {
+                    ForEach(Array(overview.users.enumerated()), id: \.element.id) { index, user in
                         userRow(user)
+                            .readingSpaceEntrance(index)
                             .contextMenu {
                                 contextActions(for: user)
                             }
@@ -114,10 +117,6 @@ struct AdminUsersView: View {
                 }
             }
         }
-        .scrollContentBackground(.hidden)
-        .appListStyle(.settings)
-        .navigationTitle("账户与注册")
-        .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
         .task { await load() }
         .toolbar {
@@ -140,14 +139,15 @@ struct AdminUsersView: View {
     // MARK: - 邀请码
 
     private func inviteSection(_ invites: [AdminInvite]) -> some View {
-        Section {
+        AdminWorkspaceSection("邀请码（\(invites.count)）") {
             if invites.isEmpty {
                 Text("暂无邀请码")
                     .font(.caption)
                     .foregroundStyle(AppTheme.textSecondary)
             } else {
-                ForEach(invites) { invite in
+                ForEach(Array(invites.enumerated()), id: \.element.id) { index, invite in
                     inviteRow(invite)
+                        .readingSpaceEntrance(index)
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             if !invite.isUsed && !invite.isDisabled {
                                 Button("禁用") { Task { await disableInvite(invite) } }
@@ -156,10 +156,7 @@ struct AdminUsersView: View {
                         }
                 }
             }
-        } header: {
-            Text("邀请码（\(invites.count)）")
-        } footer: {
-            Text("点按邀请码可复制；生成与清理入口在右上角。")
+            AccountSettingsNote("点按邀请码可复制；生成与清理入口在右上角。")
         }
     }
 

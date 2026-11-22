@@ -22,20 +22,21 @@ struct AdminSiteOperationsView: View {
     @FocusState private var focusedField: Bool
 
     var body: some View {
-        List {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("站点运营")
             if let errorMessage, overview != nil {
                 LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
                     Task { await load() }
                 }
             }
             if isLoading && overview == nil {
-                Section {
+                Group {
                     ProgressView("加载中…")
                         .frame(maxWidth: .infinity, minHeight: 200)
                         .listRowBackground(Color.clear)
                 }
             } else if let errorMessage, overview == nil {
-                Section {
+                Group {
                     ContentUnavailableView {
                         Label("加载失败", systemImage: "wifi.slash")
                     } description: {
@@ -47,7 +48,7 @@ struct AdminSiteOperationsView: View {
                     .listRowSeparator(.hidden)
                 }
             } else if let overview {
-                Section {
+                Group {
                     Picker("视图", selection: $tab) {
                         ForEach(SectionTab.allCases) { item in
                             Text(item.rawValue).tag(item)
@@ -65,11 +66,7 @@ struct AdminSiteOperationsView: View {
                 }
             }
         }
-        .scrollContentBackground(.hidden)
-        .appListStyle(.settings)
         .scrollDismissesKeyboard(.interactively)
-        .navigationTitle("站点运营")
-        .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
         .task { await load() }
         .toolbar {
@@ -90,18 +87,18 @@ struct AdminSiteOperationsView: View {
     private func overviewContent(_ overview: SiteOverview) -> some View {
         Group {
             if let metrics = overview.metrics {
-                Section("今日指标") {
+                AdminWorkspaceSection("今日指标") {
                     metricRow("页面浏览", value: metrics.todayPageViews, unit: "次")
                     metricRow("独立访客", value: metrics.todayVisitors, unit: "人")
                 }
-                Section("近 7 天") {
+                AdminWorkspaceSection("近 7 天") {
                     metricRow("页面浏览", value: metrics.weekPageViews, unit: "次")
                     metricRow("独立访客", value: metrics.weekVisitors, unit: "人")
                     metricRow("活跃读者", value: metrics.activeReaders, unit: "人")
                 }
             }
             if let popular = overview.popularNovels, !popular.isEmpty {
-                Section("热门小说（近 7 天）") {
+                AdminWorkspaceSection("热门小说（近 7 天）") {
                     ForEach(popular) { novel in
                         HStack {
                             Text(novel.title)
@@ -132,16 +129,15 @@ struct AdminSiteOperationsView: View {
     // MARK: - 公告编辑
 
     private var announcementSection: some View {
-        Section {
-            TextEditor(text: $announcement)
-                .frame(minHeight: 80)
-                .font(.subheadline)
-                .scrollContentBackground(.hidden)
-                .focused($focusedField)
-                .disabled(savingAnnouncement)
-                .padding(AppLayout.textEditorInset)
-                .appFieldSurface(isFocused: focusedField)
-                .padding(.vertical, 4)
+        AdminWorkspaceSection("站点公告") {
+            AccountSettingsField("公告内容", isFocused: focusedField) {
+                TextEditor(text: $announcement)
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: 100)
+                    .focused($focusedField)
+                    .disabled(savingAnnouncement)
+                    .accessibilityLabel("公告内容")
+            }
             Button {
                 Task { await saveAnnouncement() }
             } label: {
@@ -155,10 +151,7 @@ struct AdminSiteOperationsView: View {
             Text("\(announcement.count)/240")
                 .font(.footnote.monospacedDigit())
                 .foregroundStyle(announcement.count > 240 ? AppTheme.danger : AppTheme.textSecondary)
-        } header: {
-            Text("站点公告")
-        } footer: {
-            Text("公告显示在网站头部与 App 首页，留空表示不展示（最长 240 字）。")
+            AccountSettingsNote("公告显示在网站头部与 App 首页，留空表示不展示（最长 240 字）。")
         }
     }
 
@@ -167,7 +160,7 @@ struct AdminSiteOperationsView: View {
     private func trafficContent(_ traffic: SiteTraffic?) -> some View {
         Group {
             if let trend = traffic?.dailyTrend, !trend.isEmpty {
-                Section("每日流量趋势（近 \(trend.count) 天）") {
+                AdminWorkspaceSection("每日流量趋势（近 \(trend.count) 天）") {
                     let recentTrend = Array(trend.suffix(14))
                     Chart {
                         ForEach(recentTrend) { point in
@@ -237,7 +230,7 @@ struct AdminSiteOperationsView: View {
                 }
             }
             if let countries = traffic?.countries, !countries.isEmpty {
-                Section("访客地区") {
+                AdminWorkspaceSection("访客地区") {
                     ForEach(countries.prefix(8)) { country in
                         HStack {
                             Text(countryLabel(country.countryCode))
@@ -252,7 +245,7 @@ struct AdminSiteOperationsView: View {
                 }
             }
             if let devices = traffic?.devices, !devices.isEmpty {
-                Section("设备类型") {
+                AdminWorkspaceSection("设备类型") {
                     ForEach(devices) { device in
                         HStack {
                             Text(deviceLabel(device.key))
@@ -267,7 +260,7 @@ struct AdminSiteOperationsView: View {
                 }
             }
             if let sources = traffic?.sources, !sources.isEmpty {
-                Section("流量来源") {
+                AdminWorkspaceSection("流量来源") {
                     ForEach(sources) { source in
                         HStack {
                             Text(sourceLabel(source.key))
@@ -282,7 +275,7 @@ struct AdminSiteOperationsView: View {
                 }
             }
             if traffic == nil || (traffic?.dailyTrend?.isEmpty != false) {
-                Section {
+                Group {
                     ContentUnavailableView {
                         Label("暂无流量数据", systemImage: "chart.bar")
                     } description: {
@@ -339,14 +332,14 @@ struct AdminSiteOperationsView: View {
     private func contentContent(_ health: SiteContentHealth?) -> some View {
         Group {
             if let health {
-                Section("规模") {
+                AdminWorkspaceSection("规模") {
                     metricRow("小说", value: health.novels, unit: "本")
                     metricRow("章节", value: health.chapters, unit: "章")
                     metricRow("新评论", value: health.newComments, unit: "条")
                     metricRow("待处理举报", value: health.openReports, unit: "条")
                 }
                 if let quality = health.quality {
-                    Section("质量检查") {
+                    AdminWorkspaceSection("质量检查") {
                         qualityRow("未分类", value: quality.uncategorized)
                         qualityRow("缺封面", value: quality.missingCover)
                         qualityRow("缺简介", value: quality.missingDescription)
@@ -354,7 +347,7 @@ struct AdminSiteOperationsView: View {
                     }
                 }
                 if let updates = health.recentUpdates {
-                    Section("更新情况") {
+                    AdminWorkspaceSection("更新情况") {
                         metricRow("近 7 天更新", value: updates.last7Days, unit: "本")
                         metricRow("近 30 天更新", value: updates.last30Days, unit: "本")
                         if let novels = updates.novels, !novels.isEmpty {
@@ -374,7 +367,7 @@ struct AdminSiteOperationsView: View {
                     }
                 }
                 if let categories = health.categories, !categories.isEmpty {
-                    Section("分类分布（前 10）") {
+                    AdminWorkspaceSection("分类分布（前 10）") {
                         ForEach(categories.prefix(10)) { category in
                             HStack {
                                 Text(category.category)
@@ -390,7 +383,7 @@ struct AdminSiteOperationsView: View {
                     }
                 }
                 if let completeness = health.completeness, !completeness.isEmpty {
-                    Section("信息完整度最低（前 8）") {
+                    AdminWorkspaceSection("信息完整度最低（前 8）") {
                         ForEach(completeness) { item in
                             HStack {
                                 Text(item.title)
@@ -406,7 +399,7 @@ struct AdminSiteOperationsView: View {
                     }
                 }
                 if let scrape = health.scrapeHealth {
-                    Section("采集健康（近 \(scrape.windowDays ?? 30) 天）") {
+                    AdminWorkspaceSection("采集健康（近 \(scrape.windowDays ?? 30) 天）") {
                         metricRow("完成", value: scrape.completed, unit: "个")
                         metricRow("失败", value: scrape.failed, unit: "个")
                         metricRow("运行中", value: scrape.active, unit: "个")
@@ -419,7 +412,7 @@ struct AdminSiteOperationsView: View {
                     }
                 }
             } else {
-                Section {
+                Group {
                     ContentUnavailableView {
                         Label("暂无数据", systemImage: "waveform.path.ecg")
                     } description: {

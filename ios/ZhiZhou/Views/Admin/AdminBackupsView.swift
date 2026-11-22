@@ -6,11 +6,12 @@ struct AdminBackupsView: View {
     @State private var error: String?
     @State private var requestID = UUID()
     var body: some View {
-        List {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("备份与恢复")
             if let error { LoadErrorNotice(message: error, isLoading: loading) { Task { await load() } } }
             if loading && overview == nil { ProgressView("读取备份状态…") }
             if let overview {
-                Section("备份状态") {
+                AdminWorkspaceSection("备份状态") {
                     LabeledContent("自动备份", value: overview.policy.enabled ? "已开启" : "已关闭")
                     LabeledContent("下次备份", value: overview.policy.nextRunAt > 0 ? AdminFormat.dateTime(overview.policy.nextRunAt) : "尚未安排")
                     LabeledContent("时区", value: overview.policy.timezone)
@@ -21,13 +22,13 @@ struct AdminBackupsView: View {
                     LabeledContent("传输工具", value: overview.capabilities.transfer ? "已就绪" : "未就绪")
                     LabeledContent("演练库", value: overview.capabilities.rehearsal ? "已配置" : "未配置")
                 }
-                Section("存储目标") {
+                AdminWorkspaceSection("存储目标") {
                     if overview.targets.isEmpty { Text("尚未配置存储目标").foregroundStyle(.secondary) }
                     ForEach(overview.targets) { target in
                         LabeledContent(target.name, value: "\(target.type) · \(target.enabled ? "启用" : "停用")")
                     }
                 }
-                Section("最近任务") {
+                AdminWorkspaceSection("最近任务") {
                     if overview.tasks.isEmpty { Text("暂无任务").foregroundStyle(.secondary) }
                     ForEach(overview.tasks) { task in
                         VStack(alignment: .leading, spacing: 6) {
@@ -39,16 +40,15 @@ struct AdminBackupsView: View {
                     }
                 }
             }
-            Section("历史") {
+            AdminWorkspaceSection("历史") {
                 NavigationLink("备份版本") { AdminBackupVersionsView() }
                 NavigationLink("操作日志") { AdminBackupEventsView() }
             }
-            Section {
+            Group {
                 AdminWebLink(title: "在 Web 管理备份与恢复", path: "/admin/backups")
-            } footer: { Text("App 提供只读状态和历史。创建备份、重试与恢复请在 Web 操作，浏览器需单独登录。") }
+                AccountSettingsNote("App 提供只读状态和历史。创建备份、重试与恢复请在 Web 操作，浏览器需单独登录。")
+            }
         }
-        .appListStyle(.settings)
-        .navigationTitle("备份与恢复")
         .refreshable { await load() }
         .task(id: ContentAccessStore.shared.accountRevision) { overview = nil; error = nil; await load() }
     }

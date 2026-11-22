@@ -25,8 +25,6 @@ struct AdminContentRatingsView: View {
                 AdminContentRatingAISuggestionsView(module: $section)
             }
         }
-        .navigationTitle("分级管理")
-        .navigationBarTitleDisplayMode(.large)
     }
 }
 
@@ -158,6 +156,8 @@ private struct AdminContentRatingCatalogView: View {
 
     @Binding private var module: AdminContentRatingModule
     @State private var requests = ListRequestGuard<AdminContentRatingQuery>()
+    @State private var submittedSearch = ""
+    @State private var displayedQuery: AdminContentRatingQuery?
     @State private var items: [AdminContentRatingItem] = []
     @State private var counts = AdminContentRatingCounts(general: 0, restricted: 0, unknown: 0)
     @State private var total = 0
@@ -176,16 +176,19 @@ private struct AdminContentRatingCatalogView: View {
     }
 
     private var query: AdminContentRatingQuery {
-        AdminContentRatingQuery(rating: ratingFilter, source: sourceFilter, search: searchInput.trimmingCharacters(in: .whitespacesAndNewlines), page: page)
+        AdminContentRatingQuery(rating: ratingFilter, source: sourceFilter, search: submittedSearch, page: page)
     }
+
+    private var showingPreviousResults: Bool { !items.isEmpty && displayedQuery != query }
 
     private var pageCount: Int {
         max(1, Int(ceil(Double(total) / Double(pageSize))))
     }
 
     var body: some View {
-        List {
-            Section {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("分级管理")
+            Group {
                 AdminContentRatingModulePicker(selection: $module)
             }
 
@@ -195,7 +198,7 @@ private struct AdminContentRatingCatalogView: View {
                 }
             }
 
-            Section {
+            Group {
                 AdminFilterBar {
                     AdminFilterMenu("分级", value: ratingFilterTitle) {
                         Button("全部") { changeRatingFilter("") }
@@ -212,24 +215,25 @@ private struct AdminContentRatingCatalogView: View {
                 }
             }
 
-            Section {
-                HStack(spacing: 8) {
+            AdminWorkspaceSection("全量分布 · 共 \(total) 部") {
+                AppAdaptiveRow(spacing: 8) {
                     summaryChip("一般", count: counts.general, tint: AppTheme.primary)
                     summaryChip("限制级", count: counts.restricted, tint: AppTheme.danger)
                     summaryChip("未标注", count: counts.unknown, tint: AppTheme.warning)
                 }
-            } header: {
-                Text("全量分布 · 共 \(total) 部")
             }
 
+            if showingPreviousResults {
+                AdminWorkspaceResultsNotice(failed: errorMessage != nil && !isLoading)
+            }
             if isLoading && items.isEmpty {
-                Section {
+                Group {
                     ProgressView("加载中…")
                         .frame(maxWidth: .infinity, minHeight: 160)
                         .listRowBackground(Color.clear)
                 }
             } else if let errorMessage, items.isEmpty {
-                Section {
+                Group {
                     ContentUnavailableView {
                         Label("分级列表加载失败", systemImage: "wifi.slash")
                     } description: {
@@ -241,7 +245,7 @@ private struct AdminContentRatingCatalogView: View {
                     .listRowSeparator(.hidden)
                 }
             } else if items.isEmpty {
-                Section {
+                Group {
                     ContentUnavailableView {
                         Label("没有匹配的作品", systemImage: "checkmark.shield")
                     } description: {
@@ -251,21 +255,21 @@ private struct AdminContentRatingCatalogView: View {
                     .listRowSeparator(.hidden)
                 }
             } else {
-                Section("作品分级") {
-                    ForEach(items) { item in
-                        ratingRow(item)
+                AdminWorkspaceSection("作品分级") {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        ratingRow(item).readingSpaceEntrance(index)
                     }
                 }
+                .opacity(showingPreviousResults ? 0.45 : 1)
+                .disabled(showingPreviousResults)
             }
 
             if total > 0 {
-                Section {
+                Group {
                     pagination
                 }
             }
         }
-        .scrollContentBackground(.hidden)
-        .appListStyle(.settings)
         .searchable(text: $searchInput, prompt: "搜索作品、作者或分级理由")
         .onSubmit(of: .search) {
             page = 0
@@ -278,14 +282,17 @@ private struct AdminContentRatingCatalogView: View {
             AdminContentRatingEditSheet(item: item) {
                 Task { await load() }
             }
+            .presentationBackground(ReadingSpace.profilePaper)
         }
         .sheet(item: $historyItem) { item in
             AdminContentRatingHistorySheet(item: item)
+                .presentationBackground(ReadingSpace.profilePaper)
         }
         .sheet(item: $candidateItem) { item in
             AdminContentRatingCandidateSheet(item: item) {
                 Task { await load() }
             }
+            .presentationBackground(ReadingSpace.profilePaper)
         }
     }
 
@@ -310,6 +317,7 @@ private struct AdminContentRatingCatalogView: View {
     }
 
     private func load() async {
+        submittedSearch = searchInput.trimmingCharacters(in: .whitespacesAndNewlines)
         let currentQuery = query
         let ticket = requests.begin(currentQuery)
         isLoading = true
@@ -330,15 +338,16 @@ private struct AdminContentRatingCatalogView: View {
                 limit: pageSize,
                 offset: currentQuery.page * pageSize
             )
-            guard !Task.isCancelled, requests.accepts(ticket, query: currentQuery) else { return }
+            guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
             items = response.items
             counts = response.counts
             total = response.total
             let lastPage = max(0, Int(ceil(Double(response.total) / Double(pageSize))) - 1)
             if page > lastPage { page = lastPage }
+            displayedQuery = query
             succeeded = true
         } catch {
-            guard !Task.isCancelled, requests.accepts(ticket, query: currentQuery) else { return }
+            guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
             errorMessage = AppCopy.friendlyError(error)
         }
     }
@@ -357,12 +366,12 @@ private struct AdminContentRatingCatalogView: View {
     }
 
     private var pagination: some View {
-        HStack {
+        AppAdaptiveRow(spacing: 12) {
             Button("上一页", systemImage: "chevron.left") {
                 page = max(0, page - 1)
                 Task { await load() }
             }
-            .disabled(page == 0 || isLoading)
+            .disabled(page == 0 || isLoading || showingPreviousResults)
 
             Spacer()
             Text("\(page + 1) / \(pageCount)")
@@ -374,8 +383,9 @@ private struct AdminContentRatingCatalogView: View {
                 page = min(pageCount - 1, page + 1)
                 Task { await load() }
             }
-            .disabled(page >= pageCount - 1 || isLoading)
+            .disabled(page >= pageCount - 1 || isLoading || showingPreviousResults)
         }
+        .buttonStyle(.borderless)
         .labelStyle(.titleAndIcon)
     }
 
@@ -453,8 +463,9 @@ private struct AdminContentRatingEditSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("当前分级") {
+            AdminWorkspaceList {
+                AdminWorkspaceHeading("编辑分级", detail: item.title)
+                AdminWorkspaceSection("当前分级") {
                     LabeledContent("作品") {
                         Text(item.title)
                             .appTextLineLimit(2)
@@ -473,32 +484,27 @@ private struct AdminContentRatingEditSheet: View {
                     }
                 }
 
-                Section {
+                AdminWorkspaceSection("人工修改") {
                     Picker("新的分级", selection: $rating) {
                         ForEach(AdminContentRatingValue.allCases) { value in
                             Text(value.title).tag(value)
                         }
                     }
-                    TextField("修改理由（必填）", text: $reason, axis: .vertical)
-                        .lineLimit(3...7)
-                } header: {
-                    Text("人工修改")
-                } footer: {
-                    Text("修改理由会进入分级审计历史；提交时会校验作品修订号，避免覆盖其他管理员的更新。")
+                    AdminWorkspaceInput("修改理由（必填）") {
+                        TextField("修改理由（必填）", text: $reason, axis: .vertical)
+                            .lineLimit(3...7)
+                    }
+                    AccountSettingsNote("修改理由会进入分级审计历史；提交时会校验作品修订号，避免覆盖其他管理员的更新。")
                 }
 
                 if let errorMessage {
-                    Section {
+                    Group {
                         Text(errorMessage)
                             .font(.caption)
                             .foregroundStyle(AppTheme.danger)
                     }
                 }
             }
-            .scrollContentBackground(.hidden)
-            .appListStyle(.settings)
-            .navigationTitle("编辑分级")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
@@ -549,7 +555,8 @@ private struct AdminContentRatingHistorySheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            AdminWorkspaceList {
+                AdminWorkspaceHeading("分级历史")
                 if isLoading {
                     ProgressView("加载审计历史…")
                         .frame(maxWidth: .infinity, minHeight: 120)
@@ -571,17 +578,13 @@ private struct AdminContentRatingHistorySheet: View {
                     }
                     .listRowBackground(Color.clear)
                 } else {
-                    Section("《\(item.title)》") {
+                    AdminWorkspaceSection("《\(item.title)》") {
                         ForEach(history) { entry in
                             historyRow(entry)
                         }
                     }
                 }
             }
-            .scrollContentBackground(.hidden)
-            .appListStyle(.settings)
-            .navigationTitle("分级历史")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { dismiss() }
@@ -650,8 +653,9 @@ private struct AdminContentRatingCandidateSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
+            AdminWorkspaceList {
+                AdminWorkspaceHeading("沉淀规则候选")
+                Group {
                     LabeledContent("作品") {
                         Text(item.title)
                             .appTextLineLimit(2)
@@ -663,34 +667,31 @@ private struct AdminContentRatingCandidateSheet: View {
                         .foregroundStyle(AppTheme.textSecondary)
                 }
 
-                Section {
+                AdminWorkspaceSection("候选内容") {
                     Picker("候选类型", selection: $kind) {
                         ForEach(AdminContentRatingRuleKind.allCases) { value in
                             Text(value.title).tag(value)
                         }
                     }
-                    TextField(kind == .category ? "分类标签" : "文本短语", text: $value, axis: .vertical)
-                        .lineLimit(2...4)
-                    TextField("候选理由（必填）", text: $reason, axis: .vertical)
-                        .lineLimit(3...7)
-                } header: {
-                    Text("候选内容")
-                } footer: {
-                    Text(kind == .category ? "分类候选按完整标签匹配，不做模糊子串匹配。" : "文本候选以字面短语保存，批准前可以预览可能命中的未标注作品。")
+                    AdminWorkspaceInput("候选内容") {
+                        TextField(kind == .category ? "分类标签" : "文本短语", text: $value, axis: .vertical)
+                            .lineLimit(2...4)
+                    }
+                    AdminWorkspaceInput("候选理由（必填）") {
+                        TextField("候选理由（必填）", text: $reason, axis: .vertical)
+                            .lineLimit(3...7)
+                    }
+                    AccountSettingsNote(kind == .category ? "分类候选按完整标签匹配，不做模糊子串匹配。" : "文本候选以字面短语保存，批准前可以预览可能命中的未标注作品。")
                 }
 
                 if let errorMessage {
-                    Section {
+                    Group {
                         Text(errorMessage)
                             .font(.caption)
                             .foregroundStyle(AppTheme.danger)
                     }
                 }
             }
-            .scrollContentBackground(.hidden)
-            .appListStyle(.settings)
-            .navigationTitle("沉淀规则候选")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
@@ -743,6 +744,8 @@ private struct AdminContentRatingRuleCandidatesView: View {
 
     @Binding private var module: AdminContentRatingModule
     @State private var requests = ListRequestGuard<AdminContentRatingRuleQuery>()
+    @State private var submittedSearch = ""
+    @State private var displayedQuery: AdminContentRatingRuleQuery?
     @State private var items: [AdminContentRatingRuleCandidate] = []
     @State private var counts = AdminContentRatingRuleCandidateCounts(pending: 0, approved: 0, rejected: 0)
     @State private var total = 0
@@ -763,18 +766,21 @@ private struct AdminContentRatingRuleCandidatesView: View {
         AdminContentRatingRuleQuery(
             status: statusFilter,
             kind: kindFilter,
-            search: searchInput.trimmingCharacters(in: .whitespacesAndNewlines),
+            search: submittedSearch,
             page: page
         )
     }
+
+    private var showingPreviousResults: Bool { !items.isEmpty && displayedQuery != query }
 
     private var pageCount: Int {
         max(1, Int(ceil(Double(total) / Double(pageSize))))
     }
 
     var body: some View {
-        List {
-            Section {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("分级管理")
+            Group {
                 AdminContentRatingModulePicker(selection: $module)
             }
 
@@ -784,7 +790,7 @@ private struct AdminContentRatingRuleCandidatesView: View {
                 }
             }
 
-            Section {
+            Group {
                 AdminFilterBar {
                     AdminFilterMenu("状态", value: ruleStatusTitle) {
                         Button("全部") { changeStatus("") }
@@ -801,7 +807,7 @@ private struct AdminContentRatingRuleCandidatesView: View {
                 }
             }
 
-            Section {
+            AdminWorkspaceSection("动态规则审核") {
                 HStack(spacing: 12) {
                     ruleCount("待审核", value: counts.pending, tint: AppTheme.warning)
                     ruleCount("已批准", value: counts.approved, tint: AppTheme.primary)
@@ -813,18 +819,19 @@ private struct AdminContentRatingRuleCandidatesView: View {
                         .font(.caption)
                         .foregroundStyle(AppTheme.textSecondary)
                 }
-            } header: {
-                Text("动态规则审核")
             }
 
+            if showingPreviousResults {
+                AdminWorkspaceResultsNotice(failed: errorMessage != nil && !isLoading)
+            }
             if isLoading && items.isEmpty {
-                Section {
+                Group {
                     ProgressView("加载规则候选…")
                         .frame(maxWidth: .infinity, minHeight: 140)
                         .listRowBackground(Color.clear)
                 }
             } else if let errorMessage, items.isEmpty {
-                Section {
+                Group {
                     ContentUnavailableView {
                         Label("规则候选加载失败", systemImage: "wifi.slash")
                     } description: {
@@ -835,7 +842,7 @@ private struct AdminContentRatingRuleCandidatesView: View {
                     .listRowBackground(Color.clear)
                 }
             } else if items.isEmpty {
-                Section {
+                Group {
                     ContentUnavailableView {
                         Label("没有规则候选", systemImage: "line.3.horizontal.decrease.circle")
                     } description: {
@@ -844,19 +851,19 @@ private struct AdminContentRatingRuleCandidatesView: View {
                     .listRowBackground(Color.clear)
                 }
             } else {
-                Section("规则候选") {
-                    ForEach(items) { item in
-                        candidateRow(item)
+                AdminWorkspaceSection("规则候选") {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        candidateRow(item).readingSpaceEntrance(index)
                     }
                 }
+                .opacity(showingPreviousResults ? 0.45 : 1)
+                .disabled(showingPreviousResults)
             }
 
             if total > 0 {
-                Section { pagination }
+                Group { pagination }
             }
         }
-        .scrollContentBackground(.hidden)
-        .appListStyle(.settings)
         .searchable(text: $searchInput, prompt: "搜索规则值、例证作品或理由")
         .onSubmit(of: .search) {
             page = 0
@@ -869,6 +876,7 @@ private struct AdminContentRatingRuleCandidatesView: View {
             AdminContentRatingRuleCandidateReviewSheet(candidate: candidate) {
                 Task { await load() }
             }
+            .presentationBackground(ReadingSpace.profilePaper)
         }
     }
 
@@ -893,6 +901,7 @@ private struct AdminContentRatingRuleCandidatesView: View {
     }
 
     private func load() async {
+        submittedSearch = searchInput.trimmingCharacters(in: .whitespacesAndNewlines)
         let currentQuery = query
         let ticket = requests.begin(currentQuery)
         isLoading = true
@@ -913,16 +922,17 @@ private struct AdminContentRatingRuleCandidatesView: View {
                 limit: pageSize,
                 offset: currentQuery.page * pageSize
             )
-            guard !Task.isCancelled, requests.accepts(ticket, query: currentQuery) else { return }
+            guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
             items = response.items
             counts = response.counts
             total = response.total
             activeRuleVersion = response.activeRuleVersion
             let lastPage = max(0, Int(ceil(Double(response.total) / Double(pageSize))) - 1)
             if page > lastPage { page = lastPage }
+            displayedQuery = query
             succeeded = true
         } catch {
-            guard !Task.isCancelled, requests.accepts(ticket, query: currentQuery) else { return }
+            guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
             errorMessage = AppCopy.friendlyError(error)
         }
     }
@@ -939,12 +949,12 @@ private struct AdminContentRatingRuleCandidatesView: View {
     }
 
     private var pagination: some View {
-        HStack {
+        AppAdaptiveRow(spacing: 12) {
             Button("上一页", systemImage: "chevron.left") {
                 page = max(0, page - 1)
                 Task { await load() }
             }
-            .disabled(page == 0 || isLoading)
+            .disabled(page == 0 || isLoading || showingPreviousResults)
             Spacer()
             Text("\(page + 1) / \(pageCount)")
                 .font(.caption.monospacedDigit())
@@ -954,13 +964,14 @@ private struct AdminContentRatingRuleCandidatesView: View {
                 page = min(pageCount - 1, page + 1)
                 Task { await load() }
             }
-            .disabled(page >= pageCount - 1 || isLoading)
+            .disabled(page >= pageCount - 1 || isLoading || showingPreviousResults)
         }
+        .buttonStyle(.borderless)
     }
 
     private func candidateRow(_ item: AdminContentRatingRuleCandidate) -> some View {
         VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+            AppAdaptiveRow(spacing: 8) {
                 Text(item.value)
                     .font(.headline)
                     .foregroundStyle(AppTheme.textPrimary)
@@ -968,7 +979,7 @@ private struct AdminContentRatingRuleCandidatesView: View {
                 Spacer(minLength: 4)
                 ruleStatusBadge(item.status)
             }
-            HStack(spacing: 8) {
+            AppAdaptiveRow(spacing: 8) {
                 Text(item.kind.title)
                 Text("例证 \(item.exampleCount)")
                 if !item.ruleVersion.isEmpty {
@@ -1012,7 +1023,8 @@ private struct AdminContentRatingRuleCandidateReviewSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            AdminWorkspaceList {
+                AdminWorkspaceHeading("规则影响预览")
                 if isLoading {
                     ProgressView("正在计算影响范围…")
                         .frame(maxWidth: .infinity, minHeight: 150)
@@ -1027,7 +1039,7 @@ private struct AdminContentRatingRuleCandidateReviewSheet: View {
                     }
                     .listRowBackground(Color.clear)
                 } else if let preview {
-                    Section {
+                    AdminWorkspaceSection("审核摘要") {
                         HStack {
                             AdminStatusBadge(candidate.kind.title, tint: AppTheme.primary)
                             Text(candidate.value)
@@ -1038,20 +1050,17 @@ private struct AdminContentRatingRuleCandidateReviewSheet: View {
                         LabeledContent("预计影响", value: "\(preview.affectedCount) 部未标注作品")
                         LabeledContent("当前规则", value: preview.currentRuleVersion)
                         LabeledContent("批准后规则", value: preview.prospectiveRuleVersion)
-                    } header: {
-                        Text("审核摘要")
-                    } footer: {
-                        Text("批准只会处理仍为 unknown 的作品；一般作品和已人工确认的作品不会被覆盖。")
+                        AccountSettingsNote("批准只会处理仍为 unknown 的作品；一般作品和已人工确认的作品不会被覆盖。")
                     }
 
                     if preview.items.isEmpty {
-                        Section {
+                        Group {
                             Text("当前没有命中的未标注作品；批准后规则仍会对后续新作品生效。")
                                 .font(.callout)
                                 .foregroundStyle(AppTheme.textSecondary)
                         }
                     } else {
-                        Section("将被改为限制级的未标注作品") {
+                        AdminWorkspaceSection("将被改为限制级的未标注作品") {
                             ForEach(preview.items) { item in
                                 VStack(alignment: .leading, spacing: 5) {
                                     Text(item.title)
@@ -1075,9 +1084,11 @@ private struct AdminContentRatingRuleCandidateReviewSheet: View {
                     }
 
                     if let decision {
-                        Section("审核理由") {
-                            TextField(decision == "approve" ? "批准理由（必填）" : "拒绝理由（必填）", text: $reason, axis: .vertical)
-                                .lineLimit(3...7)
+                        AdminWorkspaceSection("审核理由") {
+                            AdminWorkspaceInput("审核理由（必填）") {
+                                TextField(decision == "approve" ? "批准理由（必填）" : "拒绝理由（必填）", text: $reason, axis: .vertical)
+                                    .lineLimit(3...7)
+                            }
                             Text(decision == "approve" ? "批准后会更新规则版本，并将命中的未标注作品写入分级审计。" : "拒绝只结束这条候选的审核，不修改任何作品。")
                                 .font(.caption)
                                 .foregroundStyle(AppTheme.textSecondary)
@@ -1086,17 +1097,13 @@ private struct AdminContentRatingRuleCandidateReviewSheet: View {
                 }
 
                 if let errorMessage, preview != nil {
-                    Section {
+                    Group {
                         Text(errorMessage)
                             .font(.caption)
                             .foregroundStyle(AppTheme.danger)
                     }
                 }
             }
-            .scrollContentBackground(.hidden)
-            .appListStyle(.settings)
-            .navigationTitle("规则影响预览")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { dismiss() }
@@ -1185,6 +1192,8 @@ private struct AdminContentRatingAISuggestionsView: View {
     @Binding private var module: AdminContentRatingModule
     @Environment(\.scenePhase) private var scenePhase
     @State private var requests = ListRequestGuard<AdminContentRatingAIQuery>()
+    @State private var submittedSearch = ""
+    @State private var displayedQuery: AdminContentRatingAIQuery?
     @State private var items: [AdminContentRatingAISuggestion] = []
     @State private var counts = AdminContentRatingAISuggestionCounts(pending: 0, approved: 0, rejected: 0, stale: 0, failed: 0)
     @State private var total = 0
@@ -1212,18 +1221,21 @@ private struct AdminContentRatingAISuggestionsView: View {
     private var query: AdminContentRatingAIQuery {
         AdminContentRatingAIQuery(
             status: statusFilter,
-            search: searchInput.trimmingCharacters(in: .whitespacesAndNewlines),
+            search: submittedSearch,
             page: page
         )
     }
+
+    private var showingPreviousResults: Bool { !items.isEmpty && displayedQuery != query }
 
     private var pageCount: Int {
         max(1, Int(ceil(Double(total) / Double(pageSize))))
     }
 
     var body: some View {
-        List {
-            Section {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("分级管理")
+            Group {
                 AdminContentRatingModulePicker(selection: $module)
             }
 
@@ -1235,7 +1247,7 @@ private struct AdminContentRatingAISuggestionsView: View {
 
             analysisControlSection
 
-            Section {
+            Group {
                 AdminFilterBar {
                     AdminFilterMenu("状态", value: aiStatusTitle) {
                         Button("全部") { changeStatus("") }
@@ -1246,14 +1258,17 @@ private struct AdminContentRatingAISuggestionsView: View {
                 }
             }
 
+            if showingPreviousResults {
+                AdminWorkspaceResultsNotice(failed: errorMessage != nil && !isLoading)
+            }
             if isLoading && items.isEmpty {
-                Section {
+                Group {
                     ProgressView("加载 LLM 建议…")
                         .frame(maxWidth: .infinity, minHeight: 140)
                         .listRowBackground(Color.clear)
                 }
             } else if let errorMessage, items.isEmpty {
-                Section {
+                Group {
                     ContentUnavailableView {
                         Label("LLM 建议加载失败", systemImage: "wifi.slash")
                     } description: {
@@ -1264,7 +1279,7 @@ private struct AdminContentRatingAISuggestionsView: View {
                     .listRowBackground(Color.clear)
                 }
             } else if items.isEmpty {
-                Section {
+                Group {
                     ContentUnavailableView {
                         Label("没有待审核的 LLM 建议", systemImage: "sparkles")
                     } description: {
@@ -1273,19 +1288,19 @@ private struct AdminContentRatingAISuggestionsView: View {
                     .listRowBackground(Color.clear)
                 }
             } else {
-                Section("LLM 分级建议 · 共 \(total) 条") {
-                    ForEach(items) { item in
-                        suggestionRow(item)
+                AdminWorkspaceSection("LLM 分级建议 · 共 \(total) 条") {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        suggestionRow(item).readingSpaceEntrance(index)
                     }
                 }
+                .opacity(showingPreviousResults ? 0.45 : 1)
+                .disabled(showingPreviousResults)
             }
 
             if total > 0 {
-                Section { pagination }
+                Group { pagination }
             }
         }
-        .scrollContentBackground(.hidden)
-        .appListStyle(.settings)
         .searchable(text: $searchInput, prompt: "搜索作品或作者")
         .onSubmit(of: .search) {
             page = 0
@@ -1310,6 +1325,7 @@ private struct AdminContentRatingAISuggestionsView: View {
             AdminContentRatingAISuggestionReviewSheet(suggestion: suggestion) {
                 Task { await loadSuggestions() }
             }
+            .presentationBackground(ReadingSpace.profilePaper)
         }
     }
 
@@ -1319,7 +1335,7 @@ private struct AdminContentRatingAISuggestionsView: View {
 
     @ViewBuilder
     private var analysisControlSection: some View {
-        Section {
+        AdminWorkspaceSection("LLM 批次分析") {
             if let progress {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
@@ -1402,10 +1418,7 @@ private struct AdminContentRatingAISuggestionsView: View {
                     .disabled(isScanning || isCancelling || isResuming)
                 }
             }
-        } header: {
-            Text("LLM 批次分析")
-        } footer: {
-            Text("中止会保留已生成建议；断点恢复只补未分析或失败的作品，不会重复覆盖已有终态建议。")
+            AccountSettingsNote("中止会保留已生成建议；断点恢复只补未分析或失败的作品，不会重复覆盖已有终态建议。")
         }
     }
 
@@ -1429,6 +1442,7 @@ private struct AdminContentRatingAISuggestionsView: View {
     }
 
     private func loadSuggestions() async {
+        submittedSearch = searchInput.trimmingCharacters(in: .whitespacesAndNewlines)
         let currentQuery = query
         let ticket = requests.begin(currentQuery)
         isLoading = true
@@ -1448,15 +1462,16 @@ private struct AdminContentRatingAISuggestionsView: View {
                 limit: pageSize,
                 offset: currentQuery.page * pageSize
             )
-            guard !Task.isCancelled, requests.accepts(ticket, query: currentQuery) else { return }
+            guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
             items = response.items
             total = response.total
             counts = response.counts
             let lastPage = max(0, Int(ceil(Double(response.total) / Double(pageSize))) - 1)
             if page > lastPage { page = lastPage }
+            displayedQuery = query
             succeeded = true
         } catch {
-            guard !Task.isCancelled, requests.accepts(ticket, query: currentQuery) else { return }
+            guard !Task.isCancelled, requests.accepts(ticket, query: query) else { return }
             errorMessage = AppCopy.friendlyError(error)
         }
     }
@@ -1629,12 +1644,12 @@ private struct AdminContentRatingAISuggestionsView: View {
     }
 
     private var pagination: some View {
-        HStack {
+        AppAdaptiveRow(spacing: 12) {
             Button("上一页", systemImage: "chevron.left") {
                 page = max(0, page - 1)
                 Task { await loadSuggestions() }
             }
-            .disabled(page == 0 || isLoading)
+            .disabled(page == 0 || isLoading || showingPreviousResults)
             Spacer()
             Text("\(page + 1) / \(pageCount)")
                 .font(.caption.monospacedDigit())
@@ -1644,13 +1659,14 @@ private struct AdminContentRatingAISuggestionsView: View {
                 page = min(pageCount - 1, page + 1)
                 Task { await loadSuggestions() }
             }
-            .disabled(page >= pageCount - 1 || isLoading)
+            .disabled(page >= pageCount - 1 || isLoading || showingPreviousResults)
         }
+        .buttonStyle(.borderless)
     }
 
     private func suggestionRow(_ item: AdminContentRatingAISuggestion) -> some View {
         VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+            AppAdaptiveRow(spacing: 8) {
                 Text(item.title.isEmpty ? "未命名作品" : item.title)
                     .font(.headline)
                     .foregroundStyle(AppTheme.textPrimary)
@@ -1662,7 +1678,7 @@ private struct AdminContentRatingAISuggestionsView: View {
                     aiSuggestionStatusBadge(item.status)
                 }
             }
-            HStack(spacing: 8) {
+            AppAdaptiveRow(spacing: 8) {
                 Text("当前：\(item.currentRating.title)")
                 Text("置信度 \(Int((item.confidence * 100).rounded()))%")
                 Spacer(minLength: 4)
@@ -1712,8 +1728,9 @@ private struct AdminContentRatingAISuggestionReviewSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
+            AdminWorkspaceList {
+                AdminWorkspaceHeading("审核 LLM 建议")
+                AdminWorkspaceSection(suggestion.title) {
                     HStack {
                         Text("AI 建议")
                             .foregroundStyle(AppTheme.textSecondary)
@@ -1726,13 +1743,10 @@ private struct AdminContentRatingAISuggestionReviewSheet: View {
                     LabeledContent("作品修订", value: "\(suggestion.novelRevision)")
                     LabeledContent("模型", value: suggestion.model.isEmpty ? "未记录" : suggestion.model)
                     LabeledContent("提示版本", value: suggestion.promptVersion.isEmpty ? "未记录" : suggestion.promptVersion)
-                } header: {
-                    Text(suggestion.title)
-                } footer: {
-                    Text("LLM 不能直接发布分级；只有管理员批准限制级建议时才会写入分级审计。批准“继续未标注”也不会把作品改为一般。")
+                    AccountSettingsNote("LLM 不能直接发布分级；只有管理员批准限制级建议时才会写入分级审计。批准“继续未标注”也不会把作品改为一般。")
                 }
 
-                Section("模型理由") {
+                AdminWorkspaceSection("模型理由") {
                     Text(suggestion.reason.isEmpty ? "未记录 LLM 理由" : suggestion.reason)
                         .font(.callout)
                         .foregroundStyle(AppTheme.textPrimary)
@@ -1742,40 +1756,33 @@ private struct AdminContentRatingAISuggestionReviewSheet: View {
                 }
 
                 if let decision {
-                    Section {
-                        TextField(decision == "approve" ? "批准理由（必填）" : "拒绝理由（必填）", text: $reason, axis: .vertical)
-                            .lineLimit(3...7)
+                    AdminWorkspaceSection("审核理由") {
+                        if decision == "approve", !suggestion.reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Button("复用 AI 建议理由", systemImage: "arrow.down.doc") {
+                                reason = String(suggestion.reason.trimmingCharacters(in: .whitespacesAndNewlines).prefix(500))
+                            }
+                            .buttonStyle(.borderless)
+                            .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+                            .disabled(isSaving)
+                        }
+                        AdminWorkspaceInput("审核理由（必填）") {
+                            TextField(decision == "approve" ? "批准理由（必填）" : "拒绝理由（必填）", text: $reason, axis: .vertical)
+                                .lineLimit(3...7)
+                        }
                         Text(decision == "approve" && suggestion.suggestedRating == .restricted ? "提交时服务端会再次锁定作品并校验修订号，确认建议仍基于当前内容。" : "本次决定会写入建议审核记录。")
                             .font(.caption)
                             .foregroundStyle(AppTheme.textSecondary)
-                    } header: {
-                        HStack {
-                            Text("审核理由")
-                            Spacer(minLength: 12)
-                            if decision == "approve", !suggestion.reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                Button("复用 AI 建议理由", systemImage: "arrow.down.doc") {
-                                    reason = String(suggestion.reason.trimmingCharacters(in: .whitespacesAndNewlines).prefix(500))
-                                }
-                                .font(.caption)
-                                .textCase(nil)
-                                .disabled(isSaving)
-                            }
-                        }
                     }
                 }
 
                 if let errorMessage {
-                    Section {
+                    Group {
                         Text(errorMessage)
                             .font(.caption)
                             .foregroundStyle(AppTheme.danger)
                     }
                 }
             }
-            .scrollContentBackground(.hidden)
-            .appListStyle(.settings)
-            .navigationTitle("审核 LLM 建议")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { dismiss() }

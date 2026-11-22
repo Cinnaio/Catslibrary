@@ -10,83 +10,82 @@ struct AdminAIServiceView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        List {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("AI 服务")
             if let errorMessage {
                 LoadErrorNotice(message: errorMessage, isLoading: requests.isLoading) {
                     Task { await loadActiveTasks() }
                 }
             }
             if !activeTasks.isEmpty {
-                Section("正在处理") {
-                    ForEach(activeTasks) { task in
+                AdminWorkspaceSection("正在处理") {
+                    ForEach(Array(activeTasks.enumerated()), id: \.element.id) { index, task in
                         NavigationLink {
                             AdminAITasksView(taskID: task.id)
                         } label: {
                             AdminAITaskProgressView(task: task, compact: true)
                         }
+                        .readingSpaceEntrance(index)
                     }
                 }
             }
 
-            Section("创作") {
+            AdminWorkspaceSection("创作") {
                 NavigationLink { AdminAIAgentView() } label: {
-                    Label("对话创作", systemImage: "bubble.left.and.bubble.right")
+                    AdminWorkspaceEntry("对话创作", systemImage: "bubble.left.and.bubble.right")
                 }
                 NavigationLink {
                     AdminAIWritingView()
                 } label: {
-                    Label("AI 创作", systemImage: "pencil.and.outline")
+                    AdminWorkspaceEntry("AI 创作", systemImage: "pencil.and.outline")
                 }
                 NavigationLink {
                     AdminAICoverView()
                 } label: {
-                    Label("封面生成", systemImage: "photo.on.rectangle.angled")
+                    AdminWorkspaceEntry("封面生成", systemImage: "photo.on.rectangle.angled")
                 }
             }
 
-            Section("任务与内容") {
+            AdminWorkspaceSection("任务与内容") {
                 NavigationLink {
                     AdminAITasksView()
                 } label: {
-                    Label("AI 任务", systemImage: "list.bullet.rectangle")
+                    AdminWorkspaceEntry("AI 任务", systemImage: "list.bullet.rectangle")
                 }
                 NavigationLink {
                     AdminAIGenerationsView()
                 } label: {
-                    Label("已生成内容", systemImage: "doc.text.magnifyingglass")
+                    AdminWorkspaceEntry("已生成内容", systemImage: "doc.text.magnifyingglass")
                 }
             }
 
-            Section("运行") {
+            AdminWorkspaceSection("运行") {
                 NavigationLink {
                     AdminAIStatusView()
                 } label: {
-                    Label("状态与用量", systemImage: "gauge.with.dots.needle.50percent")
+                    AdminWorkspaceEntry("状态与用量", systemImage: "gauge.with.dots.needle.50percent")
                 }
                 NavigationLink {
                     AdminAIUsageView()
                 } label: {
-                    Label("AI 调用与用量", systemImage: "chart.bar.xaxis")
+                    AdminWorkspaceEntry("AI 调用与用量", systemImage: "chart.bar.xaxis")
                 }
             }
             if appState.user?.isSuperAdmin == true {
-                Section("配置") {
+                AdminWorkspaceSection("配置") {
                     NavigationLink {
                         AdminAIProviderView()
                     } label: {
-                        Label("供应商配置", systemImage: "server.rack")
+                        AdminWorkspaceEntry("供应商配置", systemImage: "server.rack")
                     }
                     NavigationLink {
                         AdminAISettingsView()
                     } label: {
-                        Label("运行参数", systemImage: "slider.horizontal.3")
+                        AdminWorkspaceEntry("运行参数", systemImage: "slider.horizontal.3")
                     }
                 }
             }
         }
-        .listStyle(.insetGrouped)
-        .navigationTitle("AI 服务")
-        .navigationBarTitleDisplayMode(.large)
         .refreshable { await loadActiveTasks() }
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }

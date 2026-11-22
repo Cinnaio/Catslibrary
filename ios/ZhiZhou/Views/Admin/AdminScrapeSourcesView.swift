@@ -9,6 +9,8 @@ struct AdminScrapeSourcesView: View {
     @State private var errorMessage: String?
     @State private var searchText = ""
     @State private var requests = ListRequestGuard<String>()
+    @State private var displayedSearch: String?
+
     @State private var togglingHost: String?
     @State private var testingHost: String?
     @State private var checkingConnectivity = false
@@ -35,6 +37,8 @@ struct AdminScrapeSourcesView: View {
     @State private var legadoImporting = false
     @State private var legadoResult: String?
 
+    private var showingPreviousResults: Bool { !sources.isEmpty && displayedSearch != searchText }
+
     private func loadSourceAccounts() async {
         let capabilities = try? await AdminAPI.scrapeSourceCapabilities()
         guard !Task.isCancelled else { return }
@@ -42,14 +46,12 @@ struct AdminScrapeSourcesView: View {
     }
 
     var body: some View {
-        List {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("源管理")
             listContent
         }
-        .scrollContentBackground(.hidden)
-        .appListStyle(.settings)
-        .navigationTitle("源管理")
-        .navigationBarTitleDisplayMode(.large)
         .searchable(text: $searchText, prompt: "搜索主机 / 名称")
+        .onChange(of: searchText) { _, _ in selectedHosts.removeAll() }
         .refreshable {
             await load()
             await loadSourceAccounts()
@@ -69,6 +71,7 @@ struct AdminScrapeSourcesView: View {
                     Button("删除不可达书源", systemImage: "trash", role: .destructive) {
                         requestDeleteUnreachable()
                     }
+                    .disabled(showingPreviousResults || isLoading)
                     Divider()
                     Button(selectionMode ? "退出批量选择" : "批量选择", systemImage: "checkmark.circle") {
                         selectionMode.toggle()
@@ -114,9 +117,11 @@ struct AdminScrapeSourcesView: View {
                     legadoResult = nil
                 }
             )
+            .presentationBackground(ReadingSpace.profilePaper)
         }
         .sheet(item: $selectedAccount) { source in
             SourceAccountSheet(source: source)
+                .presentationBackground(ReadingSpace.profilePaper)
         }
         .confirmationDialog(
             "批量启停书源",
@@ -175,13 +180,13 @@ struct AdminScrapeSourcesView: View {
     @ViewBuilder
     private var listContent: some View {
         if isLoading && sources.isEmpty {
-            Section {
+            Group {
                 ProgressView("加载中…")
                     .frame(maxWidth: .infinity, minHeight: 160)
                     .listRowBackground(Color.clear)
             }
         } else if let errorMessage, sources.isEmpty {
-            Section {
+            Group {
                 ContentUnavailableView {
                     Label("加载失败", systemImage: "wifi.slash")
                 } description: {
@@ -194,7 +199,7 @@ struct AdminScrapeSourcesView: View {
             }
         } else {
             if sources.isEmpty {
-                Section {
+                Group {
                     ContentUnavailableView {
                         Label("暂无书源", systemImage: "antenna.radiowaves.left.and.right")
                     } description: {
@@ -209,17 +214,22 @@ struct AdminScrapeSourcesView: View {
                         Task { await load() }
                     }
                 }
-                if selectionMode && !sources.isEmpty {
-                    batchBarSection
+                if showingPreviousResults {
+                    AdminWorkspaceResultsNotice(failed: errorMessage != nil && !isLoading)
                 }
-                Section("书源（\(sources.count)）") {
-                    ForEach(sources) { source in
-                        sourceRow(source)
+                if selectionMode {
+                    batchBarSection.disabled(showingPreviousResults)
+                }
+                AdminWorkspaceSection("书源（\(sources.count)）") {
+                    ForEach(Array(sources.enumerated()), id: \.element.id) { index, source in
+                        sourceRow(source).readingSpaceEntrance(index)
                     }
                 }
+                .opacity(showingPreviousResults ? 0.45 : 1)
+                .disabled(showingPreviousResults)
             }
             if let connectivityText {
-                Section {
+                Group {
                     Label(connectivityText, systemImage: "antenna.radiowaves.left.and.right")
                         .font(.subheadline)
                         .foregroundStyle(AppTheme.textSecondary)
@@ -229,8 +239,8 @@ struct AdminScrapeSourcesView: View {
     }
 
     private var batchBarSection: some View {
-        Section {
-            HStack {
+        Group {
+            AppAdaptiveRow(spacing: 12) {
                 Text("已选 \(selectedHosts.count) 个")
                     .font(.subheadline)
                     .foregroundStyle(AppTheme.textSecondary)
@@ -250,7 +260,7 @@ struct AdminScrapeSourcesView: View {
                         .disabled(selectedHosts.isEmpty)
                 }
             }
-            .listRowBackground(Color.clear)
+            .buttonStyle(.borderless)
         }
     }
 
@@ -273,9 +283,8 @@ struct AdminScrapeSourcesView: View {
                     .accessibilityValue(selectedHosts.contains(source.host) ? "已选择" : "未选择")
                 }
                 Text(source.name)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundStyle(AppTheme.textPrimary)
+                    .font(serifFont(.body, .medium))
+                    .foregroundStyle(ReadingSpace.ink)
                     .appTextLineLimit(2)
             }
             HStack(spacing: 10) {
@@ -394,6 +403,8 @@ struct AdminScrapeSourcesView: View {
             sources = trimmed.isEmpty ? all : all.filter {
                 $0.host.localizedCaseInsensitiveContains(trimmed) || $0.name.localizedCaseInsensitiveContains(trimmed)
             }
+            displayedSearch = ticket.query
+            selectedHosts.formIntersection(sources.map(\.host))
             errorMessage = nil
         } catch {
             guard !Task.isCancelled, requests.accepts(ticket, query: searchText) else { return }
@@ -459,7 +470,7 @@ struct AdminScrapeSourcesView: View {
     }
 
     private func requestDeleteUnreachable() {
-        guard !cleaningUnreachable else { return }
+        guard !cleaningUnreachable, !showingPreviousResults, !isLoading else { return }
         let hosts = sources
             .filter { $0.connectivity == "unreachable" }
             .map(\.host)
@@ -597,32 +608,35 @@ private struct LegadoImportSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    TextField("https://example.com/legado.json", text: $url)
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                } header: {
-                    Text("书源池 URL")
-                } footer: {
-                    Text("填写公开的书源池 JSON 地址，从远端拉取。")
+            AdminWorkspaceList {
+                AdminWorkspaceHeading("导入 Legado 书源")
+                AdminWorkspaceSection("书源池 URL") {
+                    AdminWorkspaceInput("书源池地址") {
+                        TextField("https://example.com/legado.json", text: $url)
+                            .keyboardType(.URL)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    }
+                    AccountSettingsNote("填写公开的书源池 JSON 地址，从远端拉取。")
                 }
-                Section("或粘贴书源 JSON") {
-                    TextEditor(text: $text)
-                        .frame(minHeight: 140)
-                        .font(.caption2)
-                        .scrollContentBackground(.hidden)
-                        .padding(.vertical, 4)
+                AdminWorkspaceSection("或粘贴书源 JSON") {
+                    AdminWorkspaceInput("书源 JSON") {
+                        TextEditor(text: $text)
+                            .scrollContentBackground(.hidden)
+                            .accessibilityLabel("书源 JSON")
+                            .frame(minHeight: 140)
+                            .font(.caption2)
+                            .padding(.vertical, 4)
+                    }
                 }
                 if let result {
-                    Section {
+                    Group {
                         Label(result, systemImage: importing ? "hourglass" : "checkmark.circle.fill")
                             .font(.subheadline)
                             .foregroundStyle(importing ? AppTheme.textSecondary : AppTheme.success)
                     }
                 }
-                Section {
+                Group {
                     Button {
                         requestImport()
                     } label: {
@@ -639,10 +653,6 @@ private struct LegadoImportSheet: View {
                     .disabled(importing || (url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
                 }
             }
-            .scrollContentBackground(.hidden)
-            .appListStyle(.settings)
-            .navigationTitle("导入 Legado 书源")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭", action: onClose)

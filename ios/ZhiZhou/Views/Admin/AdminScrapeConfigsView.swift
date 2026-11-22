@@ -21,15 +21,16 @@ struct AdminScrapeConfigsView: View {
     @State private var pendingDangerousOperation: AdminDangerousOperation?
 
     var body: some View {
-        List {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("配置导入导出")
             if isLoading && !hasLoaded {
-                Section {
+                Group {
                     ProgressView("加载中…")
                         .frame(maxWidth: .infinity, minHeight: 160)
                         .listRowBackground(Color.clear)
                 }
             } else if let errorMessage, !hasLoaded {
-                Section {
+                Group {
                     ContentUnavailableView {
                         Label("加载失败", systemImage: "wifi.slash")
                     } description: {
@@ -49,13 +50,13 @@ struct AdminScrapeConfigsView: View {
                 exportSection
                 importSection
                 if !configs.isEmpty {
-                    Section("已保存配置（\(configs.count)）") {
-                        ForEach(configs) { config in
-                            configRow(config)
+                    AdminWorkspaceSection("已保存配置（\(configs.count)）") {
+                        ForEach(Array(configs.enumerated()), id: \.element.id) { index, config in
+                            configRow(config).readingSpaceEntrance(index)
                         }
                     }
                 } else {
-                    Section {
+                    Group {
                         ContentUnavailableView {
                             Label("暂无配置", systemImage: "doc.on.clipboard")
                         } description: {
@@ -67,10 +68,6 @@ struct AdminScrapeConfigsView: View {
                 }
             }
         }
-        .scrollContentBackground(.hidden)
-        .appListStyle(.settings)
-        .navigationTitle("配置导入导出")
-        .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
         .task { await load() }
         .alert("操作失败", isPresented: errorAlertBinding) {
@@ -97,7 +94,7 @@ struct AdminScrapeConfigsView: View {
     // MARK: - 导出
 
     private var exportSection: some View {
-        Section {
+        AdminWorkspaceSection("导出") {
             Button {
                 Task { await export() }
             } label: {
@@ -124,24 +121,22 @@ struct AdminScrapeConfigsView: View {
                 }
                 .font(.subheadline)
             }
-        } header: {
-            Text("导出")
-        } footer: {
-            Text("导出的 JSON 可在其他 Cat’s Library 实例「配置导入导出」中粘贴导入，用于迁移抓取配置。")
+            AccountSettingsNote("导出的 JSON 可在其他 Cat’s Library 实例「配置导入导出」中粘贴导入，用于迁移抓取配置。")
         }
     }
 
     // MARK: - 导入
 
     private var importSection: some View {
-        Section {
-            TextEditor(text: $importText)
-                .frame(minHeight: 120)
-                .font(.callout)
-                .scrollContentBackground(.hidden)
-                .padding(AppLayout.textEditorInset)
-                .appFieldSurface()
-                .padding(.vertical, 4)
+        AdminWorkspaceSection("导入") {
+            AdminWorkspaceInput("配置 JSON") {
+                TextEditor(text: $importText)
+                    .scrollContentBackground(.hidden)
+                    .accessibilityLabel("配置 JSON")
+                    .frame(minHeight: 120)
+                    .font(.callout)
+                    .padding(.vertical, 4)
+            }
             Button {
                 requestImportConfigs()
             } label: {
@@ -162,10 +157,7 @@ struct AdminScrapeConfigsView: View {
                     .font(.subheadline)
                     .foregroundStyle(AppTheme.success)
             }
-        } header: {
-            Text("导入")
-        } footer: {
-            Text("粘贴从其他实例导出的配置 JSON 数组（[{ novelId, sourceUrl, selectors?, encoding? }]）。")
+            AccountSettingsNote("粘贴从其他实例导出的配置 JSON 数组（[{ novelId, sourceUrl, selectors?, encoding? }]）。")
         }
     }
 

@@ -26,8 +26,9 @@ struct AdminAIUsageView: View {
     ]
 
     var body: some View {
-        List {
-            Section {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("AI 调用与用量")
+            Group {
                 Picker("时间范围", selection: $days) {
                     ForEach([7, 30, 90], id: \.self) { Text("近 \($0) 天").tag($0) }
                 }
@@ -45,13 +46,13 @@ struct AdminAIUsageView: View {
                 }
             }
             if isLoading && users.isEmpty && calls.isEmpty && trend.isEmpty {
-                Section {
-                    ProgressView("加载中…")
+                Group {
+                    ProgressView("正在读取调用与用量…")
                         .frame(maxWidth: .infinity, minHeight: 160)
                         .listRowBackground(Color.clear)
                 }
             } else if let errorMessage, users.isEmpty && calls.isEmpty && trend.isEmpty {
-                Section {
+                Group {
                     ContentUnavailableView {
                         Label("加载失败", systemImage: "wifi.slash")
                     } description: {
@@ -64,7 +65,7 @@ struct AdminAIUsageView: View {
                 }
             } else {
                 if !trend.isEmpty {
-                    Section("近 \(days) 天趋势（全部类型）") {
+                    AdminWorkspaceSection("近 \(days) 天趋势（全部类型）") {
                         Chart(recentTrend) { point in
                             BarMark(
                                 x: .value("日期", point.date),
@@ -120,7 +121,7 @@ struct AdminAIUsageView: View {
                 }
 
                 if users.isEmpty {
-                    Section {
+                    Group {
                         ContentUnavailableView {
                             Label("暂无用户累计用量", systemImage: "chart.bar")
                         } description: {
@@ -130,17 +131,17 @@ struct AdminAIUsageView: View {
                         .listRowSeparator(.hidden)
                     }
                 } else {
-                    Section("用户累计用量（前 \(users.count) 位，不随时间筛选）") {
-                        ForEach(users) { user in
-                            userRow(user)
+                    AdminWorkspaceSection("用户累计用量（前 \(users.count) 位，不随时间筛选）") {
+                        ForEach(Array(users.enumerated()), id: \.element.id) { index, user in
+                            userRow(user).readingSpaceEntrance(index)
                         }
                     }
                 }
 
                 if !calls.isEmpty {
-                    Section("所选范围调用（\(calls.count)/\(callTotal)）") {
-                        ForEach(calls) { call in
-                            callRow(call)
+                    AdminWorkspaceSection("所选范围调用（\(calls.count)/\(callTotal)）") {
+                        ForEach(Array(calls.enumerated()), id: \.element.id) { index, call in
+                            callRow(call).readingSpaceEntrance(index)
                         }
                         if callOffset < callTotal {
                             Button("加载更多调用") { Task { await loadMoreCalls() } }
@@ -150,10 +151,6 @@ struct AdminAIUsageView: View {
                 }
             }
         }
-        .scrollContentBackground(.hidden)
-        .appListStyle(.settings)
-        .navigationTitle("AI 调用与用量")
-        .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
         .task(id: query + [ContentAccessStore.shared.accountRevision.uuidString]) {
             try? await Task.sleep(nanoseconds: 150_000_000)

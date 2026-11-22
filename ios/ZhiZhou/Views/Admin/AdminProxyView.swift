@@ -22,15 +22,16 @@ struct AdminProxyView: View {
     @State private var loadingRequest = false
 
     var body: some View {
-        Form {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("代理设置")
             if isLoading {
-                Section {
+                Group {
                     ProgressView("加载中…")
                         .frame(maxWidth: .infinity, minHeight: 160)
                         .listRowBackground(Color.clear)
                 }
             } else if let errorMessage {
-                Section {
+                Group {
                     ContentUnavailableView {
                         Label("加载失败", systemImage: "wifi.slash")
                     } description: {
@@ -45,7 +46,7 @@ struct AdminProxyView: View {
                 configSection
                 testSection
                 if logsLoaded && !logs.isEmpty {
-                    Section("最近代理日志（\(logs.count)）") {
+                    AdminWorkspaceSection("最近代理日志（\(logs.count)）") {
                         ForEach(logs) { log in
                             logRow(log)
                         }
@@ -53,11 +54,7 @@ struct AdminProxyView: View {
                 }
             }
         }
-        .scrollContentBackground(.hidden)
         .disabled(saving)
-        .appListStyle(.settings)
-        .navigationTitle("代理设置")
-        .navigationBarTitleDisplayMode(.inline)
         .refreshable { await load() }
         .task { await load() }
         .alert("操作失败", isPresented: errorAlertBinding) {
@@ -70,14 +67,18 @@ struct AdminProxyView: View {
     // MARK: - 配置
 
     private var configSection: some View {
-        Section("代理配置") {
-            TextField("代理地址（如 http://host:port）", text: $proxyBase)
-                .keyboardType(.URL)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            TextField("绕过列表（逗号分隔）", text: $proxyBypass)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
+        AdminWorkspaceSection("代理配置") {
+            AdminWorkspaceInput("代理地址") {
+                TextField("代理地址（如 http://host:port）", text: $proxyBase)
+                    .keyboardType(.URL)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+            }
+            AdminWorkspaceInput("绕过列表") {
+                TextField("绕过列表（逗号分隔）", text: $proxyBypass)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+            }
             Button {
                 Task { await save() }
             } label: {
@@ -122,11 +123,13 @@ struct AdminProxyView: View {
     // MARK: - 测试
 
     private var testSection: some View {
-        Section("代理测试") {
-            TextField("测试网址（如 https://example.com）", text: $testUrl)
-                .keyboardType(.URL)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
+        AdminWorkspaceSection("代理测试") {
+            AdminWorkspaceInput("测试网址") {
+                TextField("测试网址（如 https://example.com）", text: $testUrl)
+                    .keyboardType(.URL)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+            }
             Button {
                 Task { await test() }
             } label: {

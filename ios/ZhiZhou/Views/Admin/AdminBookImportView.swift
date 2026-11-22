@@ -344,7 +344,7 @@ struct AdminBookImportView: View {
 
 struct AdminImportHistoryView: View {
     var body: some View {
-        AdminRecordList(title: "我的导入历史", usesWorkspaceLayout: true, fetch: { offset in
+        AdminRecordList(title: "我的导入历史", fetch: { offset in
             let response: AdminRecordPage<BookImportHistory> = try await AdminAPI.parityRequest("GET", "/api/book-import/history?limit=50&offset=\(offset)")
             return response
         }) { item in

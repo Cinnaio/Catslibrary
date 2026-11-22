@@ -11,11 +11,11 @@ struct AdminFollowupView: View {
     @State private var requestID = UUID()
 
     var body: some View {
-        Form {
-            Section { Text(novel.title).font(.headline) }
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("追更设置", detail: novel.title)
             if let error { LoadErrorNotice(message: error, isLoading: busy) { Task { await load() } } }
             if let state {
-                Section {
+                Group {
                     Toggle("自动追更", isOn: $enabled)
                         .disabled((!state.hasConfig || !state.ongoing) && !enabled)
                         .accessibilityIdentifier("admin.followup.enabled")
@@ -24,10 +24,9 @@ struct AdminFollowupView: View {
                     }
                     if !state.hasConfig { Text("请先在抓取中心配置目录和正文选择器。").foregroundStyle(.secondary) }
                     if !state.ongoing { Text("已完结作品暂停自动检查，仍可手动更新。").foregroundStyle(.secondary) }
-                } footer: {
-                    Text("无新章节时逐步降低检查频率，失败后由服务端安排重试。")
+                    AccountSettingsNote("无新章节时逐步降低检查频率，失败后由服务端安排重试。")
                 }
-                Section("最近检查") {
+                AdminWorkspaceSection("最近检查") {
                     Text(state.message.isEmpty ? "尚未检查" : state.message)
                     LabeledContent("上次检查", value: state.checkedAt > 0 ? AdminFormat.dateTime(state.checkedAt) : "尚未检查")
                     LabeledContent("下次检查", value: nextCheckLabel(state))
@@ -36,7 +35,7 @@ struct AdminFollowupView: View {
                         NavigationLink("查看抓取任务") { AdminJobsView() }
                     }
                 }
-                Section {
+                Group {
                     Button("保存追更设置") { Task { await save() } }
                         .accessibilityIdentifier("admin.followup.save")
                     Button("刷新检查状态") { Task { await load(updateDraft: false) } }
@@ -44,8 +43,6 @@ struct AdminFollowupView: View {
             } else if busy { ProgressView("读取追更设置…") }
             if let notice { Text(notice).foregroundStyle(AppTheme.success).accessibilityIdentifier("admin.followup.notice") }
         }
-        .appListStyle(.settings)
-        .navigationTitle("追更设置")
         .disabled(busy)
         .task(id: ContentAccessStore.shared.accountRevision) { requestID = UUID(); busy = false; state = nil; notice = nil; error = nil; await load() }
     }
