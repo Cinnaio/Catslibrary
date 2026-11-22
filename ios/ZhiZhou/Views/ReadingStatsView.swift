@@ -55,33 +55,10 @@ struct ReadingStatsView: View {
                         .allowsHitTesting(statsQuery == queryID)
                         .padding(.bottom, 16)
 
-                    Section {
-                        sectionHeading("阅读作品")
-                            .padding(.top, 4)
-                        if stats.novels.isEmpty {
-                            Text("开始阅读后，作品统计会显示在这里。")
-                                .font(.subheadline)
-                                .foregroundStyle(ReadingSpace.profileMuted)
-                        }
-                        ForEach(Array(stats.novels.enumerated()), id: \.element.id) { index, book in
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(book.title)
-                                    .font(serifFont(.headline, .medium))
-                                    .foregroundStyle(ReadingSpace.ink)
-                                    .appTextLineLimit(2)
-                                Text("\(ReadingStats.duration(book.milliseconds)) · \(book.chapters) 章")
-                                    .font(.subheadline)
-                                    .foregroundStyle(ReadingSpace.ink)
-                                Text("最近阅读 \(dateText(book.lastReadAt))\(book.available ? "" : " · 作品已删除")")
-                                    .font(.caption)
-                                    .foregroundStyle(ReadingSpace.profileMuted)
-                            }
-                            .padding(.vertical, 10)
-                            .accessibilityElement(children: .combine)
-                            .readingSpaceEntrance(index)
-                        }
-                    }
-                    .id(statsQuery)
+                    worksSection(stats)
+                        .id(statsQuery)
+                        .opacity(statsQuery == queryID ? 1 : 0.6)
+                        .disabled(statsQuery != queryID)
 
                     statisticsNotes(stats)
                 }
@@ -112,6 +89,56 @@ struct ReadingStatsView: View {
         }
         .onChange(of: ContentAccessStore.shared.revision) { _, _ in stats = nil }
         .onChange(of: appState.user?.id) { _, _ in stats = nil }
+    }
+
+    private func worksSection(_ stats: ReadingStats) -> some View {
+        let books = stats.novels
+        let listSummary = "\(books.count) 部 · 按时长"
+        return Section {
+            AppAdaptiveRow {
+                sectionHeading("阅读作品")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if !books.isEmpty {
+                    Text(listSummary)
+                        .font(.footnote)
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                }
+            }
+            .padding(.top, 4)
+
+            if books.isEmpty {
+                Text("开始阅读后，作品统计会显示在这里。")
+                    .font(.subheadline)
+                    .foregroundStyle(ReadingSpace.profileMuted)
+            } else if books.count > 12 {
+                ForEach(Array(books.prefix(3).enumerated()), id: \.element.id) { index, book in
+                    ReadingStatsWorkRow(book: book)
+                        .readingSpaceEntrance(index)
+                }
+                NavigationLink("查看全部 \(books.count) 部") {
+                    let periodLabel = loadedPeriod == .all
+                        ? loadedPeriod.title
+                        : "\(dateText(stats.start)) – \(dateText(max(stats.start, stats.end - 1)))"
+                    ReadingStatsWorksDetail(
+                        books: books,
+                        summary: "\(periodLabel) · \(listSummary)",
+                        accountID: statsQuery == queryID ? appState.user?.id : nil,
+                        contentRevision: ContentAccessStore.shared.revision,
+                        dateText: dateText
+                    )
+                }
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(AppTheme.primary)
+            } else {
+                ReadingSpaceSummaryRows(
+                    books,
+                    moreTitle: "查看全部 \(books.count) 部",
+                    lessTitle: "收起作品明细"
+                ) { book, showsDetails in
+                    ReadingStatsWorkRow(book: book, recentDate: showsDetails ? dateText(book.lastReadAt) : nil)
+                }
+            }
+        }
     }
 
     private var periodRangeText: String {
@@ -559,6 +586,67 @@ struct ReadingStatsView: View {
                 )
             }
         }
+    }
+}
+
+private struct ReadingStatsWorkRow: View {
+    let book: ReadingStats.Book
+    var recentDate: String? = nil
+
+    var body: some View {
+        ReadingSpaceSummaryRow(
+            title: book.title,
+            value: ReadingStats.duration(book.milliseconds),
+            detail: detail,
+            isBookTitle: true
+        )
+    }
+
+    private var detail: String {
+        let chapters = "\(book.chapters) 章"
+        guard let recentDate else { return chapters }
+        let availability = book.available ? "" : " · 作品已删除"
+        return "\(chapters) · 最近阅读 \(recentDate)\(availability)"
+    }
+}
+
+private struct ReadingStatsWorksDetail: View {
+    @Environment(AppState.self) private var appState
+    let books: [ReadingStats.Book]
+    let summary: String
+    let accountID: String?
+    let contentRevision: UUID
+    let dateText: (Int64) -> String
+
+    var body: some View {
+        List {
+            Group {
+                if let accountID, appState.user?.id == accountID,
+                   ContentAccessStore.shared.revision == contentRevision {
+                    ReaderPanelHeading("阅读作品", detail: summary)
+                        .padding(.vertical, 12)
+                    ForEach(books) { book in
+                        ReadingStatsWorkRow(book: book, recentDate: dateText(book.lastReadAt))
+                    }
+                } else {
+                    ContentUnavailableView(
+                        "阅读范围已变化",
+                        systemImage: "book.closed",
+                        description: Text("请返回阅读统计，重新打开作品明细。")
+                    )
+                }
+            }
+            .listRowInsets(EdgeInsets(top: 6, leading: 22, bottom: 6, trailing: 22))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+        }
+        .modifier(ReadingSpaceRoomListStyle())
+        .contentMargins(.bottom, 24, for: .scrollContent)
+        .readingSpaceNavigation()
+        .frame(maxWidth: 760)
+        .frame(maxWidth: .infinity)
+        .background(ReadingSpace.profilePaper)
+        .tint(AppTheme.primary)
     }
 }
 

@@ -65,8 +65,9 @@ struct AdminAIUsageView: View {
                 }
             } else {
                 if !trend.isEmpty {
+                    let recentDays = Array(trend.reversed().prefix(5))
                     AdminWorkspaceSection("近 \(days) 天趋势（全部类型）") {
-                        Chart(recentTrend) { point in
+                        Chart(trend) { point in
                             BarMark(
                                 x: .value("日期", point.date),
                                 y: .value("调用次数", Double(point.calls ?? 0))
@@ -84,39 +85,20 @@ struct AdminAIUsageView: View {
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel("近 \(days) 天 AI 调用次数趋势")
                         .accessibilityValue(
-                            recentTrend
+                            trend
                                 .map { "\($0.date) \($0.calls ?? 0) 次" }
                                 .joined(separator: "，")
                         )
 
-                        ForEach(Array(recentTrend.reversed().prefix(5))) { point in
-                            AppAdaptiveRow(spacing: 8) {
-                                Text(point.date)
-                                    .font(.caption)
-                                    .foregroundStyle(AppTheme.textSecondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                ProgressView(
-                                    value: Double(point.calls ?? 0),
-                                    total: Double(maxTrendCalls)
+                        DisclosureGroup("查看最近 \(recentDays.count) 个记录日明细") {
+                            ForEach(recentDays) { point in
+                                ReadingSpaceSummaryRow(
+                                    title: point.date,
+                                    value: "\(point.calls ?? 0) 次",
+                                    detail: trendDayDetail(point)
                                 )
-                                .progressViewStyle(.linear)
-                                .tint(AppTheme.primary)
-                                Text("\(point.calls ?? 0) 次")
-                                    .font(.caption)
-                                    .foregroundStyle(AppTheme.textPrimary)
-                                if let tokens = point.promptTokens, tokens > 0 {
-                                    Text("\(tokens) tok")
-                                        .font(.caption2)
-                                        .foregroundStyle(AppTheme.textSecondary)
-                                }
-                                Text(AdminFormat.aiCost(point.costMillicents))
-                                    .font(.caption2)
-                                    .foregroundStyle(AppTheme.textSecondary)
                             }
                         }
-                        Text("图表显示所选时间范围的全部类型趋势，明细列出最近 5 个有记录的日期。")
-                            .font(.caption2)
-                            .foregroundStyle(AppTheme.textSecondary)
                     }
                 }
 
@@ -132,8 +114,8 @@ struct AdminAIUsageView: View {
                     }
                 } else {
                     AdminWorkspaceSection("用户累计用量（前 \(users.count) 位，不随时间筛选）") {
-                        ForEach(Array(users.enumerated()), id: \.element.id) { index, user in
-                            userRow(user).readingSpaceEntrance(index)
+                        ReadingSpaceSummaryRows(users) { user, showsDetails in
+                            userRow(user, showsDetails: showsDetails)
                         }
                     }
                 }
@@ -161,37 +143,20 @@ struct AdminAIUsageView: View {
 
     // MARK: - 行
 
-    private func userRow(_ user: AiAuditUser) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            AppAdaptiveRow(spacing: 8) {
-                Text(user.displayName ?? user.username ?? user.id)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .appTextLineLimit(1)
-                Spacer()
-                Text("\(user.callCount ?? 0) 次")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-            }
-            AppAdaptiveRow(spacing: 8) {
-                Text("输入 \(user.totalPromptTokens ?? 0)")
-                    .font(.caption2)
-                    .foregroundStyle(AppTheme.textSecondary)
-                Text("输出 \(user.totalCompletionTokens ?? 0)")
-                    .font(.caption2)
-                    .foregroundStyle(AppTheme.textSecondary)
-                Text(AdminFormat.aiCost(user.totalCostMillicents))
-                    .font(.caption2)
-                    .foregroundStyle(AppTheme.textSecondary)
-            }
+    private func userRow(_ user: AiAuditUser, showsDetails: Bool) -> some View {
+        var detail = ""
+        if showsDetails {
+            let tokens = "输入 \(user.totalPromptTokens ?? 0) · 输出 \(user.totalCompletionTokens ?? 0)"
+            detail = "\(tokens) · \(AdminFormat.aiCost(user.totalCostMillicents))"
             if let last = user.lastCallAt, last > 0 {
-                Text("最近调用：\(AdminFormat.dateTime(last))")
-                    .font(.caption2)
-                    .foregroundStyle(AppTheme.textSecondary)
+                detail += "\n最近调用 \(AdminFormat.dateTime(last))"
             }
         }
-        .padding(.vertical, 2)
+        return ReadingSpaceSummaryRow(
+            title: user.displayName ?? user.username ?? user.id,
+            value: "\(user.callCount ?? 0) 次",
+            detail: detail
+        )
     }
 
     private func callRow(_ call: AiAuditCall) -> some View {
@@ -244,12 +209,10 @@ struct AdminAIUsageView: View {
         .padding(.vertical, 2)
     }
 
-    private var maxTrendCalls: Int {
-        max(1, trend.map { $0.calls ?? 0 }.max() ?? 1)
-    }
-
-    private var recentTrend: [AiAuditTrendPoint] {
-        trend
+    private func trendDayDetail(_ point: AiAuditTrendPoint) -> String {
+        let cost = AdminFormat.aiCost(point.costMillicents)
+        guard let tokens = point.promptTokens, tokens > 0 else { return cost }
+        return "\(tokens) tok · \(cost)"
     }
 
     // MARK: - 数据

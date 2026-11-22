@@ -30,12 +30,19 @@ struct AdminBackupsView: View {
                 }
                 AdminWorkspaceSection("最近任务") {
                     if overview.tasks.isEmpty { Text("暂无任务").foregroundStyle(.secondary) }
-                    ForEach(overview.tasks) { task in
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("\(task.kind) · \(AdminParityCopy.state(task.state))")
-                            Text(task.stage).font(.caption)
-                            if !task.error.isEmpty { Text(task.error).foregroundStyle(AppTheme.danger) }
-                            Text(AdminFormat.dateTime(task.createdAt)).font(.caption).foregroundStyle(.secondary)
+                    ReadingSpaceSummaryRows(overview.tasks) { task, showsDetails in
+                        VStack(alignment: .leading, spacing: 4) {
+                            ReadingSpaceSummaryRow(
+                                title: task.kind,
+                                value: AdminParityCopy.state(task.state),
+                                detail: showsDetails ? "\(AdminFormat.dateTime(task.createdAt)) · \(task.stage)" : AdminFormat.dateTime(task.createdAt),
+                                valueTint: task.error.isEmpty ? ReadingSpace.ink : AppTheme.danger
+                            )
+                            if showsDetails, !task.error.isEmpty {
+                                Text(task.error)
+                                    .font(.footnote)
+                                    .foregroundStyle(AppTheme.danger)
+                            }
                         }
                     }
                 }

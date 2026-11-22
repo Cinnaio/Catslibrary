@@ -26,14 +26,14 @@ struct AdminDashboardView: View {
                 }
                 if !stats.recentJobs.isEmpty {
                     AdminWorkspaceSection("最近抓取任务") {
-                        ForEach(stats.recentJobs) { job in
-                            NavigationLink { AdminJobsView(jobID: job.id) } label: { jobRow(job) }
+                        ReadingSpaceSummaryRows(stats.recentJobs) { job, showsDetails in
+                            NavigationLink { AdminJobsView(jobID: job.id) } label: { jobRow(job, showsDetails: showsDetails) }
                         }
                     }
                 }
                 if !stats.recentNovels.isEmpty {
                     AdminWorkspaceSection("最近更新") {
-                        ForEach(stats.recentNovels) { novel in
+                        ReadingSpaceSummaryRows(stats.recentNovels) { novel, _ in
                             NavigationLink { AdminNovelWorkspaceLoader(novelID: novel.id) } label: { novelRow(novel) }
                         }
                     }
@@ -124,54 +124,43 @@ struct AdminDashboardView: View {
 
     // MARK: - 行
 
-    private func jobRow(_ job: AdminJobSummary) -> some View {
+    private func jobRow(_ job: AdminJobSummary, showsDetails: Bool) -> some View {
         VStack(alignment: .leading, spacing: 5) {
-            AppAdaptiveRow {
-                Text(job.novelTitle.isEmpty ? "（未知书名）" : job.novelTitle)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.primary)
-                    .appTextLineLimit(1)
-                Spacer()
-                Text(AdminFormat.jobStatus(job.status))
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(.secondary)
-            }
-            ProgressView(value: min(max(job.progress, 0), 1))
-                .progressViewStyle(.linear)
-                .tint(jobStatusTint(job.status))
-            Text("章节 \(job.current)/\(job.total) · \(AdminFormat.relativeTime(job.updatedAt))")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            if !job.error.isEmpty {
-                Text(job.error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .appTextLineLimit(2)
+            ReadingSpaceSummaryRow(
+                title: job.novelTitle.isEmpty ? "（未知书名）" : job.novelTitle,
+                value: AdminFormat.jobStatus(job.status),
+                detail: "章节 \(job.current)/\(job.total) · \(AdminFormat.relativeTime(job.updatedAt))",
+                isBookTitle: true,
+                valueTint: jobStatusTint(job.status)
+            )
+            if showsDetails {
+                ProgressView(value: min(max(job.progress, 0), 1))
+                    .progressViewStyle(.linear)
+                    .tint(jobStatusTint(job.status))
+                if !job.error.isEmpty {
+                    Text(job.error)
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.danger)
+                        .appTextLineLimit(2)
+                }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func novelRow(_ novel: AdminNovelSummary) -> some View {
-        Label {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(novel.title)
-                    .font(serifFont(.body, .medium))
-                Text("\(novel.author.isEmpty ? "佚名" : novel.author) · \(novel.chapterCount) 章 · \(AdminFormat.relativeTime(novel.updatedAt))")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-        } icon: {
-            Image(systemName: "book.closed")
-        }
+        ReadingSpaceSummaryRow(
+            title: novel.title,
+            value: AdminFormat.relativeTime(novel.updatedAt),
+            detail: "\(novel.author.isEmpty ? "佚名" : novel.author) · \(novel.chapterCount) 章",
+            isBookTitle: true
+        )
     }
 
     private func jobStatusTint(_ status: String) -> Color {
         switch status {
-        case "completed", "partial": return .green
-        case "failed", "cancelled": return .red
-        default: return .accentColor
+        case "completed", "partial": return AppTheme.success
+        case "failed", "cancelled": return AppTheme.danger
+        default: return AppTheme.primary
         }
     }
 }

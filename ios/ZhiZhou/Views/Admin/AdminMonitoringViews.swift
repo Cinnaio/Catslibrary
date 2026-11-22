@@ -22,11 +22,11 @@ struct AdminDownloadRecordsView: View {
             let response: AdminDownloadLogsResponse = try await AdminAPI.parityRequest("GET", "/api/download-logs?limit=100")
             return AdminRecordPage(items: response.logs, total: response.logs.count)
         }) { item in
-            VStack(alignment: .leading, spacing: 6) {
-                Text(item.targetTitle).font(.headline)
-                Text("\(item.type) · \(item.itemCount) 项").font(.caption)
-                Text(AdminFormat.relativeTime(item.createdAt)).font(.caption).foregroundStyle(.secondary)
-            }
+            ReadingSpaceSummaryRow(
+                title: item.targetTitle,
+                value: "\(item.itemCount) 项",
+                detail: "\(item.type) · \(AdminFormat.relativeTime(item.createdAt))"
+            )
         }
     }
 }
@@ -37,15 +37,29 @@ struct AdminOutboundRecordsView: View {
             let response: ScrapeProxyLogsResponse = try await AdminAPI.parityRequest("GET", "/api/scrape?action=proxy-logs&limit=100")
             return AdminRecordPage(items: response.logs, total: response.logs.count)
         }) { item in
-            VStack(alignment: .leading, spacing: 6) {
-                Text("\(item.method ?? "GET") \(item.target ?? item.targetHost ?? "—")")
-                    .font(.subheadline).textSelection(.enabled)
+            VStack(alignment: .leading, spacing: 4) {
+                AppAdaptiveRow {
+                    Text("\(item.method ?? "GET") \(item.target ?? item.targetHost ?? "—")")
+                        .font(.subheadline.weight(.medium))
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(item.status.map { "HTTP \($0)" } ?? "无响应")
+                        .font(.subheadline.monospacedDigit())
+                        .foregroundStyle(item.ok == true ? AppTheme.success : AppTheme.danger)
+                        .layoutPriority(1)
+                }
                 Text("\(item.scope ?? "—") · \(item.proxySource ?? "none") · \(item.durationMs ?? 0) ms")
-                    .font(.caption).foregroundStyle(.secondary)
-                if let proxy = item.proxyHost, !proxy.isEmpty { Text(proxy).font(.caption) }
-                Text(item.status.map { "HTTP \($0)" } ?? item.error ?? "无响应")
-                    .foregroundStyle(item.ok == true ? AppTheme.success : AppTheme.danger)
-                Text(AdminFormat.dateTime(item.timestamp)).font(.caption).foregroundStyle(.secondary)
+                    .font(.caption)
+                    .foregroundStyle(ReadingSpace.profileMuted)
+                let timestamp = AdminFormat.dateTime(item.timestamp)
+                let proxy = item.proxyHost.flatMap { $0.isEmpty ? nil : $0 }
+                Text(proxy.map { "\(timestamp) · \($0)" } ?? timestamp)
+                    .font(.caption)
+                    .foregroundStyle(ReadingSpace.profileMuted)
+                if item.status == nil, let error = item.error, !error.isEmpty {
+                    Text(error).font(.footnote).foregroundStyle(AppTheme.danger)
+                }
             }
         }
     }
@@ -64,13 +78,17 @@ struct AdminOperationsView: View {
             ]))
             return AdminRecordPage(items: response.operations, total: response.total)
         }) { item in
-            VStack(alignment: .leading, spacing: 6) {
-                Text(item.action).font(.headline)
-                Text("\(item.actorDisplayName.isEmpty ? item.actorUsername : item.actorDisplayName) · \(AdminParityCopy.state(item.status))")
+            VStack(alignment: .leading, spacing: 4) {
+                let actor = item.actorDisplayName.isEmpty ? item.actorUsername : item.actorDisplayName
+                ReadingSpaceSummaryRow(
+                    title: item.action,
+                    value: AdminParityCopy.state(item.status),
+                    detail: "\(actor) · \(AdminFormat.dateTime(item.createdAt))",
+                    valueTint: item.error.isEmpty ? ReadingSpace.ink : AppTheme.danger
+                )
                 Text("对象 \(item.targetCount) · HTTP \(item.responseStatus) · 重放 \(item.replayCount)")
-                    .font(.caption).foregroundStyle(.secondary)
-                if !item.error.isEmpty { Text(item.error).foregroundStyle(AppTheme.danger) }
-                Text(AdminFormat.dateTime(item.createdAt)).font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(ReadingSpace.profileMuted)
+                if !item.error.isEmpty { Text(item.error).font(.footnote).foregroundStyle(AppTheme.danger) }
                 Text("操作编号：\(item.operationId)").font(.caption2).textSelection(.enabled)
             }
         }

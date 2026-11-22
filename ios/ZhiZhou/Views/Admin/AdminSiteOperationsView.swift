@@ -99,17 +99,8 @@ struct AdminSiteOperationsView: View {
             }
             if let popular = overview.popularNovels, !popular.isEmpty {
                 AdminWorkspaceSection("热门小说（近 7 天）") {
-                    ForEach(popular) { novel in
-                        HStack {
-                            Text(novel.title)
-                                .font(.subheadline)
-                                .foregroundStyle(AppTheme.textPrimary)
-                                .appTextLineLimit(1)
-                            Spacer()
-                            Text("\(novel.views ?? 0) 次浏览")
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.textSecondary)
-                        }
+                    ReadingSpaceSummaryRows(popular) { novel, _ in
+                        ReadingSpaceSummaryRow(title: novel.title, value: "\(novel.views ?? 0) 次浏览", isBookTitle: true)
                     }
                 }
             }
@@ -160,8 +151,9 @@ struct AdminSiteOperationsView: View {
     private func trafficContent(_ traffic: SiteTraffic?) -> some View {
         Group {
             if let trend = traffic?.dailyTrend, !trend.isEmpty {
-                AdminWorkspaceSection("每日流量趋势（近 \(trend.count) 天）") {
-                    let recentTrend = Array(trend.suffix(14))
+                let recentTrend = Array(trend.suffix(14))
+                let recentDays = Array(recentTrend.reversed().prefix(5))
+                AdminWorkspaceSection("每日流量趋势（最近 \(recentTrend.count) 个记录日）") {
                     Chart {
                         ForEach(recentTrend) { point in
                             LineMark(
@@ -203,74 +195,42 @@ struct AdminSiteOperationsView: View {
                         }
                     }
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("近 14 天页面浏览与访客趋势")
+                    .accessibilityLabel("最近 \(recentTrend.count) 个记录日的页面浏览与访客趋势")
                     .accessibilityValue(
                         recentTrend
                             .map { "\($0.date) 浏览 \($0.pageViews ?? 0) 次，访客 \($0.visitors ?? 0) 人" }
                             .joined(separator: "，")
                     )
 
-                    ForEach(Array(recentTrend.reversed().prefix(5))) { point in
-                        HStack {
-                            Text(point.date)
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.textSecondary)
-                            Spacer()
-                            Text("\(point.pageViews ?? 0) 浏览")
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.textPrimary)
-                            Text("· \(point.visitors ?? 0) 访客")
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.textSecondary)
+                    DisclosureGroup("查看最近 \(recentDays.count) 个记录日明细") {
+                        ForEach(recentDays) { point in
+                            ReadingSpaceSummaryRow(
+                                title: point.date,
+                                value: "\(point.pageViews ?? 0) 次浏览",
+                                detail: "\(point.visitors ?? 0) 位访客"
+                            )
                         }
                     }
-                    Text("图表显示最近 14 天，明细列出最近 5 天。")
-                        .font(.caption2)
-                        .foregroundStyle(AppTheme.textSecondary)
                 }
             }
             if let countries = traffic?.countries, !countries.isEmpty {
                 AdminWorkspaceSection("访客地区") {
-                    ForEach(countries.prefix(8)) { country in
-                        HStack {
-                            Text(countryLabel(country.countryCode))
-                                .font(.subheadline)
-                                .foregroundStyle(AppTheme.textPrimary)
-                            Spacer()
-                            Text("\(country.visits ?? 0) 次")
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.textSecondary)
-                        }
+                    ReadingSpaceSummaryRows(Array(countries.prefix(8))) { country, _ in
+                        ReadingSpaceSummaryRow(title: countryLabel(country.countryCode), value: "\(country.visits ?? 0) 次")
                     }
                 }
             }
             if let devices = traffic?.devices, !devices.isEmpty {
                 AdminWorkspaceSection("设备类型") {
-                    ForEach(devices) { device in
-                        HStack {
-                            Text(deviceLabel(device.key))
-                                .font(.subheadline)
-                                .foregroundStyle(AppTheme.textPrimary)
-                            Spacer()
-                            Text("\(device.visits ?? 0) 次")
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.textSecondary)
-                        }
+                    ReadingSpaceSummaryRows(devices) { device, _ in
+                        ReadingSpaceSummaryRow(title: deviceLabel(device.key), value: "\(device.visits ?? 0) 次")
                     }
                 }
             }
             if let sources = traffic?.sources, !sources.isEmpty {
                 AdminWorkspaceSection("流量来源") {
-                    ForEach(sources) { source in
-                        HStack {
-                            Text(sourceLabel(source.key))
-                                .font(.subheadline)
-                                .foregroundStyle(AppTheme.textPrimary)
-                            Spacer()
-                            Text("\(source.visits ?? 0) 次")
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.textSecondary)
-                        }
+                    ReadingSpaceSummaryRows(sources) { source, _ in
+                        ReadingSpaceSummaryRow(title: sourceLabel(source.key), value: "\(source.visits ?? 0) 次")
                     }
                 }
             }
@@ -351,50 +311,33 @@ struct AdminSiteOperationsView: View {
                         metricRow("近 7 天更新", value: updates.last7Days, unit: "本")
                         metricRow("近 30 天更新", value: updates.last30Days, unit: "本")
                         if let novels = updates.novels, !novels.isEmpty {
-                            ForEach(novels) { novel in
-                                HStack {
-                                    Text(novel.title)
-                                        .font(.subheadline)
-                                        .foregroundStyle(AppTheme.textPrimary)
-                                        .appTextLineLimit(1)
-                                    Spacer()
-                                    Text(AdminFormat.relativeTime(novel.updatedAt ?? 0))
-                                        .font(.caption)
-                                        .foregroundStyle(AppTheme.textSecondary)
-                                }
+                            ReadingSpaceSummaryRows(novels) { novel, _ in
+                                ReadingSpaceSummaryRow(
+                                    title: novel.title,
+                                    value: AdminFormat.relativeTime(novel.updatedAt ?? 0),
+                                    isBookTitle: true
+                                )
                             }
                         }
                     }
                 }
                 if let categories = health.categories, !categories.isEmpty {
                     AdminWorkspaceSection("分类分布（前 10）") {
-                        ForEach(categories.prefix(10)) { category in
-                            HStack {
-                                Text(category.category)
-                                    .font(.subheadline)
-                                    .foregroundStyle(AppTheme.textPrimary)
-                                    .appTextLineLimit(1)
-                                Spacer()
-                                Text("\(category.novels ?? 0) 本")
-                                    .font(.caption)
-                                    .foregroundStyle(AppTheme.textSecondary)
-                            }
+                        ReadingSpaceSummaryRows(Array(categories.prefix(10))) { category, _ in
+                            ReadingSpaceSummaryRow(title: category.category, value: "\(category.novels ?? 0) 本")
                         }
                     }
                 }
                 if let completeness = health.completeness, !completeness.isEmpty {
                     AdminWorkspaceSection("信息完整度最低（前 8）") {
-                        ForEach(completeness) { item in
-                            HStack {
-                                Text(item.title)
-                                    .font(.subheadline)
-                                    .foregroundStyle(AppTheme.textPrimary)
-                                    .appTextLineLimit(1)
-                                Spacer()
-                                Text("\(item.score ?? 0)/6")
-                                    .font(.caption)
-                                    .foregroundStyle(item.score ?? 0 < 4 ? AppTheme.warning : AppTheme.success)
-                            }
+                        ReadingSpaceSummaryRows(completeness) { item, _ in
+                            let score = item.score ?? 0
+                            ReadingSpaceSummaryRow(
+                                title: item.title,
+                                value: "\(score)/6",
+                                isBookTitle: true,
+                                valueTint: score < 4 ? AppTheme.warning : AppTheme.success
+                            )
                         }
                     }
                 }
