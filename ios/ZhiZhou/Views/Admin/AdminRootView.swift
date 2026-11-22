@@ -50,7 +50,7 @@ struct AdminRootView: View {
         AdminModuleGroup(id: "library", title: "作品", modules: [
             AdminModule(id: "novels", title: "小说管理", systemImage: "books.vertical", destination: .novels, summary: "查找作品、编辑资料与封面"),
             AdminModule(id: "chapters", title: "章节管理", systemImage: "doc.text", destination: .chapters, summary: "查找、编辑与排序章节"),
-            AdminModule(id: "book-import", title: "书籍导入", systemImage: "square.and.arrow.down", destination: .bookImport, summary: "导入 TXT 或 ZIP，确认后入库"),
+            AdminModule(id: "book-import", title: "书籍导入", systemImage: "square.and.arrow.down", destination: .bookImport, summary: "从目录地址预览并导入章节"),
             AdminModule(id: "discover", title: "发现小说", systemImage: "magnifyingglass", destination: .discover, summary: "按书名或作者搜索书源"),
         ]),
         AdminModuleGroup(id: "creation", title: "创作", modules: [

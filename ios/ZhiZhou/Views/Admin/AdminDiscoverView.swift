@@ -10,6 +10,9 @@ struct AdminDiscoverView: View {
     }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @FocusState private var focusedField: Field?
+    private enum Field: Hashable { case search, ranking }
 
     // 搜索
     @State private var mode: SearchMode = .list
@@ -43,6 +46,7 @@ struct AdminDiscoverView: View {
     @State private var detailAutoStart = false
     // 批量
     @State private var batch: BatchState?
+    @State private var activeBatch: BatchState?
 
     // 通用
     @State private var actionError: String?
@@ -68,20 +72,21 @@ struct AdminDiscoverView: View {
     }
 
     var body: some View {
-        List {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("发现小说")
             toolbarSection
             resultsSection
         }
-        .listStyle(.insetGrouped)
-        // Liquid Glass 标签栏会悬浮在内容上方，给最后一条结果保留可见的滚动终点。
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            Color.clear.frame(height: 16)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("完成") { focusedField = nil }
+            }
         }
-        .navigationTitle("发现小说")
-        .navigationBarTitleDisplayMode(.large)
         .refreshable { await refreshAvailableSources(reloadResults: true) }
         .task { await refreshAvailableSources() }
         .onChange(of: mode) { _, selected in
+            focusedField = nil
             resetDiscoveryResults()
             if selected == .list {
                 Task { await openRanking() }
@@ -113,7 +118,7 @@ struct AdminDiscoverView: View {
     // MARK: - 搜索区
 
     private var toolbarSection: some View {
-        Section {
+        AdminWorkspaceSection(mode == .search ? "搜索书源" : "浏览榜单") {
             if !searchSources.isEmpty {
                 Picker("模式", selection: $mode) {
                     ForEach(SearchMode.allCases) { option in
@@ -154,8 +159,6 @@ struct AdminDiscoverView: View {
                 }
                 rankingInputRow
             }
-        } header: {
-            Text(mode == .search ? "搜索书源" : "浏览榜单")
         }
     }
 
@@ -182,63 +185,73 @@ struct AdminDiscoverView: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
         .accessibilityIdentifier("admin.discover.ranking")
     }
 
     private var searchInputRow: some View {
-        HStack(spacing: 8) {
-            TextField("搜索书名或作者", text: Binding(get: { query }, set: { value in
-                guard query != value else { return }
-                query = value
-                resetDiscoveryResults()
-            }))
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            .submitLabel(.search)
-            .onSubmit { Task { await fetchSearch() } }
+        AccountSettingsField("搜索书名或作者", isFocused: focusedField == .search) {
+            HStack(spacing: 8) {
+                TextField("搜索书名或作者", text: Binding(get: { query }, set: { value in
+                    guard query != value else { return }
+                    query = value
+                    resetDiscoveryResults()
+                }))
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .focused($focusedField, equals: .search)
+                .submitLabel(.search)
+                .onSubmit { submitSearch() }
 
-            Button {
-                Task { await fetchSearch() }
-            } label: {
-                Label("搜索书源", systemImage: "magnifyingglass")
-                    .labelStyle(.iconOnly)
-                    .frame(width: AppLayout.minimumTouchTarget, height: AppLayout.minimumTouchTarget)
-                    .contentShape(Rectangle())
+                Button(action: submitSearch) {
+                    Label("搜索书源", systemImage: "magnifyingglass")
+                        .labelStyle(.iconOnly)
+                        .frame(width: AppLayout.minimumTouchTarget, height: AppLayout.minimumTouchTarget)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
+                .disabled(isLoading || searchTerm.isEmpty || searchSource == nil)
             }
-            .buttonStyle(.borderless)
-            .disabled(isLoading || searchTerm.isEmpty || searchSource == nil)
         }
     }
 
     private var rankingInputRow: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "link")
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
-            TextField("粘贴榜单页面 URL", text: Binding(get: { listUrl }, set: { value in
-                guard listUrl != value else { return }
-                listUrl = value
-                selectedRanking = nil
-                hasEditedRankingURL = true
-                resetDiscoveryResults()
-            }))
-            .keyboardType(.URL)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            .submitLabel(.go)
-            .onSubmit { Task { await fetchDiscoverList() } }
+        AccountSettingsField("榜单地址", isFocused: focusedField == .ranking) {
+            HStack(spacing: 8) {
+                TextField("粘贴榜单页面 URL", text: Binding(get: { listUrl }, set: { value in
+                    guard listUrl != value else { return }
+                    listUrl = value
+                    selectedRanking = nil
+                    hasEditedRankingURL = true
+                    resetDiscoveryResults()
+                }))
+                .keyboardType(.URL)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .focused($focusedField, equals: .ranking)
+                .submitLabel(.go)
+                .onSubmit { submitRanking() }
 
-            Button {
-                Task { await fetchDiscoverList() }
-            } label: {
-                Label("获取榜单", systemImage: "arrow.clockwise")
-                    .labelStyle(.iconOnly)
-                    .frame(width: AppLayout.minimumTouchTarget, height: AppLayout.minimumTouchTarget)
-                    .contentShape(Rectangle())
+                Button(action: submitRanking) {
+                    Label("获取榜单", systemImage: "arrow.clockwise")
+                        .labelStyle(.iconOnly)
+                        .frame(width: AppLayout.minimumTouchTarget, height: AppLayout.minimumTouchTarget)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
+                .disabled(isLoading || rankingURL.isEmpty)
             }
-            .buttonStyle(.borderless)
-            .disabled(isLoading || rankingURL.isEmpty)
         }
+    }
+
+    private func submitSearch() {
+        focusedField = nil
+        Task { await fetchSearch() }
+    }
+
+    private func submitRanking() {
+        focusedField = nil
+        Task { await fetchDiscoverList() }
     }
 
     // MARK: - 结果区
@@ -246,78 +259,65 @@ struct AdminDiscoverView: View {
     @ViewBuilder
     private var resultsSection: some View {
         if isLoading {
-            Section {
-                ProgressView(mode == .list ? "正在读取榜单…" : "正在搜索书源…")
-            }
+            ProgressView(mode == .list ? "正在读取榜单…" : "正在搜索书源…")
+                .controlSize(.small)
         }
         if let errorMessage {
-            Section {
-                LoadErrorNotice(
-                    message: mode == .list ? "无法读取榜单：\(errorMessage)" : "搜索失败：\(errorMessage)",
-                    isLoading: isLoading
-                ) {
-                    Task { await reloadCurrent() }
-                }
+            LoadErrorNotice(
+                message: mode == .list ? "无法读取榜单：\(errorMessage)" : "搜索失败：\(errorMessage)",
+                isLoading: isLoading
+            ) {
+                Task { await reloadCurrent() }
             }
         }
+        if let activeBatch {
+            Button("查看批量进度", systemImage: "list.bullet.rectangle") { batch = activeBatch }
+                .buttonStyle(.borderless)
+                .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+        }
         if let totalText, novels.isEmpty && !isLoading && errorMessage == nil {
-            Section {
-                ContentUnavailableView {
-                    Label("没有结果", systemImage: "tray")
-                } description: {
-                    Text(totalText)
-                }
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-            }
+            ContentUnavailableView("没有结果", systemImage: "tray", description: Text(totalText))
         } else if !novels.isEmpty {
             if !selectedIndices.isEmpty {
-                Section {
-                    HStack {
-                        Text("已选 \(selectedIndices.count) 本")
-                            .font(.subheadline)
-                            .foregroundStyle(AppTheme.textSecondary)
-                        Spacer()
-                        Button("全选/反选") { toggleAll() }
-                            .font(.subheadline)
-                        Button {
-                            Task { await batchScrape() }
-                        } label: {
-                            if let batch, !batch.done {
-                                ProgressView().controlSize(.small)
-                            } else {
-                                Label("抓取选中", systemImage: "play.fill")
-                            }
-                        }
-                        .font(.subheadline)
-                        .disabled(batch?.done == false)
+                AppAdaptiveRow(spacing: 12) {
+                    Text("已选 \(selectedIndices.count) 本")
+                        .font(.subheadline.monospacedDigit())
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                    Spacer(minLength: 8)
+                    Button("全选/反选") { toggleAll() }
+                        .frame(minHeight: AppLayout.minimumTouchTarget)
+                    Button {
+                        Task { await batchScrape() }
+                    } label: {
+                        Label("抓取选中", systemImage: "play.fill")
+                            .frame(minHeight: AppLayout.minimumTouchTarget)
                     }
-                    .listRowBackground(Color.clear)
+                    .disabled(activeBatch != nil)
                 }
+                .buttonStyle(.borderless)
+                .disabled(isLoading)
             }
-            Section("找到 \(novels.count) 本\(totalText.map { " · \($0)" } ?? "")") {
+            AdminWorkspaceSection("找到 \(novels.count) 本") {
+                if let totalText { AccountSettingsNote(totalText) }
                 ForEach(Array(novels.enumerated()), id: \.element.id) { index, novel in
                     discoverRow(novel, index: index)
-                        .transition(reduceMotion ? .identity : .asymmetric(
-                            insertion: .opacity.animation(AppMotion.micro.delay(Double(min(index, 12)) * 0.012)),
-                            removal: .opacity
-                        ))
+                        .readingSpaceEntrance(index)
+                        .transition(reduceMotion ? .identity : .opacity)
                 }
             }
+            .opacity(isLoading ? 0.45 : 1)
+            .disabled(isLoading)
+
             if page < totalPages && (mode == .search || nextRankingURL != nil) {
                 Button {
                     Task { await goNextPage() }
                 } label: {
-                    HStack {
-                        Spacer()
-                        Text("下一页（\(page)/\(totalPages)）")
-                            .font(.subheadline)
-                            .foregroundStyle(AppTheme.primary)
-                        Spacer()
-                    }
+                    Text("下一页（\(page)/\(totalPages)）")
+                        .font(.subheadline)
+                        .frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget)
                 }
+                .buttonStyle(.borderless)
                 .disabled(isLoading)
-                .listRowBackground(Color.clear)
             }
         }
     }
@@ -336,14 +336,18 @@ struct AdminDiscoverView: View {
             .padding(.top, 14)
             .accessibilityLabel(selectedIndices.contains(index) ? "取消选择\(novel.title)" : "选择\(novel.title)")
             .accessibilityValue(selectedIndices.contains(index) ? "已选择" : "未选择")
+            .accessibilityAddTraits(selectedIndices.contains(index) ? .isSelected : [])
             Button {
                 Task { await openDetail(novel) }
             } label: {
-                HStack(alignment: .top, spacing: 12) {
+                let layout = dynamicTypeSize >= .xxxLarge
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10))
+                    : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
+                layout {
                     coverThumb(novel)
                     discoverInfo(novel)
-                    Spacer(minLength: 0)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -372,8 +376,8 @@ struct AdminDiscoverView: View {
     private func discoverInfo(_ novel: DiscoverNovel) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(novel.title)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(AppTheme.textPrimary)
+                .font(serifFont(.body, .medium))
+                .foregroundStyle(ReadingSpace.ink)
                 .appTextLineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -382,19 +386,15 @@ struct AdminDiscoverView: View {
                 .foregroundStyle(AppTheme.textSecondary)
                 .appTextLineLimit(1)
 
-            HStack(spacing: 6) {
-                if let source = novel.sourceName ?? novel.source {
-                    AdminStatusBadge(
-                        source,
-                        tint: AppTheme.primary,
-                        systemImage: "globe"
-                    )
-                }
-                if novel.isCollected {
-                    AdminStatusBadge("已收录", tint: AppTheme.success, systemImage: "checkmark")
-                }
+            if let source = novel.sourceName ?? novel.source {
+                Text(source)
+                    .font(.footnote)
+                    .foregroundStyle(ReadingSpace.profileMuted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .fixedSize(horizontal: true, vertical: false)
+            if novel.isCollected {
+                AdminStatusBadge("已收录", tint: AppTheme.success, systemImage: "checkmark")
+            }
 
             if let desc = novel.description, !desc.isEmpty {
                 Text(desc)
@@ -633,9 +633,11 @@ struct AdminDiscoverView: View {
     }
 
     private func batchScrape() async {
+        guard !isLoading, activeBatch == nil else { return }
         let selected = selectedIndices.sorted().compactMap { novels.indices.contains($0) ? novels[$0] : nil }
         guard !selected.isEmpty else { return }
         let state = BatchState(title: "批量抓取", total: selected.count)
+        activeBatch = state
         batch = state
         for novel in selected {
             state.addEntry(BatchEntry(type: .novel, text: novel.title))
@@ -657,6 +659,7 @@ struct AdminDiscoverView: View {
             }
         }
         state.done = true
+        activeBatch = nil
         selectedIndices = []
         if state.success > 0 {
             await reloadCurrent()
@@ -730,6 +733,7 @@ private struct DiscoverDetailSheet: View {
     @State private var actionError: String?
 
     // 可编辑的书籍信息（在建书前允许用户修正书名/作者/分类/状态）
+    @FocusState private var focusedField: String?
     @State private var editTitle = ""
     @State private var editAuthor = ""
     @State private var editCategories = ""
@@ -737,105 +741,43 @@ private struct DiscoverDetailSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            AdminWorkspaceList {
+                AdminWorkspaceHeading(item.title, detail: item.author ?? "")
+                if item.isCollected {
+                    AdminStatusBadge("已收录", tint: AppTheme.success, systemImage: "checkmark")
+                }
                 if loading {
-                    Section {
-                        ProgressView("正在翻阅书籍资料…")
-                            .frame(maxWidth: .infinity, minHeight: 140)
-                            .listRowBackground(Color.clear)
-                    }
+                    ProgressView("正在读取书籍资料…")
+                        .frame(maxWidth: .infinity, minHeight: 140)
                 } else if let error {
-                    Section {
-                        ContentUnavailableView {
-                            Label("获取详情失败", systemImage: "wifi.slash")
-                        } description: {
-                            Text(error)
-                        } actions: {
-                            Button("重试") { Task { await loadDetail() } }
-                        }
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
+                    ContentUnavailableView {
+                        Label("获取详情失败", systemImage: "wifi.slash")
+                    } description: {
+                        Text(error)
+                    } actions: {
+                        Button("重试") { Task { await loadDetail() } }
                     }
                 } else if let meta {
-                    Section("书籍信息") {
-                        editableField("书名", placeholder: "请输入书名", text: $editTitle)
-                        editableField("作者", placeholder: "请输入作者", text: $editAuthor)
-                        editableField("分类", placeholder: "顿号或逗号分隔", text: $editCategories)
-                        Picker("状态", selection: $editStatus) {
-                            Text("连载中").tag("ongoing")
-                            Text("已完结").tag("completed")
-                        }
-                        .pickerStyle(.menu)
-                        if let desc = meta.novel?.description, !desc.isEmpty {
-                            Text(desc)
-                                .font(.subheadline)
-                                .foregroundStyle(AppTheme.textSecondary)
-                        }
-                    }
-                    if let chapters, !chapters.isEmpty {
-                        Section("章节目录（共 \(chapterCount ?? chapters.count) 章）") {
-                            ForEach(Array(chapters.prefix(20).enumerated()), id: \.offset) { index, link in
-                                HStack(spacing: 8) {
-                                    Text("\(index + 1)")
-                                        .font(.caption)
-                                        .foregroundStyle(AppTheme.textSecondary)
-                                        .frame(width: 26, alignment: .center)
-                                    Text(link.text ?? link.href ?? "—")
-                                        .font(.caption)
-                                        .foregroundStyle(AppTheme.textPrimary)
-                                        .appTextLineLimit(1)
-                                }
-                            }
-                            if chapters.count > 20 {
-                                Text("等共 \(chapters.count) 章…")
-                                    .font(.caption)
-                                    .foregroundStyle(AppTheme.textSecondary)
-                            }
-                        }
-                    } else if let count = chapterCount, count > 0 {
-                        Section("章节目录") {
-                            Text("章节数：\(count)")
-                                .font(.subheadline)
-                                .foregroundStyle(AppTheme.textSecondary)
-                        }
-                    }
-                    if scraping {
-                        Section {
-                            ProgressView("正在创建小说并启动抓取…")
-                                .frame(maxWidth: .infinity, minHeight: 60)
-                                .listRowBackground(Color.clear)
-                        }
-                    } else {
-                        Section {
-                            Button {
-                                Task { await startScrape(meta: meta) }
-                            } label: {
-                                Label(item.isCollected ? "重新抓取" : "创建小说并启动抓取", systemImage: "play.fill")
-                            }
-                        } footer: {
-                            Text("将使用检测到的选择器创建小说并启动后台抓取任务。")
-                        }
-                    }
-                    if let actionError {
-                        Section {
-                            Text(actionError)
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.danger)
-                        }
-                    }
+                    bookSection(meta)
+                    directorySection
+                    startSection(meta)
                 }
             }
-            .scrollContentBackground(.hidden)
-            .appListStyle(.settings)
-            .navigationTitle(item.title)
-            .navigationBarTitleDisplayMode(.inline)
+            .buttonStyle(.borderless)
+            .disabled(scraping)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") { onClose(false) }
+                    Button("关闭") { onClose(false) }.disabled(scraping)
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("完成") { focusedField = nil }
                 }
             }
         }
+        .presentationBackground(ReadingSpace.profilePaper)
         .presentationDetents([.large])
+        .interactiveDismissDisabled(scraping)
         .task {
             if autoStart {
                 await autoScrape()
@@ -845,17 +787,81 @@ private struct DiscoverDetailSheet: View {
         }
     }
 
+    private func bookSection(_ meta: ScrapeDetectedMeta) -> some View {
+        AdminWorkspaceSection("书籍信息") {
+            editableField("书名", placeholder: "请输入书名", text: $editTitle)
+            editableField("作者", placeholder: "请输入作者", text: $editAuthor)
+            editableField("分类", placeholder: "顿号或逗号分隔", text: $editCategories)
+            Picker("状态", selection: $editStatus) {
+                Text("连载中").tag("ongoing")
+                Text("已完结").tag("completed")
+            }
+            .pickerStyle(.menu)
+            if let desc = meta.novel?.description, !desc.isEmpty {
+                DisclosureGroup("作品简介") {
+                    Text(desc)
+                        .font(.subheadline)
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                        .lineSpacing(4)
+                        .textSelection(.enabled)
+                        .padding(.top, 8)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var directorySection: some View {
+        if let chapters, !chapters.isEmpty {
+            AdminWorkspaceSection("章节目录（共 \(chapterCount ?? chapters.count) 章）") {
+                ForEach(Array(chapters.prefix(20).enumerated()), id: \.offset) { index, link in
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Text("\(index + 1)")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(ReadingSpace.profileMuted)
+                            .frame(minWidth: 24, alignment: .leading)
+                        Text(link.text ?? link.href ?? "—")
+                            .font(.subheadline)
+                            .appTextLineLimit(2)
+                    }
+                }
+                if chapters.count > 20 {
+                    AccountSettingsNote("预览前 20 章，共 \(chapters.count) 章。")
+                }
+            }
+        } else if let count = chapterCount, count > 0 {
+            AdminWorkspaceSection("章节目录") {
+                AccountSettingsNote("检测到 \(count) 章，暂未取得章节标题。")
+            }
+        }
+    }
+
+    private func startSection(_ meta: ScrapeDetectedMeta) -> some View {
+        AdminWorkspaceSection("抓取作品") {
+            if let actionError { AccountSettingsNote(actionError, isError: true) }
+            Button {
+                focusedField = nil
+                Task { await startScrape(meta: meta) }
+            } label: {
+                HStack(spacing: 8) {
+                    if scraping { ProgressView().controlSize(.small).accessibilityHidden(true) }
+                    Label(item.isCollected ? "重新抓取" : "创建小说并启动抓取", systemImage: "play.fill")
+                }
+            }
+            .buttonStyle(AgentPanelButtonStyle(prominent: true))
+            .disabled(scraping)
+            .accessibilityValue(scraping ? "正在处理" : "")
+            AccountSettingsNote("使用检测到的配置启动后台任务。")
+        }
+    }
+
     private func editableField(_ label: String, placeholder: String, text: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
+        AccountSettingsField(label, isFocused: focusedField == label) {
             TextField(placeholder, text: text)
-                .foregroundStyle(AppTheme.textPrimary)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .focused($focusedField, equals: label)
         }
-        .padding(.vertical, 2)
     }
 
     private func loadDetail() async {
@@ -965,42 +971,58 @@ private struct BatchProgressSheet: View {
     @ObservedObject var state: BatchState
     @Environment(\.dismiss) private var dismiss
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    LabeledContent("共", value: "\(state.total) 本")
-                    LabeledContent("成功", value: "\(state.success)")
-                    LabeledContent("失败", value: "\(state.fail)")
-                } header: {
-                    Text("进度\(state.done ? "（完成）" : "（进行中）")")
+        let skipped = state.entries.filter { entry in
+            if case .skip = entry.type { return true }
+            return false
+        }.count
+        let processed = state.success + state.fail + skipped
+        return NavigationStack {
+            AdminWorkspaceList {
+                AdminWorkspaceHeading(state.title, detail: state.done ? "已完成" : "正在处理")
+                ProgressView(value: Double(processed), total: Double(max(state.total, 1))) {
+                    Text("已处理 \(processed)/\(state.total) 本")
                 }
-                Section("明细") {
-                    ForEach(state.entries) { entry in
-                        HStack(alignment: .top, spacing: 8) {
+                .tint(AppTheme.primary)
+                AppAdaptiveRow(spacing: 12) {
+                    Text("成功 \(state.success)")
+                    Text("跳过 \(skipped)")
+                    Text("失败 \(state.fail)")
+                }
+                .font(.subheadline.monospacedDigit())
+                AdminWorkspaceSection("逐本结果") {
+                    ForEach(Array(state.entries.enumerated()), id: \.element.id) { index, entry in
+                        HStack(alignment: .top, spacing: 10) {
                             Image(systemName: icon(for: entry.type))
-                                .font(.caption)
+                                .font(.footnote)
                                 .foregroundStyle(color(for: entry.type))
                                 .frame(width: 18)
+                                .accessibilityHidden(true)
                             Text(entry.text)
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.textPrimary)
-                                .appTextLineLimit(2)
+                                .font(entryFont(for: entry.type))
+                                .foregroundStyle(ReadingSpace.ink)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .textSelection(.enabled)
                         }
+                        .readingSpaceEntrance(index)
                     }
                 }
             }
-            .scrollContentBackground(.hidden)
-            .appListStyle(.settings)
-            .navigationTitle(state.title)
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { dismiss() }
+                    Button(state.done ? "完成" : "关闭") { dismiss() }
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationBackground(ReadingSpace.profilePaper)
+        .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
+    }
+
+    private func entryFont(for type: BatchEntryType) -> Font {
+        if case .novel = type { return serifFont(.body, .medium) }
+        return .footnote
     }
 
     private func icon(for type: BatchEntryType) -> String {

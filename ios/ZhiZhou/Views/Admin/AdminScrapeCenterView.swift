@@ -1,9 +1,12 @@
 import SwiftUI
+import UIKit
 
 /// 抓取中心：采集向导 —— 输入源站 URL → 智能分析 → 确认/创建小说 → 配置选择器 → 测试 → 启动抓取。
 /// 对齐 Web 端 admin scrape CenterView；任务进度在「任务管理」查看。
 struct AdminScrapeCenterView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @FocusState private var focusedField: String?
+    @State private var analyzedSourceURL: String?
     @State private var sourceUrl = ""
     @State private var analyzing = false
     @State private var analyzeError: String?
@@ -35,47 +38,52 @@ struct AdminScrapeCenterView: View {
     @State private var showStartConfirm = false
     @State private var actionError: String?
 
-    private var showConfirmStep: Bool { meta != nil }
-    private var showConfigStep: Bool { createdNovelId != nil || skippedCreate }
-
-    private var stepTransition: AnyTransition {
-        if reduceMotion {
-            return .opacity.animation(AppMotion.micro)
-        }
-        return .move(edge: .bottom).combined(with: .opacity)
+    private var normalizedSourceURL: String {
+        sourceUrl.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private var resultTransition: AnyTransition {
-        .opacity.animation(AppMotion.micro)
+    private var showConfirmStep: Bool { meta != nil && analyzedSourceURL == normalizedSourceURL }
+    private var showConfigStep: Bool { showConfirmStep && (createdNovelId != nil || skippedCreate) }
+    private var isWorking: Bool { analyzing || creating || testing || starting }
+
+    private var configurationValues: [String] {
+        [chapterListUrl, encoding, chapterListSelector, chapterTitleSelector, chapterContentSelector, nextPageSelector]
     }
+
+    private var stepTransition: AnyTransition { reduceMotion ? .identity : .opacity }
 
     var body: some View {
-        List {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("爬虫抓取中心")
             analyzeSection
             if showConfirmStep {
-                confirmSection
-                    .transition(stepTransition)
+                confirmSection.transition(stepTransition)
             }
             if showConfigStep {
-                configSection
-                    .transition(stepTransition)
+                configSection.transition(stepTransition)
             }
-            if let startMessage {
-                Section {
-                    Label(startMessage, systemImage: "checkmark.circle.fill")
-                        .font(.subheadline)
-                        .foregroundStyle(AppTheme.success)
-                }
-                .transition(resultTransition)
+            if let startMessage, showConfigStep {
+                Label(startMessage, systemImage: "checkmark.circle.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.success)
+                    .transition(stepTransition)
+                NavigationLink("查看抓取任务") { AdminJobsView() }
             }
         }
-        .scrollContentBackground(.hidden)
-        .appListStyle(.settings)
-        .animation(reduceMotion ? AppMotion.micro : AppMotion.structural, value: showConfirmStep)
-        .animation(reduceMotion ? AppMotion.micro : AppMotion.structural, value: showConfigStep)
-        .animation(reduceMotion ? AppMotion.micro : AppMotion.state, value: startMessage != nil)
-        .navigationTitle("爬虫抓取中心")
-        .navigationBarTitleDisplayMode(.large)
+        .buttonStyle(.borderless)
+        .disabled(isWorking)
+        .animation(reduceMotion ? nil : AppMotion.micro, value: showConfirmStep)
+        .animation(reduceMotion ? nil : AppMotion.micro, value: showConfigStep)
+        .onChange(of: configurationValues) { _, _ in
+            testResult = nil
+            testError = nil
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("完成") { focusedField = nil }
+            }
+        }
         .confirmationDialog(
             "开始抓取",
             isPresented: $showStartConfirm,
@@ -93,183 +101,135 @@ struct AdminScrapeCenterView: View {
         }
     }
 
-    // MARK: - ① 智能分析
-
     private var analyzeSection: some View {
-        Section("① 智能分析") {
-            TextField("粘贴小说目录页网址", text: $sourceUrl)
-                .keyboardType(.URL)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            Button {
-                Task { await analyze() }
-            } label: {
-                if analyzing {
-                    HStack {
-                        Spacer()
-                        ProgressView()
-                        Spacer()
-                    }
-                } else {
-                    Label("开始分析", systemImage: "wand.and.stars")
-                }
-            }
-            .disabled(analyzing || sourceUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-            if let analyzeError {
-                Text(analyzeError)
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.danger)
-            }
-            if let meta {
+        AdminWorkspaceSection("分析源站") {
+            field("源站目录地址", placeholder: "粘贴小说目录页网址", text: $sourceUrl, keyboard: .URL)
+            action("开始分析", symbol: "wand.and.stars", working: analyzing) { await analyze() }
+                .disabled(normalizedSourceURL.isEmpty)
+            if let analyzeError { AccountSettingsNote(analyzeError, isError: true) }
+            if let meta, showConfirmStep {
                 LabeledContent("站点", value: meta.site?.name ?? "通用站点")
-                LabeledContent("章节数", value: meta.chapterCount.map { "\($0) 章" } ?? "—")
-                LabeledContent("编码", value: meta.encoding?.isEmpty == false ? meta.encoding! : "utf-8")
-                LabeledContent("目录页") {
-                    Text(meta.chapterListUrl ?? sourceUrl)
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .appTextLineLimit(1)
-                }
+                LabeledContent("章节数", value: meta.chapterCount.map { "\($0) 章" } ?? "未识别")
+                LabeledContent("编码", value: meta.encoding?.isEmpty == false ? meta.encoding! : "自动")
+                AgentPanelFact(title: "目录页", value: meta.chapterListUrl ?? sourceUrl)
+            } else if meta != nil && !analyzing {
+                AccountSettingsNote("地址已更改，请重新分析源站。")
             }
         }
     }
-
-    // MARK: - ② 确认小说
 
     private var confirmSection: some View {
-        Section("② 确认小说") {
-            TextField("书名 *", text: $title)
-            TextField("作者 *", text: $author)
-            Picker("状态", selection: $status) {
-                Text("连载").tag("ongoing")
-                Text("完结").tag("completed")
-            }
-            .pickerStyle(.menu)
-            TextField("分类（逗号分隔）", text: $categories)
-            TextField("封面 URL", text: $coverUrl)
-            TextField("简介", text: $descriptionText, axis: .vertical)
-                .lineLimit(2...4)
-            Button {
-                Task { await confirmNovel() }
-            } label: {
-                if creating {
-                    HStack {
-                        Spacer()
-                        ProgressView()
-                        Spacer()
+        AdminWorkspaceSection("确认小说") {
+            if createdNovelId != nil {
+                Label("已创建《\(title)》", systemImage: "checkmark.circle")
+                    .font(serifFont(.body, .medium))
+                    .foregroundStyle(AppTheme.success)
+            } else {
+                field("书名", placeholder: "书名 *", text: $title)
+                field("作者", placeholder: "作者 *", text: $author)
+                Picker("状态", selection: $status) {
+                    Text("连载").tag("ongoing")
+                    Text("完结").tag("completed")
+                }
+                .pickerStyle(.menu)
+                field("分类", placeholder: "分类（逗号分隔）", text: $categories)
+                field("封面地址", placeholder: "封面 URL", text: $coverUrl, keyboard: .URL)
+                AccountSettingsField("简介", isFocused: focusedField == "简介") {
+                    TextField("简介", text: $descriptionText, axis: .vertical)
+                        .lineLimit(2...4)
+                        .focused($focusedField, equals: "简介")
+                }
+                action("创建小说并继续", symbol: "plus.circle", working: creating) { await confirmNovel() }
+                if !skippedCreate {
+                    Button("跳过创建，直接配置") {
+                        focusedField = nil
+                        skippedCreate = true
                     }
-                } else {
-                    Label("创建小说并继续", systemImage: "plus.circle")
+                    .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
                 }
             }
-            .disabled(creating)
-            Button("跳过创建，直接配置") {
-                skippedCreate = true
-            }
-            .font(.subheadline)
         }
     }
 
-    // MARK: - ③ 抓取配置
-
     private var configSection: some View {
-        Section("③ 抓取配置") {
-            TextField("章节列表页 URL", text: $chapterListUrl)
-                .keyboardType(.URL)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            TextField("编码（如 gbk / utf-8，留空自动）", text: $encoding)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            TextField("章节列表选择器", text: $chapterListSelector)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            TextField("章节标题选择器（可空）", text: $chapterTitleSelector)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            TextField("章节正文选择器", text: $chapterContentSelector)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            TextField("翻页选择器（可空）", text: $nextPageSelector)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-
-            Button {
-                Task { await test() }
-            } label: {
-                if testing {
-                    HStack {
-                        Spacer()
-                        ProgressView()
-                        Spacer()
-                    }
-                } else {
-                    Label("测试选择器", systemImage: "checkmark.seal")
-                }
-            }
-            .disabled(testing)
-
+        AdminWorkspaceSection("抓取配置") {
+            field("章节列表页 URL", text: $chapterListUrl, keyboard: .URL)
+            field("编码", placeholder: "如 gbk / utf-8，留空自动识别", text: $encoding)
+            field("章节列表选择器", text: $chapterListSelector)
+            field("章节标题选择器", placeholder: "可选", text: $chapterTitleSelector)
+            field("章节正文选择器", text: $chapterContentSelector)
+            field("翻页选择器", placeholder: "可选", text: $nextPageSelector)
+            action("测试选择器", symbol: "checkmark.seal", working: testing) { await test() }
             if let testResult {
-                testChecksSection(result: testResult)
-                    .transition(resultTransition)
+                testChecksSection(result: testResult).transition(stepTransition)
             }
             if let testError {
-                Text(testError)
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.danger)
-                    .transition(resultTransition)
+                AccountSettingsNote(testError, isError: true).transition(stepTransition)
             }
-
             Button {
+                focusedField = nil
                 showStartConfirm = true
             } label: {
-                if starting {
-                    HStack {
-                        Spacer()
-                        ProgressView()
-                        Spacer()
-                    }
-                } else {
-                    Label("开始抓取", systemImage: "play.fill")
-                }
+                actionLabel("开始抓取", symbol: "play.fill", working: starting)
             }
-            .disabled(starting || createdNovelId == nil)
+            .buttonStyle(AgentPanelButtonStyle(prominent: true))
+            .disabled(createdNovelId == nil)
             if createdNovelId == nil {
-                Text("需先创建小说后才能开始抓取。")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
+                AccountSettingsNote("需先创建小说后才能开始抓取。")
             }
         }
+    }
+
+    private func field(_ label: String, placeholder: String? = nil, text: Binding<String>,
+                       keyboard: UIKeyboardType = .default) -> some View {
+        AccountSettingsField(label, isFocused: focusedField == label) {
+            TextField(placeholder ?? label, text: text)
+                .keyboardType(keyboard)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .focused($focusedField, equals: label)
+        }
+    }
+
+    private func action(_ title: String, symbol: String, working: Bool,
+                        perform: @escaping @MainActor () async -> Void) -> some View {
+        Button {
+            focusedField = nil
+            Task { await perform() }
+        } label: {
+            actionLabel(title, symbol: symbol, working: working)
+        }
+        .buttonStyle(AgentPanelButtonStyle())
+    }
+
+    private func actionLabel(_ title: String, symbol: String, working: Bool) -> some View {
+        Label {
+            Text(title)
+        } icon: {
+            if working {
+                ProgressView().controlSize(.small).accessibilityHidden(true)
+            } else {
+                Image(systemName: symbol).accessibilityHidden(true)
+            }
+        }
+        .accessibilityValue(working ? "正在处理" : "")
     }
 
     private func testChecksSection(result: ScrapeTestResponse) -> some View {
-        Group {
+        AdminWorkspaceSection("选择器测试结果") {
             if let links = result.links, !links.isEmpty {
-                let diag = result.diagnostics
-                let samples = result.sampleChapters ?? []
-                let sampleOk = samples.filter { $0.ok == true }.count
-                LabeledContent("章节链接") {
-                    Text("\(links.count) 个")
-                        .foregroundStyle(AppTheme.success)
+                LabeledContent("章节链接", value: "\(links.count) 个")
+                if let duplicates = result.diagnostics?.duplicateCount {
+                    LabeledContent("重复链接", value: "\(duplicates) 个")
                 }
-                LabeledContent("重复链接") {
-                    Text("\(diag?.duplicateCount ?? 0) 个")
-                        .foregroundStyle((diag?.duplicateCount ?? 0) > 0 ? AppTheme.danger : AppTheme.success)
+                if let emptyTitles = result.diagnostics?.emptyTitleCount {
+                    LabeledContent("空标题", value: "\(emptyTitles) 个")
                 }
-                LabeledContent("空标题") {
-                    Text("\(diag?.emptyTitleCount ?? 0) 个")
-                        .foregroundStyle((diag?.emptyTitleCount ?? 0) > 0 ? AppTheme.danger : AppTheme.success)
-                }
-                LabeledContent("样章内容") {
-                    Text("\(sampleOk)/\(samples.count) 可读")
-                        .foregroundStyle(sampleOk > 0 ? AppTheme.success : AppTheme.danger)
+                if let samples = result.sampleChapters, !samples.isEmpty {
+                    LabeledContent("样章内容", value: "\(samples.filter { $0.ok == true }.count)/\(samples.count) 可读")
                 }
             } else {
-                LabeledContent("测试结果") {
-                    Text(result.error ?? "未识别到章节链接")
-                        .foregroundStyle(AppTheme.danger)
-                }
+                AccountSettingsNote(result.error ?? "未识别到章节链接", isError: true)
             }
         }
     }
@@ -278,12 +238,14 @@ struct AdminScrapeCenterView: View {
 
     private func analyze() async {
         let s = sourceUrl.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !s.isEmpty else { return }
+        guard !isWorking, !s.isEmpty else { return }
+        analyzeError = nil
         analyzing = true
         defer { analyzing = false }
         do {
             let result = try await AdminAPI.scrapeDetectMeta(sourceUrl: s)
             meta = result
+            analyzedSourceURL = s
             analyzeError = nil
             let novel = result.novel
             title = novel?.title ?? ""
@@ -316,6 +278,7 @@ struct AdminScrapeCenterView: View {
     }
 
     private func confirmNovel() async {
+        guard showConfirmStep, !isWorking, createdNovelId == nil else { return }
         let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let a = author.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty, !a.isEmpty else {
@@ -342,12 +305,15 @@ struct AdminScrapeCenterView: View {
     }
 
     private func test() async {
+        guard showConfigStep, !isWorking else { return }
         let src = chapterListUrl.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !src.isEmpty, !chapterListSelector.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             actionError = "请填写章节列表页 URL 和章节列表选择器"
             return
         }
         testing = true
+        testResult = nil
+        testError = nil
         defer { testing = false }
         do {
             let result = try await AdminAPI.scrapeTest(
@@ -363,6 +329,7 @@ struct AdminScrapeCenterView: View {
     }
 
     private func start() async {
+        guard showConfigStep, !isWorking else { return }
         guard let novelId = createdNovelId else {
             actionError = "请先创建小说"
             return
@@ -381,7 +348,7 @@ struct AdminScrapeCenterView: View {
                 encoding: encoding,
                 selectors: currentSelectors
             )
-            startMessage = "抓取任务已启动，可在「任务管理」查看进度。"
+            startMessage = "抓取任务已启动。"
         } catch {
             actionError = AppCopy.friendlyError(error)
         }

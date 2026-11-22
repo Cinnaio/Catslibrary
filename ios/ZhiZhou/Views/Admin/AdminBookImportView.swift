@@ -5,12 +5,15 @@ struct AdminBookImportView: View {
     var discoverySourceURL: String? = nil
     var discoveryToken: String? = nil
     @Environment(AppState.self) private var appState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @FocusState private var addressFocused: Bool
     @State private var sourceURL = ""
     @State private var preview: BookImportPreview?
     @State private var selectedChapters: Set<String> = []
     @State private var selectedMetadata: Set<String> = []
     @State private var busy = false
     @State private var error: String?
+    @State private var lastAction: ImportAction?
     @State private var result: BookImportResult?
     @State private var pendingOperation: AdminDangerousOperation?
     @State private var pendingImport: ImportSnapshot?
@@ -19,6 +22,8 @@ struct AdminBookImportView: View {
     @State private var openedConversation: AIAgentSession?
     @State private var showConversation = false
     private var discovery: Bool { discoverySourceURL != nil }
+
+    private enum ImportAction: Equatable { case preview, target, commit, conversation }
 
     private func matchingBooks(_ preview: BookImportPreview) -> [BookImportPreview.Candidate] {
         func known(_ author: String) -> Bool { !author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && author != "未知作者" }
@@ -32,48 +37,28 @@ struct AdminBookImportView: View {
     }
 
     var body: some View {
-        Form {
-            Section("URL 导入") {
-                TextField("书籍目录地址", text: $sourceURL)
-                    .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
-                    .disabled(discovery)
-                    .accessibilityIdentifier("admin.import.url")
-                Button("读取导入预览") { Task { await makePreview() } }
-                    .disabled(!validURL || busy)
-                    .accessibilityIdentifier("admin.import.preview")
-                if busy { ProgressView("处理中…") }
-            }
-            if let error { Text(error).foregroundStyle(AppTheme.danger) }
-            if let result {
-                Section("导入结果") {
-                    Text("新增 \(result.created) 章，更新 \(result.updated) 章，跳过 \(result.skipped) 章")
-                        .accessibilityIdentifier("admin.import.result")
-                    ForEach(result.conflicts, id: \.id) { conflict in
-                        Text("\(conflict.title)：\(conflict.reason)").foregroundStyle(AppTheme.warning)
-                    }
-                    if discovery && result.created > 0 {
-                        Button("开始对话", systemImage: "bubble.left") { Task { await openBook(result.novelId) } }
-                    } else {
-                        NavigationLink("查看小说管理") { AdminNovelsView() }
-                    }
-                }
-            }
-            if let preview {
-                previewSections(preview)
-            }
-            Section {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("书籍导入")
+            addressSection
+            if let result { resultSection(result) }
+            if let preview { previewSections(preview) }
+            AdminWorkspaceSection("导入记录") {
                 NavigationLink("我的导入历史") { AdminImportHistoryView() }
                 AdminWebLink(title: "在 Web 导入文件或撤回导入", path: "/admin/novels")
-            } footer: {
-                Text("支持源站目录 URL。读取预览不会修改作品；提交只应用勾选内容。文件导入与历史撤回可在 Web 完成。")
             }
         }
-        .appListStyle(.settings)
-        .navigationTitle("书籍导入")
+        .buttonStyle(.borderless)
         .disabled(busy)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("完成") { addressFocused = false }
+            }
+        }
         .onChange(of: sourceURL) { _, _ in
             guard !busy else { return }
             preview = nil; result = nil; selectedChapters = []; selectedMetadata = []
+            error = nil
         }
         .task(id: ContentAccessStore.shared.accountRevision) {
             if discovery && APIClient.shared.token == discoveryToken && sourceURL == discoverySourceURL { return }
@@ -98,21 +83,97 @@ struct AdminBookImportView: View {
         }, onCancel: { _ in pendingImport = nil })
     }
 
-    @ViewBuilder private func previewSections(_ value: BookImportPreview) -> some View {
-        Section("导入预览") {
-            Text(value.book.title).font(.headline)
-            Text(value.book.author).foregroundStyle(.secondary)
-            Text("新增 \(value.summary.newCount) · 改动 \(value.summary.changedCount) · 无变化 \(value.summary.unchangedCount) · 冲突 \(value.summary.conflictCount)")
-            ForEach(value.warnings, id: \.self) { Text($0).foregroundStyle(AppTheme.warning) }
+    private var addressSection: some View {
+        AdminWorkspaceSection("目录地址") {
+            AccountSettingsField("书籍目录地址", isFocused: addressFocused) {
+                TextField("书籍目录地址", text: $sourceURL)
+                    .keyboardType(.URL)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .focused($addressFocused)
+                    .disabled(discovery)
+                    .accessibilityIdentifier("admin.import.url")
+            }
+            Button {
+                addressFocused = false
+                Task { await makePreview() }
+            } label: {
+                HStack(spacing: 8) {
+                    if busy && lastAction == .preview {
+                        ProgressView().controlSize(.small).accessibilityHidden(true)
+                    }
+                    Text("读取导入预览")
+                }
+            }
+            .buttonStyle(AgentPanelButtonStyle())
+            .disabled(!validURL || busy)
+            .accessibilityIdentifier("admin.import.preview")
+            if let error, lastAction == .preview {
+                AccountSettingsNote(error, isError: true)
+            }
+            AccountSettingsNote("读取预览不会修改作品。确认后只应用勾选的章节和资料。")
         }
-        Section("导入目标") {
+    }
+
+    private func resultSection(_ result: BookImportResult) -> some View {
+        AdminWorkspaceSection("导入结果") {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: "checkmark.circle")
+                    .foregroundStyle(AppTheme.success)
+                    .accessibilityHidden(true)
+                Text("新增 \(result.created) 章，更新 \(result.updated) 章，跳过 \(result.skipped) 章")
+                    .monospacedDigit()
+                    .accessibilityIdentifier("admin.import.result")
+            }
+            ForEach(result.conflicts, id: \.id) { conflict in
+                Label("\(conflict.title)：\(conflict.reason)", systemImage: "exclamationmark.triangle")
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.warning)
+            }
+            if discovery && result.created > 0 {
+                Button("开始对话", systemImage: "bubble.left") { Task { await openBook(result.novelId) } }
+                    .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+                conversationStatus
+            } else {
+                NavigationLink("查看小说管理") { AdminNovelsView() }
+            }
+        }
+    }
+
+    @ViewBuilder private func previewSections(_ value: BookImportPreview) -> some View {
+        AdminWorkspaceSection("导入预览") {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(value.book.title)
+                    .font(serifFont(.title3, .medium))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(value.book.author).font(.footnote).foregroundStyle(ReadingSpace.profileMuted)
+            }
+            AppAdaptiveRow(spacing: 12) {
+                Text("新增 \(value.summary.newCount)")
+                Text("有改动 \(value.summary.changedCount)")
+                Text("无变化 \(value.summary.unchangedCount)")
+                Text("冲突 \(value.summary.conflictCount)")
+                    .foregroundStyle(value.summary.conflictCount > 0 ? AppTheme.warning : ReadingSpace.ink)
+            }
+            .font(.subheadline.monospacedDigit())
+            ForEach(value.warnings, id: \.self) { warning in
+                Label(warning, systemImage: "exclamationmark.triangle")
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.warning)
+            }
+        }
+        AdminWorkspaceSection("导入目标") {
+            if busy && lastAction == .target { ProgressView("正在核对所选作品…").controlSize(.small) }
+            if let error, lastAction == .target { AccountSettingsNote(error, isError: true) }
             if discovery {
                 Text(targetConfirmed ? "新建作品" : "书库可能已收录这本书")
                 ForEach(matchingBooks(value)) { candidate in
                     Button("开始对话 · \(candidate.novel.title) · \(candidate.novel.author)") {
                         Task { await openBook(candidate.novel.id) }
                     }
+                    .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
                 }
+                conversationStatus
             } else {
                 Text(value.targetNovelId == nil ? (value.candidates.isEmpty ? "新建作品" : "请选择已有作品") : "合并到已有作品")
                 if !targetConfirmed { Text("发现多个同名作品，请明确选择导入目标。").foregroundStyle(AppTheme.warning) }
@@ -123,45 +184,71 @@ struct AdminBookImportView: View {
                         } label: {
                             Label("\(candidate.novel.title) · \(candidate.novel.author)", systemImage:
                                   value.targetNovelId == candidate.novel.id ? "checkmark.circle.fill" : "circle")
+                                .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+                        }
+                        .accessibilityAddTraits(value.targetNovelId == candidate.novel.id ? .isSelected : [])
+                    }
+                }
+            }
+        }
+        let changedMetadata = value.metadataDiff.filter(\.changed)
+        if !changedMetadata.isEmpty {
+            AdminWorkspaceSection("替换元数据") {
+                AccountSettingsNote("只替换勾选的字段。")
+                ForEach(changedMetadata) { field in
+                    Toggle(isOn: membership(field.field, in: $selectedMetadata)) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(field.label)
+                            Text("当前：\(field.localValue)").font(.caption).foregroundStyle(ReadingSpace.profileMuted)
+                            Text("导入：\(field.incomingValue)").font(.caption)
                         }
                     }
                 }
             }
         }
-        Section {
-            ForEach(value.metadataDiff.filter(\.changed)) { field in
-                Toggle(isOn: membership(field.field, in: $selectedMetadata)) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(field.label)
-                        Text("当前：\(field.localValue)").font(.caption).foregroundStyle(.secondary)
-                        Text("导入：\(field.incomingValue)").font(.caption)
-                    }
-                }
-            }
-        } header: { Text("替换元数据") } footer: { Text("只替换勾选字段；未勾选的已有资料保持原值。") }
-        Section("章节差异") {
-            ForEach(value.chapters) { chapter in
+        AdminWorkspaceSection("章节差异") {
+            ForEach(Array(value.chapters.enumerated()), id: \.element.id) { index, chapter in
                 VStack(alignment: .leading, spacing: 6) {
                     Toggle(isOn: membership(chapter.id, in: $selectedChapters)) {
                         Text("\(chapter.incomingTitle) · \(AdminParityCopy.state(chapter.status))")
                     }
                     .disabled(["unchanged", "conflict"].contains(chapter.status))
-                    Text(chapter.reason).font(.caption).foregroundStyle(.secondary)
+                    Text(chapter.reason)
+                        .font(.footnote)
+                        .foregroundStyle(chapter.status == "conflict" ? AppTheme.warning : ReadingSpace.profileMuted)
                     DisclosureGroup("查看正文差异") {
                         if let old = chapter.localContent {
                             Text("当前正文").font(.caption).foregroundStyle(.secondary)
-                            Text(old).textSelection(.enabled)
+                            Text(old).textSelection(.enabled).lineSpacing(4)
                         }
                         Text("导入正文").font(.caption).foregroundStyle(.secondary)
-                        Text(chapter.incomingContent).textSelection(.enabled)
+                        Text(chapter.incomingContent).textSelection(.enabled).lineSpacing(4)
                     }
                 }
+                .readingSpaceEntrance(index)
             }
         }
-        Section {
-            Button("确认导入（\(selectedChapters.count) 章）") { prepareCommit() }
-                .disabled(!targetConfirmed || (selectedChapters.isEmpty && (discovery || selectedMetadata.isEmpty)))
-                .accessibilityIdentifier("admin.import.commit")
+        AdminWorkspaceSection("提交导入") {
+            Button(action: prepareCommit) {
+                HStack(spacing: 8) {
+                    if busy && lastAction == .commit {
+                        ProgressView().controlSize(.small).accessibilityHidden(true)
+                    }
+                    Text("确认导入（\(selectedChapters.count) 章）")
+                }
+            }
+            .buttonStyle(AgentPanelButtonStyle(prominent: true))
+            .disabled(!targetConfirmed || (selectedChapters.isEmpty && (discovery || selectedMetadata.isEmpty)))
+            .accessibilityIdentifier("admin.import.commit")
+            if let error, lastAction == .commit { AccountSettingsNote(error, isError: true) }
+        }
+    }
+
+    @ViewBuilder
+    private var conversationStatus: some View {
+        if lastAction == .conversation {
+            if busy { ProgressView("正在打开创作对话…").controlSize(.small) }
+            if let error { AccountSettingsNote(error, isError: true) }
         }
     }
 
@@ -182,14 +269,14 @@ struct AdminBookImportView: View {
         operationKey = UUID().uuidString
     }
     private func makePreview() async {
-        await perform {
+        await perform(.preview) {
             let value = try await AdminAPI.importPreview(url: sourceURL.trimmingCharacters(in: .whitespacesAndNewlines), token: $0)
             return .preview(value)
         }
     }
     private func selectTarget(_ novelID: String) async {
         guard let preview else { return }
-        await perform { token in
+        await perform(.target) { token in
             .preview(try await AdminAPI.importTarget(runID: preview.runId, novelID: novelID, revision: preview.revision ?? 0, token: token))
         }
     }
@@ -211,13 +298,14 @@ struct AdminBookImportView: View {
     }
     private func commit(_ snapshot: ImportSnapshot, operation: AdminDangerousOperation) async {
         guard preview?.runId == snapshot.runID else { return }
-        await perform(isCommit: true) { token in
+        await perform(.commit) { token in
             .committed(try await AdminAPI.commitImport(runID: snapshot.runID, chapters: snapshot.chapters,
                 metadata: snapshot.metadata, revision: snapshot.revision, token: token, key: operation.operationID, requireNewBook: discovery))
         }
     }
     private func openBook(_ id: String) async {
         guard !busy, let token = discoveryToken, APIClient.shared.token == token else { return }
+        lastAction = .conversation
         busy = true; error = nil
         defer { busy = false }
         do {
@@ -230,33 +318,38 @@ struct AdminBookImportView: View {
         }
     }
     private enum Outcome { case preview(BookImportPreview); case committed(BookImportResult) }
-    private func perform(isCommit: Bool = false, _ action: (String) async throws -> Outcome) async {
+    private func perform(_ kind: ImportAction, _ action: (String) async throws -> Outcome) async {
         guard !busy, let token = APIClient.shared.token, !discovery || discoveryToken == token else { return }
+        lastAction = kind
         let id = UUID(); requestID = id; busy = true; error = nil
         defer { if requestID == id { busy = false } }
         do {
             let outcome = try await action(token)
             guard !Task.isCancelled, requestID == id, APIClient.shared.token == token else { return }
             switch outcome {
-            case .preview(let value): apply(value); result = nil
+            case .preview(let value):
+                withAnimation(reduceMotion ? nil : AppMotion.micro) {
+                    apply(value)
+                    result = nil
+                }
             case .committed(let value): result = value; preview = nil
             }
         } catch {
             guard !Task.isCancelled, requestID == id, APIClient.shared.token == token else { return }
             self.error = AppCopy.friendlyError(error)
-                + (isCommit ? "；提交结果不确定时，请先检查导入历史再操作。" : "")
+                + (kind == .commit ? "。提交结果不确定时，请先检查导入历史再操作。" : "")
         }
     }
 }
 
 struct AdminImportHistoryView: View {
     var body: some View {
-        AdminRecordList(title: "我的导入历史", fetch: { offset in
+        AdminRecordList(title: "我的导入历史", usesWorkspaceLayout: true, fetch: { offset in
             let response: AdminRecordPage<BookImportHistory> = try await AdminAPI.parityRequest("GET", "/api/book-import/history?limit=50&offset=\(offset)")
             return response
         }) { item in
             VStack(alignment: .leading, spacing: 6) {
-                Text(item.novelTitle).font(.headline)
+                Text(item.novelTitle).font(serifFont(.body, .medium)).fixedSize(horizontal: false, vertical: true)
                 Text("\(AdminParityCopy.state(item.status)) · 新增 \(item.created) · 更新 \(item.updated) · 冲突 \(item.conflicts)")
                 Text(item.sourceLabel).font(.caption).foregroundStyle(.secondary)
                 Text(AdminFormat.dateTime(item.createdAt)).font(.caption).foregroundStyle(.secondary)
