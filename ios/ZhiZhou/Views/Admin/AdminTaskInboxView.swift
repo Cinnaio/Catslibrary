@@ -77,18 +77,24 @@ struct AdminTaskInboxView: View {
     }
 
     private var records: some View {
-        AdminWorkspaceSection("完整记录") {
+        AdminWorkspaceSection(novelID == nil ? "完整记录" : "继续查看") {
             NavigationLink { AdminAIGenerationsView(novelID: novelID, initialStatus: "draft") } label: {
-                AdminWorkspaceEntry("待处理草稿", systemImage: "doc.text")
+                AdminWorkspaceEntry(novelID == nil ? "待处理草稿" : "本书待处理草稿", systemImage: "doc.text")
             }
-            NavigationLink { AdminDownloadRecordsView() } label: {
-                AdminWorkspaceEntry("下载记录", systemImage: "arrow.down.circle")
-            }
-            NavigationLink { AdminAITasksView() } label: {
-                AdminWorkspaceEntry("AI 任务", systemImage: "sparkles")
-            }
-            NavigationLink { AdminJobsView() } label: {
-                AdminWorkspaceEntry("抓取任务", systemImage: "scope")
+            if novelID != nil {
+                NavigationLink { AdminTaskInboxView() } label: {
+                    AdminWorkspaceEntry("全部作品的任务", systemImage: "tray.full")
+                }
+            } else {
+                NavigationLink { AdminDownloadRecordsView() } label: {
+                    AdminWorkspaceEntry("下载记录", systemImage: "arrow.down.circle")
+                }
+                NavigationLink { AdminAITasksView() } label: {
+                    AdminWorkspaceEntry("AI 任务", systemImage: "sparkles")
+                }
+                NavigationLink { AdminJobsView() } label: {
+                    AdminWorkspaceEntry("抓取任务", systemImage: "scope")
+                }
             }
             AccountSettingsNote("近期任务汇总最近 100 项 AI 任务及服务端返回的抓取任务。")
         }

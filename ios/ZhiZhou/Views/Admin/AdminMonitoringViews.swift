@@ -6,16 +6,6 @@ struct AdminTaskCenterView: View {
     }
 }
 
-struct AdminCallsView: View {
-    var body: some View {
-        AdminWorkspaceList {
-            AdminWorkspaceHeading("调用与用量")
-            NavigationLink { AdminAIUsageView() } label: { AdminWorkspaceEntry("AI 调用与用量", systemImage: "chart.bar.xaxis") }
-            NavigationLink { AdminOutboundRecordsView() } label: { AdminWorkspaceEntry("出站请求", systemImage: "network") }
-        }
-    }
-}
-
 struct AdminDownloadRecordsView: View {
     var body: some View {
         AdminRecordList(title: "下载记录", fetch: { _ in

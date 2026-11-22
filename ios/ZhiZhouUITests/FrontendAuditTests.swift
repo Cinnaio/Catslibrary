@@ -630,11 +630,7 @@ final class FrontendAuditTests: XCTestCase {
     @MainActor
     func testAdminSettingsRefreshPreservesDraft() {
         let app = launch()
-        selectTab("我的", app: app)
-        reveal(app.buttons["管理后台"], app: app)
-        tap(app.buttons["管理后台"])
-        reveal(app.buttons["AI 服务"], app: app)
-        tap(app.buttons["AI 服务"])
+        openAdminModule("ai-service", app: app)
         reveal(app.buttons["运行参数"], app: app)
         tap(app.buttons["运行参数"])
         let enabled = app.switches["启用前情提要"]
@@ -712,15 +708,30 @@ final class FrontendAuditTests: XCTestCase {
     }
 
     @MainActor
-    private func openAdminModule(_ id: String, app: XCUIApplication) {
+    private func openAdminWorkspace(app: XCUIApplication) {
         selectTab("我的", app: app)
         reveal(app.buttons["管理后台"], app: app)
         tap(app.buttons["管理后台"])
+    }
+
+    @MainActor
+    private func openAdminModule(_ id: String, app: XCUIApplication) {
+        openAdminWorkspace(app: app)
         let module = app.buttons["admin.module.\(id)"]
         if !module.exists {
             let all = app.buttons["admin.allModules"]
             reveal(all, app: app)
             tap(all)
+            let groups = [
+                "ai-service": "creation", "book-import": "library", "discover": "library",
+                "tasks": "runtime", "operations-audit": "platform",
+                "backups": "platform", "site-settings": "platform",
+            ]
+            if let groupID = groups[id] {
+                let group = app.descendants(matching: .any)["admin.group.\(groupID)"].firstMatch
+                reveal(group, app: app)
+                tap(group)
+            }
         }
         reveal(module, app: app)
         tap(module)
@@ -854,8 +865,18 @@ final class FrontendAuditTests: XCTestCase {
     @MainActor
     func testAdminCallsRangeChangesDetails() {
         let app = launch("admin-parity")
-        openAdminModule("calls", app: app)
-        tap(app.buttons["AI 调用与用量"])
+        openAdminWorkspace(app: app)
+        let all = app.buttons["admin.allModules"]
+        reveal(all, app: app)
+        tap(all)
+        let search = app.searchFields.firstMatch
+        if !search.exists && app.buttons["搜索"].firstMatch.exists {
+            tap(app.buttons["搜索"].firstMatch)
+        }
+        if !search.isHittable { app.swipeDown() }
+        tap(search)
+        search.typeText("Token")
+        tap(app.buttons["admin.module.calls"])
         XCTAssertTrue(app.staticTexts["近30天调用"].waitForExistence(timeout: 10))
         tap(app.buttons["admin.calls.days"])
         tap(app.buttons["近 7 天"])

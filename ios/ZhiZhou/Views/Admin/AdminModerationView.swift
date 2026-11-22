@@ -11,8 +11,8 @@ struct AdminModerationView: View {
         var id: String { rawValue }
     }
 
-    @State private var mode: Mode = .comments
-    @State private var statusFilter = "all"
+    @State private var mode: Mode
+    @State private var statusFilter: String
     @State private var search = ""
     @State private var comments: [AdminComment] = []
     @State private var reports: [CommentReport] = []
@@ -27,6 +27,11 @@ struct AdminModerationView: View {
     @State private var busyActionKey: String?
     @State private var requests = ListRequestGuard<[String]>()
     @State private var displayedQuery: [String]?
+
+    init(initialMode: Mode = .comments) {
+        _mode = State(initialValue: initialMode)
+        _statusFilter = State(initialValue: initialMode == .reports ? "open" : "all")
+    }
 
     private var showingPreviousResults: Bool { !itemsEmpty && displayedQuery != query }
 
@@ -238,7 +243,7 @@ struct AdminModerationView: View {
     }
 
     private func resetFilters() {
-        statusFilter = "all"
+        statusFilter = mode == .reports ? "open" : "all"
         search = ""
         comments = []
         reports = []

@@ -21,7 +21,7 @@ struct AdminScrapeCenterView: View {
     @State private var categories = ""
     @State private var creating = false
     @State private var createdNovelId: String?
-    @State private var skippedCreate = false
+    @State private var testingBeforeCreation = false
 
     // ③ 抓取配置
     @State private var chapterListUrl = ""
@@ -34,7 +34,7 @@ struct AdminScrapeCenterView: View {
     @State private var testResult: ScrapeTestResponse?
     @State private var testError: String?
     @State private var starting = false
-    @State private var startMessage: String?
+    @State private var startReceipt: AdminJobActionResponse?
     @State private var showStartConfirm = false
     @State private var actionError: String?
 
@@ -43,7 +43,7 @@ struct AdminScrapeCenterView: View {
     }
 
     private var showConfirmStep: Bool { meta != nil && analyzedSourceURL == normalizedSourceURL }
-    private var showConfigStep: Bool { showConfirmStep && (createdNovelId != nil || skippedCreate) }
+    private var showConfigStep: Bool { showConfirmStep && (createdNovelId != nil || testingBeforeCreation) }
     private var isWorking: Bool { analyzing || creating || testing || starting }
 
     private var configurationValues: [String] {
@@ -62,12 +62,16 @@ struct AdminScrapeCenterView: View {
             if showConfigStep {
                 configSection.transition(stepTransition)
             }
-            if let startMessage, showConfigStep {
-                Label(startMessage, systemImage: "checkmark.circle.fill")
+            if let startReceipt, showConfigStep {
+                Label("抓取任务已启动。", systemImage: "checkmark.circle.fill")
                     .font(.subheadline)
                     .foregroundStyle(AppTheme.success)
                     .transition(stepTransition)
-                NavigationLink("查看抓取任务") { AdminJobsView() }
+                if let jobID = startReceipt.jobId, !jobID.isEmpty {
+                    NavigationLink("查看本次抓取任务") { AdminJobsView(jobID: jobID) }
+                } else {
+                    NavigationLink("查看抓取任务") { AdminJobsView() }
+                }
             }
         }
         .buttonStyle(.borderless)
@@ -139,11 +143,11 @@ struct AdminScrapeCenterView: View {
                         .lineLimit(2...4)
                         .focused($focusedField, equals: "简介")
                 }
-                action("创建小说并继续", symbol: "plus.circle", working: creating) { await confirmNovel() }
-                if !skippedCreate {
-                    Button("跳过创建，直接配置") {
+                if !testingBeforeCreation {
+                    action("创建小说并继续", symbol: "plus.circle", working: creating) { await confirmNovel() }
+                    Button("先测试抓取配置") {
                         focusedField = nil
-                        skippedCreate = true
+                        testingBeforeCreation = true
                     }
                     .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
                 }
@@ -166,16 +170,17 @@ struct AdminScrapeCenterView: View {
             if let testError {
                 AccountSettingsNote(testError, isError: true).transition(stepTransition)
             }
-            Button {
-                focusedField = nil
-                showStartConfirm = true
-            } label: {
-                actionLabel("开始抓取", symbol: "play.fill", working: starting)
-            }
-            .buttonStyle(AgentPanelButtonStyle(prominent: true))
-            .disabled(createdNovelId == nil)
             if createdNovelId == nil {
-                AccountSettingsNote("需先创建小说后才能开始抓取。")
+                AccountSettingsNote("测试配置无需建书。创建小说后，可用当前配置启动抓取。")
+                action("创建小说并继续", symbol: "plus.circle", working: creating) { await confirmNovel() }
+            } else {
+                Button {
+                    focusedField = nil
+                    showStartConfirm = true
+                } label: {
+                    actionLabel("开始抓取", symbol: "play.fill", working: starting)
+                }
+                .buttonStyle(AgentPanelButtonStyle(prominent: true))
             }
         }
     }
@@ -267,11 +272,11 @@ struct AdminScrapeCenterView: View {
             chapterTitleSelector = result.selectors?.chapterTitle ?? ""
             chapterContentSelector = result.selectors?.chapterContent ?? ""
             nextPageSelector = result.selectors?.nextPage ?? ""
-            skippedCreate = false
+            testingBeforeCreation = false
             createdNovelId = nil
             testResult = nil
             testError = nil
-            startMessage = nil
+            startReceipt = nil
         } catch {
             analyzeError = AppCopy.friendlyError(error)
         }
@@ -298,7 +303,8 @@ struct AdminScrapeCenterView: View {
                 "sourceUrl": sourceUrl.trimmingCharacters(in: .whitespacesAndNewlines),
             ])
             createdNovelId = novel.id
-            startMessage = nil
+            testingBeforeCreation = false
+            startReceipt = nil
         } catch {
             actionError = AppCopy.friendlyError(error)
         }
@@ -340,15 +346,15 @@ struct AdminScrapeCenterView: View {
             return
         }
         starting = true
+        startReceipt = nil
         defer { starting = false }
         do {
-            _ = try await AdminAPI.scrapeStart(
+            startReceipt = try await AdminAPI.scrapeStart(
                 novelId: novelId,
                 sourceUrl: chapterListUrl.trimmingCharacters(in: .whitespacesAndNewlines),
                 encoding: encoding,
                 selectors: currentSelectors
             )
-            startMessage = "抓取任务已启动。"
         } catch {
             actionError = AppCopy.friendlyError(error)
         }

@@ -15,6 +15,7 @@ struct AdminRootView: View {
         case chapters
         case jobs
         case calls
+        case outbound
         case bookImport
         case operationsAudit
         case siteSettings
@@ -59,7 +60,8 @@ struct AdminRootView: View {
         AdminModuleGroup(id: "runtime", title: "运行", modules: [
             AdminModule(id: "tasks", title: "任务中心", systemImage: "shippingbox", destination: .jobs, summary: "跟踪 AI 与抓取任务的进度"),
             AdminModule(id: "dashboard", title: "后台总览", systemImage: "gauge", destination: .dashboard, summary: "内容规模、任务状态与最近更新"),
-            AdminModule(id: "calls", title: "调用与用量", systemImage: "chart.bar.xaxis", destination: .calls, summary: "AI 调用、Token 用量与出站请求"),
+            AdminModule(id: "calls", title: "AI 调用与用量", systemImage: "chart.bar.xaxis", destination: .calls, summary: "查看 AI 调用、Token 和费用"),
+            AdminModule(id: "outbound", title: "出站请求", systemImage: "network", destination: .outbound, summary: "查看请求、代理、状态和耗时"),
             AdminModule(id: "scrape-center", title: "爬虫抓取", systemImage: "scope", destination: .scrapeCenter, summary: "按作品链接抓取、更新章节"),
             AdminModule(id: "scrape-sources", title: "源管理", systemImage: "antenna.radiowaves.left.and.right", destination: .scrapeSources, summary: "管理书源、账号与可用状态"),
             AdminModule(id: "scrape-configs", title: "配置导入导出", systemImage: "arrow.left.arrow.right.square", destination: .scrapeConfigs, summary: "迁移或备份抓取配置"),
@@ -81,9 +83,17 @@ struct AdminRootView: View {
         ]),
     ]
 
-    private var moduleGroups: [AdminModuleGroup] {
-        allModuleGroups.compactMap { group in
-            let modules = group.modules.filter { canOpen($0.destination) }
+    private func moduleGroups(for query: String) -> [AdminModuleGroup] {
+        let terms = query.split(whereSeparator: \.isWhitespace).map(String.init)
+        return allModuleGroups.compactMap { group in
+            let modules = group.modules.filter { module in
+                guard canOpen(module.destination) else { return false }
+                if terms.isEmpty {
+                    return module.destination != .chapters && module.destination != .calls
+                }
+                let searchable = "\(group.title) \(module.title) \(module.summary)"
+                return terms.allSatisfy { searchable.localizedStandardContains($0) }
+            }
             return modules.isEmpty ? nil : AdminModuleGroup(id: group.id, title: group.title, modules: modules)
         }
     }
@@ -109,35 +119,17 @@ struct AdminRootView: View {
             if searchTerms.isEmpty {
                 AdminWorkspaceHomeSections(overview: overview) { shortcuts }
             } else {
-                let matches = matchingGroups
-                if matches.isEmpty {
-                    ContentUnavailableView.search(text: searchText)
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                } else {
-                    moduleSections(matches, animateRows: true)
-                }
+                searchResults(searchText)
             }
         }
         .searchable(text: Binding(get: { searchText }, set: updateSearch), prompt: "搜索管理功能")
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
+            ToolbarItem(placement: .topBarTrailing) {
                 Button("刷新工作台", systemImage: "arrow.clockwise") {
                     Task { await overview.load(forceMetadata: true) }
                 }
                 .labelStyle(.iconOnly)
                 .disabled(overview.loading)
-
-                NavigationLink {
-                    AdminWorkspaceList {
-                        AdminWorkspaceHeading("全部管理功能")
-                        moduleSections(moduleGroups, animateRows: true)
-                    }
-                } label: {
-                    Label("全部功能", systemImage: "square.grid.2x2")
-                        .labelStyle(.iconOnly)
-                }
-                .accessibilityIdentifier("admin.allModules")
             }
         }
         .refreshable { await overview.load(forceMetadata: true) }
@@ -147,39 +139,63 @@ struct AdminRootView: View {
     }
 
     private var shortcuts: some View {
-        let modules = moduleGroups.flatMap(\.modules)
-        let frequent: [Destination] = [.novels, .bookImport, .jobs, .aiService]
-        return AdminWorkspaceSection("常用操作") {
-            ForEach(frequent.compactMap { destination in modules.first { $0.destination == destination } }) { module in
-                moduleLink(module, showsSummary: false)
+        AdminWorkspaceSection("常用操作") {
+            if let novels = moduleGroups(for: "").flatMap(\.modules).first(where: { $0.destination == .novels }) {
+                moduleLink(novels, showsSummary: false)
             }
-        }
-    }
-
-    private func moduleSections(_ groups: [AdminModuleGroup], animateRows: Bool = false) -> some View {
-        ForEach(groups) { group in
-            AdminWorkspaceSection(group.title) {
-                ForEach(Array(group.modules.enumerated()), id: \.element.id) { index, module in
-                    moduleLink(module, showsSummary: true)
-                        .readingSpaceEntrance(index)
-                        .transition(
-                            animateRows && !reduceMotion
-                                ? .opacity.animation(AppMotion.micro.delay(Double(index) * 0.018))
-                                : .identity
-                        )
+            NavigationLink {
+                if canOpen(.moderation) {
+                    AdminModerationView(initialMode: .reports)
+                } else {
+                    ContentUnavailableView("需要管理员权限", systemImage: "lock.shield")
                 }
+            } label: {
+                AdminWorkspaceEntry("处理举报", systemImage: "bubble.left.and.exclamationmark.bubble.right")
+            }
+            .accessibilityIdentifier("admin.home.reports")
+            NavigationLink {
+                AdminModuleDirectory { query in
+                    if query.allSatisfy(\.isWhitespace) {
+                        ForEach(moduleGroups(for: query)) { group in
+                            DisclosureGroup {
+                                moduleRows(group, showsSummary: false)
+                            } label: {
+                                Text(group.title).font(.body.weight(.medium))
+                            }
+                            .accessibilityIdentifier("admin.group.\(group.id)")
+                        }
+                    } else {
+                        searchResults(query)
+                    }
+                }
+            } label: {
+                AdminWorkspaceEntry("全部功能", systemImage: "square.grid.2x2")
+            }
+            .accessibilityIdentifier("admin.allModules")
+        }
+    }
+
+    @ViewBuilder
+    private func searchResults(_ query: String) -> some View {
+        let groups = moduleGroups(for: query)
+        if groups.isEmpty {
+            ContentUnavailableView.search(text: query)
+        } else {
+            ForEach(groups) { group in
+                AdminWorkspaceSection(group.title) { moduleRows(group, showsSummary: true) }
             }
         }
     }
 
-    private var matchingGroups: [AdminModuleGroup] {
-        let terms = searchTerms.map { String($0) }
-        return moduleGroups.compactMap { group in
-            let matches = group.modules.filter { module in
-                let searchable = "\(group.title) \(module.title) \(module.summary)"
-                return terms.allSatisfy { searchable.localizedStandardContains($0) }
-            }
-            return matches.isEmpty ? nil : AdminModuleGroup(id: group.id, title: group.title, modules: matches)
+    private func moduleRows(_ group: AdminModuleGroup, showsSummary: Bool) -> some View {
+        ForEach(Array(group.modules.enumerated()), id: \.element.id) { index, module in
+            moduleLink(module, showsSummary: showsSummary)
+                .readingSpaceEntrance(index)
+                .transition(
+                    showsSummary && !reduceMotion
+                        ? .opacity.animation(AppMotion.micro.delay(Double(index) * 0.018))
+                        : .identity
+                )
         }
     }
 
@@ -214,7 +230,8 @@ struct AdminRootView: View {
         case .novels: AdminNovelsView()
         case .chapters: AdminChaptersView()
         case .jobs: AdminTaskCenterView()
-        case .calls: AdminCallsView()
+        case .calls: AdminAIUsageView()
+        case .outbound: AdminOutboundRecordsView()
         case .bookImport: AdminBookImportView()
         case .operationsAudit: AdminOperationsView()
         case .siteSettings: AdminSiteSettingsView()
@@ -231,5 +248,28 @@ struct AdminRootView: View {
         case .policy: AdminPolicyView()
         case .announcement: AdminAnnouncementView()
         }
+    }
+}
+
+private struct AdminModuleDirectory<Content: View>: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var query = ""
+    private let content: (String) -> Content
+
+    init(@ViewBuilder content: @escaping (String) -> Content) {
+        self.content = content
+    }
+
+    var body: some View {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("全部功能")
+            content(query)
+        }
+        .searchable(
+            text: Binding(get: { query }, set: { value in
+                withAnimation(reduceMotion ? nil : AppMotion.micro) { query = value }
+            }),
+            prompt: "搜索管理功能"
+        )
     }
 }
