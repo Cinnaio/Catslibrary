@@ -301,8 +301,9 @@ export default function SupplementarySourcesDialog({
                         value={draft.url}
                         disabled={busy}
                         onChange={(e) => setDraft({ ...draft, url: e.target.value })}
-                        placeholder="https://…/b… 或 https://www.ilanzou.com/s/…"
+                        placeholder="https://…/b… 或 https://www.ilanzou.com/s/…?latest=1"
                       />
+                      <p className="supplementary-note">日更型大分享可加 <code>?latest=1</code> 只扫最新日期目录，或 <code>?folder=&lt;目录ID&gt;</code> 固定一个子目录。</p>
                     </div>
                     <div className="supplementary-field">
                       <Label htmlFor="supp-password">提取码（选填）</Label>

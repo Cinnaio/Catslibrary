@@ -1,8 +1,34 @@
 import { randomUUID } from 'node:crypto'
 import type { SupplementaryBinding, SupplementaryFile, SupplementaryOverview, SupplementarySource } from '@shared/supplementary-source'
+import { compareSupplementaryVersions } from '@shared/supplementary-source'
 import type { Db } from '../db/pool'
 import { all, first } from '../db/query'
 import { identityKey, normalizeLanzouFolderUrl, scanLanzouFolder, LanzouError } from './lanzou'
+
+const STALE_VERSIONS_PER_BOOK = 2
+/**
+ * 日更型来源每检查一次就多出一批目录，旧目录里的文件会被标成 stale 永久留存。
+ * 每本书只保留最新的两个旧版本，避免累计清单无限增长后撞上总量上限。
+ */
+export function pruneStaleVersions(files: SupplementaryFile[]): SupplementaryFile[] {
+  const keep = new Set<SupplementaryFile>()
+  const staleByBook = new Map<string, SupplementaryFile[]>()
+  for (const file of files) {
+    if (!file.stale) {
+      keep.add(file)
+      continue
+    }
+    const key = JSON.stringify([identityKey(file.title), identityKey(file.author)])
+    const list = staleByBook.get(key) || []
+    list.push(file)
+    staleByBook.set(key, list)
+  }
+  for (const list of staleByBook.values()) {
+    list.sort(compareSupplementaryVersions)
+    for (const file of list.slice(0, STALE_VERSIONS_PER_BOOK)) keep.add(file)
+  }
+  return files.filter((file) => keep.has(file))
+}
 
 interface SourceRow {
   id: string
@@ -139,11 +165,12 @@ export async function checkSupplementarySource(db: Db, id: string, scan = scanLa
       .filter((f) => failedFolders.some((folder) => f.folder === folder || f.folder.startsWith(folder + '/')) || !scannedFolders.has(f.folder))
       .map((f) => ({ ...f, stale: true, ...(failedFolders.some((folder) => f.folder === folder || f.folder.startsWith(folder + '/')) ? { incomplete: true } : {}) }))
     const merged = [...new Map([...retained, ...files].map((f) => [f.key, f])).values()]
-    if (merged.length > 5000) throw new LanzouError('累计文件过多，请绑定更具体的目录')
+    const pruned = pruneStaleVersions(merged)
+    if (pruned.length > 5000) throw new LanzouError('累计文件过多，请绑定更具体的目录')
     const error = failedFolders.length ? `以下目录未完整读取：${failedFolders.join('、')}。已读文件已保留，未读部分沿用旧清单，尚不能确认有无更新` : ''
     await db.query('UPDATE supplementary_sources SET files_json=$2,status=$5,error=$6,checked_at=$3,checking_until=0 WHERE id=$1 AND revision=$4', [
       id,
-      JSON.stringify(merged),
+      JSON.stringify(pruned),
       Date.now(),
       row.revision,
       failedFolders.length ? 'partial' : 'ok',

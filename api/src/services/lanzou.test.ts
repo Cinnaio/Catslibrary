@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { assertBookBytes, downloadLanzouFile, fileIdentity, normalizeLanzouFolderUrl, scanLanzouFolder } from './lanzou'
+import { assertBookBytes, downloadLanzouFile, fileIdentity, ilanzouScope, normalizeLanzouFolderUrl, scanLanzouFolder } from './lanzou'
 
 const page = (fid: string, children = '') =>
   `<title>10月</title>${children}<script>var stamp='1234567890';var secret='abc';$.ajax({url:'/filemoreajax.php?file=${fid}',data:{'lx':2,'fid':${fid},'uid':'1','puid':'x','t':stamp,'k':secret}})</script>`
@@ -176,6 +176,51 @@ describe('蓝奏目录与下载', () => {
       throw new Error('Not reached')
     })
     await expect(scanLanzouFolder(ilanzouRoot, '', request)).rejects.toThrow('需要提取码')
+  })
+  it('蓝奏优享版可用 folder 或 latest 限定扫描范围', () => {
+    const ilanzouRoot = 'https://www.ilanzou.com/s/bTPy1rOoO'
+    expect(normalizeLanzouFolderUrl(`${ilanzouRoot}?latest=2`)).toBe(`${ilanzouRoot}?latest=2`)
+    expect(normalizeLanzouFolderUrl(`${ilanzouRoot}?folder=434571208&cp=share`)).toBe(`${ilanzouRoot}?folder=434571208`)
+    expect(normalizeLanzouFolderUrl(`${ilanzouRoot}?latest=99`)).toBe(`${ilanzouRoot}?latest=5`)
+    expect(normalizeLanzouFolderUrl(`${ilanzouRoot}?cp=share`)).toBe(ilanzouRoot)
+    expect(ilanzouScope(`${ilanzouRoot}?folder=434571208&latest=1`)).toEqual({ folderId: '434571208', latest: 1 })
+  })
+  it('latest 模式只扫最新日期目录，文件链接保留范围参数', async () => {
+    const ilanzouRoot = 'https://www.ilanzou.com/s/bTPy1rOoO'
+    const listing = (list: unknown[]) => bytes({ code: 200, total: list.length, list })
+    const request = vi.fn(async (url: string) => {
+      const u = new URL(url)
+      if (u.pathname.includes('/unproved/recommend/list')) return bytes({ status: 1, code: 200 })
+      const folderId = u.searchParams.get('folderId') || ''
+      if (u.searchParams.get('offset') !== '1') throw new Error(`不应翻页：${u.searchParams.get('offset')}`)
+      if (!folderId) return listing([{ fileType: 2, folderId: '100', folderName: '26年汇总' }])
+      if (folderId === '100')
+        return listing([
+          { fileType: 2, folderId: '101', folderName: '11月' },
+          { fileType: 2, folderId: '199', folderName: '10月' },
+        ])
+      if (folderId === '101')
+        return listing([
+          { fileType: 2, folderId: '102', folderName: '11.22' },
+          { fileType: 2, folderId: '103', folderName: '11.21' },
+        ])
+      if (folderId === '102') return listing([{ fileType: 1, fileId: '9001', name: '[更10]《恶毒女配》作者：汐蝶.txt' }])
+      if (folderId === '103') return listing([{ fileType: 1, fileId: '9002', name: '[更9]《恶毒女配》作者：汐蝶.txt' }])
+      throw new Error(`未预期的目录：${folderId}`)
+    })
+
+    const newest = await scanLanzouFolder(`${ilanzouRoot}?latest=1`, '', request)
+    expect(newest).toHaveLength(1)
+    expect(newest[0]).toMatchObject({
+      folder: '26年汇总/11月/11.22',
+      title: '恶毒女配',
+      author: '汐蝶',
+      revision: 10,
+      url: `${ilanzouRoot}?latest=1&fileId=9001`,
+    })
+
+    const both = await scanLanzouFolder(`${ilanzouRoot}?latest=2`, '', request)
+    expect(both.map((file) => file.folder)).toEqual(['26年汇总/11月/11.22', '26年汇总/11月/11.21'])
   })
   it('通过蓝奏优享版重定向接口下载书籍正文', async () => {
     const file = {

@@ -63,6 +63,21 @@ function parseILanzouShareId(rawOrUrl: string | URL): string {
     return ''
   }
 }
+const MAX_LATEST_FOLDERS = 5
+/**
+ * 蓝奏优享版目录范围：`?folder=<folderId>` 精确绑定一个子目录，`?latest=N` 只扫最新的 N 个日期目录。
+ * 日更型分享动辄两万多个文件，全量扫描必然撞上限，必须让来源声明自己要看哪一层。
+ */
+export function ilanzouScope(rawOrUrl: string | URL): { folderId: string; latest: number } {
+  try {
+    const u = typeof rawOrUrl === 'string' ? new URL(rawOrUrl) : rawOrUrl
+    const folderId = (u.searchParams.get('folder') || '').replace(/\D/g, '')
+    const latest = Math.min(MAX_LATEST_FOLDERS, Math.max(0, Number.parseInt(u.searchParams.get('latest') || '', 10) || 0))
+    return { folderId, latest }
+  } catch {
+    return { folderId: '', latest: 0 }
+  }
+}
 function checkedUrl(raw: string, domains: string[]): URL {
   let u: URL
   try {
@@ -79,7 +94,12 @@ export function normalizeLanzouFolderUrl(raw: string): string {
   if (isILanzouUrl(u)) {
     const shareId = parseILanzouShareId(u)
     if (!shareId) throw new LanzouError('请填写蓝奏优享版文件夹分享链接（格式如 https://www.ilanzou.com/s/xxxxxx）', 'invalid')
-    return `https://www.ilanzou.com/s/${shareId}`
+    const scope = ilanzouScope(u)
+    const scopeQuery = new URLSearchParams()
+    if (scope.folderId) scopeQuery.set('folder', scope.folderId)
+    if (scope.latest > 0) scopeQuery.set('latest', String(scope.latest))
+    const query = scopeQuery.toString()
+    return `https://www.ilanzou.com/s/${shareId}${query ? `?${query}` : ''}`
   }
   if (!/^\/b[a-zA-Z0-9]+\/?$/.test(u.pathname)) throw new LanzouError('请填写蓝奏文件夹分享链接（不是单个文件）', 'invalid')
   return `${u.origin}${u.pathname.replace(/\/$/, '')}`
@@ -240,6 +260,86 @@ async function callILanzouApi(
   return json(bytes)
 }
 
+type ILanzouQueueItem = { folderId: string; folderName: string; depth: number }
+
+function ilanzouFolderName(item: Record<string, unknown>): string {
+  return String(item.folderName || item.name || '').trim()
+}
+
+function newestFirst(a: Record<string, unknown>, b: Record<string, unknown>): number {
+  return ilanzouFolderName(b).localeCompare(ilanzouFolderName(a), 'zh-CN', { numeric: true })
+}
+
+/** 范围定位用的浅层目录读取：只需要文件名，不追求分页完整性。 */
+async function listILanzouItems(
+  request: LanzouRequest,
+  shareId: string,
+  folderId: string,
+  password: string,
+  maxPages = 3,
+): Promise<Record<string, unknown>[]> {
+  const items: Record<string, unknown>[] = []
+  for (let page = 1; page <= maxPages; page++) {
+    const params: Record<string, string | number> = { shareId, offset: page, limit: 60 }
+    if (folderId) params.folderId = folderId
+    if (password) params.code = password
+    const result = await callILanzouApi(request, '/unproved/share/list', params)
+    if (Number(result.code) !== 200 || !Array.isArray(result.list)) throw new LanzouError('蓝奏优享版目录读取失败，请稍后重试')
+    const list = result.list as Record<string, unknown>[]
+    items.push(...list)
+    if (list.length < 60) break
+  }
+  return items
+}
+
+/**
+ * `?latest=N` 的落点：从分享根目录往下按名称倒序（日期目录天然可比）走到日期层，取最新 N 个。
+ * 目录结构不符合「汇总/月/日」时，退回扫描最先命中的那一层，避免把整个分享拖进全量扫描。
+ */
+async function ilanzouLatestFolders(
+  request: LanzouRequest,
+  shareId: string,
+  password: string,
+  latest: number,
+): Promise<ILanzouQueueItem[]> {
+  const picks: ILanzouQueueItem[] = []
+  const tops = (await listILanzouItems(request, shareId, '', password)).filter((i) => Number(i.fileType) === 2).sort(newestFirst)
+  for (const top of tops) {
+    if (picks.length >= latest) break
+    const topName = ilanzouFolderName(top)
+    const topId = String(top.folderId || top.sortId || '')
+    if (!topId) continue
+    const months = (await listILanzouItems(request, shareId, topId, password))
+      .filter((i) => Number(i.fileType) === 2)
+      .sort(newestFirst)
+    if (!months.length) {
+      picks.push({ folderId: topId, folderName: topName, depth: 1 })
+      continue
+    }
+    for (const month of months) {
+      if (picks.length >= latest) break
+      const monthName = ilanzouFolderName(month)
+      const monthId = String(month.folderId || month.sortId || '')
+      if (!monthId) continue
+      const days = (await listILanzouItems(request, shareId, monthId, password))
+        .filter((i) => Number(i.fileType) === 2)
+        .sort(newestFirst)
+      if (!days.length) {
+        picks.push({ folderId: monthId, folderName: `${topName}/${monthName}`, depth: 2 })
+        continue
+      }
+      for (const day of days) {
+        if (picks.length >= latest) break
+        const dayId = String(day.folderId || day.sortId || '')
+        if (!dayId) continue
+        picks.push({ folderId: dayId, folderName: `${topName}/${monthName}/${ilanzouFolderName(day)}`, depth: 3 })
+      }
+    }
+  }
+  if (!picks.length) throw new LanzouError('未能定位最新日期目录，请改用带 folder 参数的目录链接')
+  return picks
+}
+
 async function scanILanzouFolder(
   root: string,
   password = '',
@@ -248,6 +348,7 @@ async function scanILanzouFolder(
 ): Promise<SupplementaryFile[]> {
   const shareId = parseILanzouShareId(root)
   if (!shareId) throw new LanzouError('蓝奏优享版链接无法识别分享 ID', 'invalid')
+  const scope = ilanzouScope(root)
 
   const recResult = await callILanzouApi(request, '/unproved/recommend/list', {
     shareId,
@@ -263,7 +364,11 @@ async function scanILanzouFolder(
     throw new LanzouError('蓝奏优享版分享状态异常，请稍后重试')
   }
 
-  const queue: Array<{ folderId: string; folderName: string; depth: number }> = [{ folderId: '', folderName: '', depth: 0 }]
+  const queue: ILanzouQueueItem[] = scope.folderId
+    ? [{ folderId: scope.folderId, folderName: '', depth: 0 }]
+    : scope.latest > 0
+      ? await ilanzouLatestFolders(request, shareId, password, scope.latest)
+      : [{ folderId: '', folderName: '', depth: 0 }]
   const visited = new Set<string>()
   const files = new Map<string, SupplementaryFile>()
   const deadline = Date.now() + 110000
@@ -316,7 +421,9 @@ async function scanILanzouFolder(
           if (!/\.(txt|text|epub)$/i.test(name)) continue
           const fileId = String(item.fileId || item.sortId || '')
           if (!fileId) continue
-          const url = `${root}?fileId=${fileId}`
+          const fileUrl = new URL(root)
+          fileUrl.searchParams.set('fileId', fileId)
+          const url = fileUrl.href
           const key = createHash('sha256').update(url).digest('hex').slice(0, 24)
           const rawSize = Number(item.fileSize)
           const sizeStr =
