@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as matchers from '@testing-library/jest-dom/matchers'
+import type { UserRole } from '@shared/roles'
 import { readEdgeData } from '../lib/edge'
 
 expect.extend(matchers)
@@ -10,7 +11,7 @@ expect.extend(matchers)
 const mocks = vi.hoisted(() => ({
   policy: { mode: 'adult', checking: false, policyError: '', adultContentEnabled: true, isAllowed: () => true, setMode: vi.fn(), refreshPolicy: vi.fn() },
   chapter: vi.fn(), novel: vi.fn(), chapters: vi.fn(), thoughts: vi.fn(),
-  session: { user: null as null | { id: string }, loading: false },
+  session: { user: null as null | { id: string; role: UserRole }, loading: false },
   playing: false, dispose: vi.fn(), stats: vi.fn(),
 }))
 vi.mock('../context/SessionContext', () => ({ useSession: () => mocks.session, useOptionalSession: () => mocks.session }))
@@ -66,7 +67,7 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 describe('阅读器节拍指令', () => {
-  beforeEach(() => { mocks.session = { user: { id: 'reader' }, loading: false } })
+  beforeEach(() => { mocks.session = { user: { id: 'reader', role: 'admin' }, loading: false } })
 
   it('桌面面板互斥，关闭后回焦且只在展开时暂停阅读统计', async () => {
     const user = userEvent.setup()
@@ -160,7 +161,7 @@ describe('阅读器节拍指令', () => {
     view.rerender(readerTree())
     await screen.findByText('正文')
     expect(screen.queryByRole('group', { name: '阅读节拍指令控制' })).not.toBeInTheDocument()
-    mocks.session = { user: { id: 'new-reader' }, loading: false }
+    mocks.session = { user: { id: 'new-reader', role: 'super_admin' }, loading: false }
     view.rerender(readerTree())
     await screen.findByText('正文')
     fireEvent.click(within(screen.getByRole('group', { name: '阅读工具' })).getByRole('button', { name: '节拍指令' }))
@@ -171,6 +172,26 @@ describe('阅读器节拍指令', () => {
     view.rerender(readerTree())
     expect(screen.queryByRole('dialog', { name: '节拍指令' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '节拍指令' })).not.toBeInTheDocument()
+  })
+
+  it('撤销管理员角色后关闭节拍并清理本局，普通读者仍可阅读', async () => {
+    mocks.novel.mockResolvedValue({ novel: { id: 'book', title: '测试小说' } })
+    const view = mount()
+    await screen.findByText('正文')
+    fireEvent.click(within(screen.getByRole('group', { name: '阅读工具' })).getByRole('button', { name: '节拍指令' }))
+    fireEvent.click(screen.getByRole('button', { name: '开始这一局' }))
+
+    mocks.session.user = { id: 'reader', role: 'reader' }
+    view.rerender(readerTree())
+    expect(screen.getByText('正文')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: '节拍指令' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '节拍指令' })).not.toBeInTheDocument()
+    expect(readEdgeData('user:reader').data.history).toHaveLength(0)
+
+    mocks.session.user = { id: 'reader', role: 'admin' }
+    view.rerender(readerTree())
+    expect(screen.queryByRole('group', { name: '阅读节拍指令控制' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: '节拍指令' })).not.toBeInTheDocument()
   })
 })
 

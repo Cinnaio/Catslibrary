@@ -163,8 +163,9 @@ struct ReaderView: View {
     }
 
     private var edgeContext: ReaderEdgeContext? {
-        guard !offlineOnly, ContentAccessStore.shared.mode == "adult", let userID = appState.user?.id else { return nil }
-        return ReaderEdgeContext(server: ServerConfig.serverURL, userID: userID, bookID: novel.id,
+        guard !offlineOnly, let user = appState.user, user.isAdmin,
+              ContentAccessStore.shared.mode == "adult" else { return nil }
+        return ReaderEdgeContext(server: ServerConfig.serverURL, userID: user.id, bookID: novel.id,
                                  accountRevision: ContentAccessStore.shared.accountRevision)
     }
 

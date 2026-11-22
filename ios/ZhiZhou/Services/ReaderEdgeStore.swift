@@ -49,7 +49,7 @@ final class ReaderEdgeStore {
     }
 
     var authorized: Bool {
-        guard let context else { return false }
+        guard let context, let user = AppState.shared.user, user.isAdmin, user.id == context.userID else { return false }
         return ContentAccessStore.shared.mode == "adult"
             && ContentAccessStore.shared.accountRevision == context.accountRevision
             && ReaderSettingsStore.shared.activeUserID == context.userID

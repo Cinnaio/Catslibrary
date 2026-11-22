@@ -81,7 +81,8 @@ export default function Reader() {
   const { mode, checking, policyError } = useContentPolicy()
   if (loading) return <div className="loading-center" style={{ minHeight: '60vh' }}><Spinner size="lg" aria-label="正在准备阅读器" /></div>
   const scope = user ? `user:${user.id}` : 'guest'
-  return <ReaderTempoProvider key={`${scope}:${novelId}`} scope={scope} edgeAllowed={!!user && mode === 'adult' && !checking && !policyError}><ReaderContent /></ReaderTempoProvider>
+  const edgeAllowed = isAdministrator(user?.role) && mode === 'adult' && !checking && !policyError
+  return <ReaderTempoProvider key={`${scope}:${novelId}`} scope={scope} edgeAllowed={edgeAllowed}><ReaderContent /></ReaderTempoProvider>
 }
 
 function ReaderContent() {

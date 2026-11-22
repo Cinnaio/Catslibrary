@@ -52,7 +52,7 @@ struct ReaderEdgeSheet: View {
                     }
                 } else {
                     ContentUnavailableView("节拍指令已关闭", systemImage: "lock",
-                                           description: Text("当前账号的成人内容权限尚未确认。"))
+                                           description: Text("节拍指令仅向已开启成人内容模式的管理员开放。"))
                 }
             }
             .toolbar {

@@ -4,6 +4,7 @@ import '@/styles/catalog-controls.css'
 import '@/styles/admin/tokens.css'
 import { useState } from 'react'
 import { BookOpen, Copy, Download, LoaderCircle, MoreHorizontal, Settings, Trash2 } from 'lucide-react'
+import { isAdministrator } from '@shared/roles'
 import type { Novel } from '@shared/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -69,6 +70,7 @@ import TimeField from "@/components/shared/TimeField"
 import { SettingsControls } from '@/components/reader/SettingsControls'
 import { ReaderTempoProvider, ReaderTempoStatus, ReaderTempoTrigger } from '@/components/reader/ReaderTempo'
 import { useContentPolicy } from '@/context/ContentPolicyContext'
+import { useSession } from '@/context/SessionContext'
 import readerStyles from '../reader.module.css'
 import type { ExampleProps } from './gallery-types'
 
@@ -1016,12 +1018,14 @@ export function ReaderPaper({ boundary }: ExampleProps) {
 }
 
 export function ReaderTempoExample() {
+  const { user, loading } = useSession()
   const { mode, checking, policyError } = useContentPolicy()
-  return <ReaderTempoProvider scope="gallery:reader-tempo" edgeAllowed={mode === 'adult' && !checking && !policyError}>
+  const edgeAllowed = !loading && isAdministrator(user?.role) && mode === 'adult' && !checking && !policyError
+  return <ReaderTempoProvider scope="gallery:reader-tempo" edgeAllowed={edgeAllowed}>
     <div className="gallery-stack">
       <div className="gallery-row"><ReaderTempoTrigger onOpen={() => {}} /></div>
       <ReaderTempoStatus onOpen={() => {}} />
-      <p className="gallery-note">复用阅读器节拍指令面板，需开启成人内容模式；示例记录使用独立本机空间。</p>
+      <p className="gallery-note">仅开启成人内容模式的管理员可使用。示例记录保存在独立的本机空间。</p>
     </div>
   </ReaderTempoProvider>
 }

@@ -2,12 +2,13 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import * as matchers from '@testing-library/jest-dom/matchers'
+import type { UserRole } from '@shared/roles'
 import { readEdgeData } from '../lib/edge'
 
 expect.extend(matchers)
 
 const mocks = vi.hoisted(() => ({
-  user: null as null | { id: string },
+  user: null as null | { id: string; role: UserRole },
   loading: false,
   policy: { mode: 'adult' as 'adult' | 'safe', setMode: vi.fn(), adultContentEnabled: true, checking: false, policyError: '' },
 }))
@@ -35,7 +36,7 @@ function renderEdge() {
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date', 'performance', 'setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'] })
   localStorage.clear()
-  mocks.user = { id: 'reader' }
+  mocks.user = { id: 'reader', role: 'admin' }
   mocks.policy = { mode: 'adult', setMode: vi.fn(), adultContentEnabled: true, checking: false, policyError: '' }
   vi.stubGlobal('AudioContext', class {})
   vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
@@ -43,11 +44,24 @@ beforeEach(() => {
 
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
+it.each([null, { id: 'reader', role: 'reader' as const }])('denies direct use without an administrator role (%j)', (user) => {
+  mocks.user = user
+  renderEdge()
+  expect(screen.getByRole('heading', { name: '节拍指令仅限管理员使用' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '开始这一局' })).not.toBeInTheDocument()
+})
+
 it('gates the tool behind the adult content mode', () => {
   mocks.policy = { mode: 'safe', setMode: vi.fn(), adultContentEnabled: true, checking: false, policyError: '' }
   renderEdge()
   expect(screen.getByText('节拍指令需要成人内容模式')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: '开始这一局' })).not.toBeInTheDocument()
+})
+
+it('lets a super administrator with adult access open the tool', () => {
+  mocks.user = { id: 'super', role: 'super_admin' }
+  renderEdge()
+  expect(screen.getByRole('button', { name: '开始这一局' })).toBeEnabled()
 })
 
 it('runs a round and records the finished session for the current account', () => {

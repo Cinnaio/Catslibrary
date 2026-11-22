@@ -1,9 +1,12 @@
+import { isAdministrator } from '@shared/roles'
 import { useRef, useState, type CSSProperties } from 'react'
-import { Check, Flame, History, Square, Trash2 } from 'lucide-react'
+import { Check, Flame, History, ShieldAlert, Square, Trash2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import ContentPolicyStatus from '@/components/ContentPolicyStatus'
 import ContentRestrictionNotice from '@/components/ContentRestrictionNotice'
+import PageState from '@/components/PageState'
 import EmptyState from '@/components/shared/EmptyState'
 import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog'
 import { useContentPolicy } from '@/context/ContentPolicyContext'
@@ -47,7 +50,7 @@ function EdgeWorkspace({ scope }: { scope: string }) {
         <div className={styles.historyHeading}>
           <div>
             <h2 id="edge-history-title" ref={historyHeading} tabIndex={-1}>最近这一些局</h2>
-            <p>最多保留 30 局，仅保存在本机当前{scope === 'guest' ? '游客空间' : '账号'}，不跨设备同步，也不上传。</p>
+            <p>当前账号在本机最多保留 30 局。</p>
           </div>
           <Button ref={clearButton} type="button" variant="ghost" disabled={data.history.length === 0} onClick={() => changeClearOpen(true)}><Trash2 aria-hidden="true" />清空记录</Button>
         </div>
@@ -100,7 +103,7 @@ function EdgeWorkspace({ scope }: { scope: string }) {
         open={clearOpen}
         onOpenChange={changeClearOpen}
         title="清空节拍指令记录？"
-        description="删除当前账号或游客空间在此浏览器里的对局记录，保留规则设置与声音偏好。此操作无法撤销。"
+        description="删除当前账号在此浏览器里的对局记录，保留规则设置与声音偏好。此操作无法撤销。"
         confirmText="清空记录"
         danger
         onConfirm={() => { clearHistory(); changeClearOpen(false) }}
@@ -114,9 +117,19 @@ export default function Edge() {
   const { user, loading } = useSession()
   const { mode, setMode, adultContentEnabled, checking, policyError } = useContentPolicy()
   if (loading) return <div className={styles.loading}><Spinner aria-label="正在准备节拍指令" /></div>
-  // 与作品详情、阅读器同一条门禁：先把权限确认清楚，再谈是否放行。
+  if (!user || !isAdministrator(user.role)) {
+    return <PageState
+      title="节拍指令仅限管理员使用"
+      description="请使用管理员账号访问。"
+      icon={<ShieldAlert />}
+      actions={<>
+        {!user && <Button asChild><Link to="/auth" state={{ from: '/tools/edge' }}>前往登录</Link></Button>}
+        <Button asChild variant={user ? 'default' : 'secondary'}><Link to="/">返回首页</Link></Button>
+      </>}
+    />
+  }
   if (checking || policyError) return <ContentPolicyStatus />
-  if (mode !== 'adult') return <ContentRestrictionNotice mode={mode} onModeChange={setMode} canUnlock={adultContentEnabled} title="节拍指令需要成人内容模式" description="这是限制级工具，仅对已登录且已开启成人内容模式的读者开放。开关在侧栏底部。" />
-  const scope = user ? `user:${user.id}` : 'guest'
+  if (mode !== 'adult') return <ContentRestrictionNotice mode={mode} onModeChange={setMode} canUnlock={adultContentEnabled} title="节拍指令需要成人内容模式" description="请开启成人内容模式后使用节拍指令。" />
+  const scope = `user:${user.id}`
   return <EdgeWorkspace key={scope} scope={scope} />
 }

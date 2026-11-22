@@ -95,6 +95,24 @@ describe('WorkspaceShell account and navigation', () => {
     expect(screen.getAllByRole('button', { name: '账户菜单：猫' })[0]!).toBeInTheDocument()
   })
 
+  it.each([
+    ['reader', 0],
+    ['admin', 1],
+    ['super_admin', 1],
+  ])('按 %s 角色显示节拍指令入口', async (role, linkCount) => {
+    const { user } = mocks.useSession()
+    mocks.useSession.mockReturnValue({ user: { ...user, role } })
+    render(<MemoryRouter><WorkspaceShell><main>内容</main></WorkspaceShell></MemoryRouter>)
+
+    for (const name of ['工作区导航', '快捷导航']) {
+      const navigation = screen.getByRole('navigation', { name })
+      expect(within(navigation).queryAllByRole('link', { name: '节拍指令' })).toHaveLength(linkCount)
+    }
+
+    await userEvent.setup().click(screen.getByRole('button', { name: '打开导航' }))
+    expect(within(screen.getByRole('dialog')).queryAllByRole('link', { name: '节拍指令' })).toHaveLength(linkCount)
+  })
+
   it('站点开放 R18 时游客的桌面和移动导航都没有模式开关', async () => {
     mocks.useSession.mockReturnValue({ user: null })
     mocks.useContentPolicy.mockReturnValue({ mode: 'safe', setMode: vi.fn(), adultContentEnabled: true })

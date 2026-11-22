@@ -36,6 +36,9 @@ const readerGroups: WorkspaceNavGroup[] = [
       { id: 'history', label: '阅读记录', to: '/bookshelf?view=recent', icon: History },
     ],
   },
+]
+const adminReaderGroups: WorkspaceNavGroup[] = [
+  ...readerGroups,
   {
     label: '工具',
     items: [
@@ -124,7 +127,7 @@ function Navigation({ groups, onNavigate }: { groups: WorkspaceNavGroup[]; onNav
 
 export default function WorkspaceShell({
   children,
-  groups = readerGroups,
+  groups,
   title,
   admin = false,
   standalone = false,
@@ -137,6 +140,8 @@ export default function WorkspaceShell({
 }) {
   const branding = useSiteBranding()
   const { user, loading, logout } = useSession()
+  const visibleReaderGroups = !loading && isAdministrator(user?.role) ? adminReaderGroups : readerGroups
+  const navigationGroups = groups ?? visibleReaderGroups
   const { mode, setMode, adultContentEnabled, checking } = useContentPolicy()
   const { toast } = useToast()
   const location = useLocation()
@@ -335,8 +340,8 @@ export default function WorkspaceShell({
     </div>
   )
   const shortcuts = admin
-    ? groups.flatMap((group) => group.items).filter((item) => ['novels', 'ai', 'tasks', 'dashboard'].includes(item.id))
-    : readerGroups.flatMap((group) => group.items)
+    ? navigationGroups.flatMap((group) => group.items).filter((item) => ['novels', 'ai', 'tasks', 'dashboard'].includes(item.id))
+    : visibleReaderGroups.flatMap((group) => group.items)
   return (
     <div className={styles.shell} data-standalone={standalone || undefined} data-workspace={admin ? 'admin' : 'reader'}>
       {!standalone && (
@@ -346,7 +351,7 @@ export default function WorkspaceShell({
           </a>
           <aside className={styles.sidebar}>
             {brand}
-            <Navigation groups={groups} />
+            <Navigation groups={navigationGroups} />
             {secondary}
             {account}
           </aside>
@@ -374,7 +379,7 @@ export default function WorkspaceShell({
                     </button>
                   </Dialog.Close>
                 </div>
-                <Navigation groups={groups} onNavigate={() => setMenuOpen(false)} />
+                <Navigation groups={navigationGroups} onNavigate={() => setMenuOpen(false)} />
                 {secondary}
                 {account}
               </Dialog.Content>
