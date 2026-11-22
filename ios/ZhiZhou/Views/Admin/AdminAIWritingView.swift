@@ -1510,7 +1510,7 @@ struct AdminAIWritingView: View {
 
 }
 
-// MARK: - 选书 Sheet（与封面视图共用结构，独立实现避免跨文件依赖）
+// MARK: - 创作选书面板
 
 struct AdminNovelPickerSheet: View {
     let options: [AdminNovelSummary]
@@ -1531,38 +1531,26 @@ struct AdminNovelPickerSheet: View {
 
     var body: some View {
         NavigationStack {
-            GeometryReader { geometry in
-                List {
-                    Group {
-                        AgentPanelHeading("选择小说", detail: "选择要继续创作的作品。")
-                            .padding(.bottom, 16)
-                        if options.isEmpty {
-                            AgentPanelSection("暂无可用作品") {
-                                AgentPanelNotice("当前没有可以选择的作品。")
-                            }
-                        } else if filtered.isEmpty {
-                            AgentPanelSection("没有匹配的作品") {
-                                AgentPanelNotice("试试其他书名或作者。")
-                            }
-                        } else {
-                            ForEach(Array(filtered.enumerated()), id: \.element.id) { index, novel in
-                                novelRow(novel)
-                                    .readingSpaceEntrance(index)
-                            }
-                        }
+            AdminWorkspaceList(maximumWidth: 760) {
+                AgentPanelHeading("选择小说", detail: "选择要继续创作的作品。")
+                    .padding(.top, 12)
+                    .padding(.bottom, 8)
+                if options.isEmpty {
+                    AgentPanelSection("暂无可用作品") {
+                        AgentPanelNotice("当前没有可以选择的作品。")
                     }
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets())
+                } else if filtered.isEmpty {
+                    AgentPanelSection("没有匹配的作品") {
+                        AgentPanelNotice("试试其他书名或作者。")
+                    }
+                } else {
+                    ForEach(Array(filtered.enumerated()), id: \.element.id) { index, novel in
+                        novelRow(novel)
+                            .readingSpaceEntrance(index)
+                    }
                 }
-                .modifier(ReadingSpaceRoomListStyle())
-                .contentMargins(.horizontal, max(22, (geometry.size.width - 760) / 2), for: .scrollContent)
-                .contentMargins(.top, 20, for: .scrollContent)
-                .contentMargins(.bottom, 24, for: .scrollContent)
-                .scrollDismissesKeyboard(.interactively)
-                .animation(reduceMotion ? nil : AppMotion.state, value: search)
             }
-            .agentPanelSurface()
+            .animation(reduceMotion ? nil : AppMotion.state, value: search)
             .searchable(text: $search, prompt: "搜索书名 / 作者")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -1598,13 +1586,16 @@ struct AdminNovelPickerSheet: View {
                     .opacity(novel.id == selectedId ? 1 : 0)
                     .accessibilityHidden(true)
             }
-            .padding(16)
+            .padding(.vertical, 8)
             .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
-            .background(novel.id == selectedId ? ReadingSpace.profileFill : Color.clear,
-                        in: RoundedRectangle(cornerRadius: 16))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(novel.id == selectedId ? ReadingSpace.profileFill : Color.clear)
+                .padding(.horizontal, 12)
+        )
         .accessibilityAddTraits(novel.id == selectedId ? .isSelected : [])
     }
 }

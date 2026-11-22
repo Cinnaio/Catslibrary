@@ -2,9 +2,13 @@ import SwiftUI
 
 /// 后台工作台共用连续纸面；保留原生列表的复用、刷新与操作。
 struct AdminWorkspaceList<Content: View>: View {
+    private let maximumWidth: CGFloat
     private let content: Content
 
-    init(@ViewBuilder content: () -> Content) { self.content = content() }
+    init(maximumWidth: CGFloat = 820, @ViewBuilder content: () -> Content) {
+        self.maximumWidth = maximumWidth
+        self.content = content()
+    }
 
     var body: some View {
         List {
@@ -15,7 +19,7 @@ struct AdminWorkspaceList<Content: View>: View {
         }
         .modifier(ReadingSpaceRoomListStyle())
         .contentMargins(.bottom, 32, for: .scrollContent)
-        .frame(maxWidth: 820)
+        .frame(maxWidth: maximumWidth)
         .frame(maxWidth: .infinity)
         .background(ReadingSpace.profilePaper)
         .foregroundStyle(ReadingSpace.ink)

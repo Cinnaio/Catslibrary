@@ -150,20 +150,14 @@ struct AdminFilterBar<Content: View>: View {
     }
 
     var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 8) {
-                    content
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, AppLayout.pageInset)
-            } else {
-                filterScroll
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 8) {
+                content
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            filterScroll
         }
-        .listRowInsets(EdgeInsets())
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
     }
 
     private var filterScroll: some View {
@@ -171,8 +165,6 @@ struct AdminFilterBar<Content: View>: View {
             HStack(spacing: 8) {
                 content
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 4)
         }
         .scrollClipDisabled()
     }
