@@ -52,7 +52,9 @@ struct ProfileView: View {
     }
 
     private func profileCover(topInset: CGFloat) -> some View {
-        GeometryReader { geometry in
+        let height = max(246, topInset + 187)
+
+        return GeometryReader { geometry in
             let pullDistance = max(0, geometry.frame(in: .named("profileScroll")).minY)
             let coverScale = reduceMotion ? 1 : 1 + pullDistance / geometry.size.height * 0.08
 
@@ -74,7 +76,37 @@ struct ProfileView: View {
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
-        .frame(height: max(222, topInset + 160))
+        .frame(height: height)
+        .overlay {
+            GeometryReader { geometry in
+                let width = min(154, max(60, geometry.size.width / 2 - 60))
+                let portraitHeight = min(width * 0.86, height - topInset - 79)
+
+                NavigationLink {
+                    WindowCompanionView()
+                } label: {
+                    WindowCompanionPortrait(coverCrop: CGSize(width: width, height: portraitHeight))
+                        .overlay(alignment: .bottomTrailing) {
+                            Image(systemName: "arrow.up.right")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(ReadingSpace.onSummary)
+                                .frame(width: 24, height: 24)
+                                .background(ReadingSpace.summary, in: Circle())
+                                .padding(.bottom, 13)
+                                .padding(.trailing, 2)
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
+                        }
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("窗边")
+                .accessibilityHint("查看猫娘的完整立绘")
+                .accessibilityIdentifier("profile.windowCompanion")
+                .padding(.trailing, 14)
+                .padding(.bottom, 18)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            }
+        }
         .overlay(alignment: .top) {
             HStack(spacing: 16) {
                 Text("My little library.")
