@@ -50,6 +50,7 @@ struct AdminAIGenerationsView: View {
 
     @State private var items: [AiGeneration] = []
     @State private var totalCount = 0
+    @State private var displayedQuery: [String] = []
     @State private var taskLinkage: String?
     @State private var isLoading = true
     @State private var errorMessage: String?
@@ -84,120 +85,47 @@ struct AdminAIGenerationsView: View {
     @State private var busyItemId: String?
 
     var body: some View {
-        List {
-            if taskID == nil { filterSection }
-            if isLoading && items.isEmpty {
-                Section {
-                    ProgressView("加载中…")
-                        .frame(maxWidth: .infinity, minHeight: 160)
-                        .listRowBackground(Color.clear)
-                }
-            } else if let errorMessage, items.isEmpty {
-                Section {
-                    ContentUnavailableView {
-                        Label("加载失败", systemImage: "wifi.slash")
-                    } description: {
-                        Text(errorMessage)
-                    } actions: {
-                        Button("重试") { Task { await load() } }
-                    }
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                }
-            } else if items.isEmpty {
-                Section {
-                    ContentUnavailableView {
-                        Label("暂无内容", systemImage: "tray")
-                    } description: {
-                        Text("当前筛选条件下没有 AI 生成内容。")
-                    }
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                }
-            } else {
-                if let errorMessage {
-                    LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
-                        Task { await load() }
-                    }
-                }
-                if selectionMode {
-                    Section {
-                        HStack {
-                            Text("已选 \(selectedIds.count) 条")
-                                .font(.subheadline)
-                                .foregroundStyle(AppTheme.textSecondary)
-                            Spacer()
-                            Button("全选") {
-                                selectedIds = Set(items.map { $0.id })
-                            }
-                            .font(.subheadline)
-                            .disabled(batchBusy || publishingBatchID != nil)
-                            Button("删除所选", role: .destructive) {
-                                requestBatchDelete()
-                            }
-                            .font(.subheadline)
-                            .disabled(selectedIds.isEmpty || batchBusy || publishingBatchID != nil)
-                        }
-                        .listRowBackground(Color.clear)
-                    }
-                }
-                if !lastDeletedIds.isEmpty {
-                    Section {
-                        Button {
-                            Task { await restoreDeleted() }
-                        } label: {
-                            Label("撤销上次删除（\(lastDeletedIds.count) 条）", systemImage: "arrow.uturn.backward")
-                        }
-                        .disabled(batchBusy)
-                        .listRowBackground(Color.clear)
-                    }
-                }
-                Section(taskID == nil ? "共 \(totalCount) 条" : "本次任务结果（\(totalCount)）") {
-                    if taskID != nil, taskLinkage == "unavailable" {
-                        Text("旧任务未记录精确关联，暂时没有可安全归属到本次任务的内容。")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.textSecondary)
-                    } else if taskID != nil, taskLinkage == "legacy_batch" {
-                        Text("本次结果按历史批次关联。")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.textSecondary)
-                    }
-                    ForEach(displayGroups) { group in
-                        if group.isBatch {
-                            generationBatchRow(group)
-                            if expandedBatchIDs.contains(group.id) {
-                                ForEach(group.items) { item in
-                                    generationRow(item, isBatchChild: true)
-                                        .transition(batchChildTransition)
-                                }
-                            }
-                        } else if let item = group.items.first {
-                            generationRow(item)
-                        }
-                    }
-                    if offset + pageSize < totalCount {
-                        Button {
-                            Task { await loadMore() }
-                        } label: {
-                            HStack {
-                                Spacer()
-                                if loadingMore { ProgressView() }
-                                Text("加载更多（\(items.count)/\(totalCount)）")
-                                    .font(.subheadline)
-                                    .foregroundStyle(AppTheme.primary)
-                                Spacer()
-                            }
-                        }
-                        .listRowBackground(Color.clear)
-                        .disabled(isLoading || loadingMore || errorMessage != nil)
-                    }
+        AdminWorkspaceList {
+            AdminWorkspaceHeading(taskID == nil ? (novelID == nil ? "已生成内容" : "本书草稿与发布") : "本次任务结果",
+                                  detail: "审阅草稿、核对批次，再发布为正式章节。")
+            if taskID == nil {
+                filterSection.disabled(hasPendingAction)
+            }
+            if let errorMessage, !items.isEmpty {
+                LoadErrorNotice(message: errorMessage, isLoading: isLoading) {
+                    Task { await load() }
                 }
             }
+            if isTransitioning {
+                Label(isLoading ? "正在读取新条件，以下仍是上一次的结果" : "以下仍是上一次的结果，请重试读取",
+                      systemImage: "arrow.triangle.2.circlepath")
+                    .font(.footnote)
+                    .foregroundStyle(ReadingSpace.profileMuted)
+            }
+            if selectionMode && !items.isEmpty {
+                selectionBar.disabled(isTransitioning || isLoading || hasPendingAction)
+            }
+            if !lastDeletedIds.isEmpty {
+                Button {
+                    Task { await restoreDeleted() }
+                } label: {
+                    Label("撤销上次删除（\(lastDeletedIds.count) 条）", systemImage: "arrow.uturn.backward")
+                        .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+                }
+                .buttonStyle(.borderless)
+                .disabled(isLoading || hasPendingAction)
+            }
+            if taskID != nil && !isTransitioning {
+                if taskLinkage == "unavailable" {
+                    AccountSettingsNote("旧任务未记录精确关联，暂时没有可安全归属到本次任务的内容。")
+                } else if taskLinkage == "legacy_batch" {
+                    AccountSettingsNote("本次结果按历史批次关联。")
+                }
+            }
+            generationResults
+                .opacity(isTransitioning ? 0.45 : 1)
+                .disabled(isTransitioning)
         }
-        .scrollContentBackground(.hidden)
-        .appListStyle(.settings)
-        .navigationTitle("已生成内容")
-        .navigationBarTitleDisplayMode(.large)
         .refreshable { await load() }
         .task(id: query) {
             selectedIds = []
@@ -209,6 +137,7 @@ struct AdminAIGenerationsView: View {
                     selectionMode.toggle()
                     selectedIds = []
                 }
+                .disabled(isLoading || isTransitioning || hasPendingAction || items.isEmpty)
             }
         }
         .sheet(item: $viewing) { item in
@@ -262,35 +191,108 @@ struct AdminAIGenerationsView: View {
         }
     }
 
+    private var isTransitioning: Bool {
+        !items.isEmpty && displayedQuery != query
+    }
+
+    private var hasPendingAction: Bool {
+        batchBusy || busyItemId != nil || publishingBatchID != nil
+    }
+
+    private var selectionBar: some View {
+        AppAdaptiveRow(spacing: 12) {
+            Text("已选 \(selectedIds.count) 条")
+                .font(.subheadline)
+                .foregroundStyle(ReadingSpace.profileMuted)
+            Spacer(minLength: 8)
+            Button("全选") { selectedIds = Set(items.map { $0.id }) }
+                .frame(minHeight: AppLayout.minimumTouchTarget)
+            Button("删除所选", role: .destructive) { requestBatchDelete() }
+                .frame(minHeight: AppLayout.minimumTouchTarget)
+                .disabled(selectedIds.isEmpty)
+        }
+        .buttonStyle(.borderless)
+    }
+
+    @ViewBuilder
+    private var generationResults: some View {
+        if isLoading && items.isEmpty {
+            ProgressView("加载中…")
+                .frame(maxWidth: .infinity, minHeight: 160)
+        } else if let errorMessage, items.isEmpty {
+            ContentUnavailableView {
+                Label("加载失败", systemImage: "wifi.slash")
+            } description: {
+                Text(errorMessage)
+            } actions: {
+                Button("重试") { Task { await load() } }
+            }
+        } else if items.isEmpty {
+            ContentUnavailableView {
+                Label("暂无内容", systemImage: "tray")
+            } description: {
+                Text("当前筛选条件下没有 AI 生成内容。")
+            }
+        } else {
+            AdminWorkspaceSection("内容（\(totalCount)）") {
+                ForEach(Array(displayGroups.enumerated()), id: \.element.id) { index, group in
+                    if group.isBatch {
+                        generationBatchRow(group).readingSpaceEntrance(index)
+                        if expandedBatchIDs.contains(group.id) {
+                            ForEach(Array(group.items.enumerated()), id: \.element.id) { childIndex, item in
+                                generationRow(item, isBatchChild: true)
+                                    .readingSpaceEntrance(childIndex)
+                                    .transition(batchChildTransition)
+                            }
+                        }
+                    } else if let item = group.items.first {
+                        generationRow(item).readingSpaceEntrance(index)
+                    }
+                }
+                if offset + pageSize < totalCount {
+                    Button {
+                        Task { await loadMore() }
+                    } label: {
+                        HStack(spacing: 8) {
+                            if loadingMore { ProgressView().controlSize(.small) }
+                            Text("加载更多（\(items.count)/\(totalCount)）")
+                        }
+                        .frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget)
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(isLoading || loadingMore || isTransitioning || errorMessage != nil || hasPendingAction)
+                }
+            }
+        }
+    }
+
     // MARK: - 筛选
 
     private var filterSection: some View {
-        Section {
-            AdminFilterBar {
-                AdminFilterMenu("范围", value: scopeFilterTitle) {
-                    Picker("范围", selection: $scopeFilter) {
-                        Text("全部").tag("all")
-                        Text("读者侧").tag("reader")
-                        Text("创作侧").tag("writing")
-                    }
+        AdminFilterBar {
+            AdminFilterMenu("范围", value: scopeFilterTitle) {
+                Picker("范围", selection: $scopeFilter) {
+                    Text("全部").tag("all")
+                    Text("读者侧").tag("reader")
+                    Text("创作侧").tag("writing")
                 }
-                AdminFilterMenu("类型", value: kindFilterTitle) {
-                    Picker("类型", selection: $kindFilter) {
-                        Text("全部").tag("all")
-                        Text("前情提要").tag("summary")
-                        Text("回顾总结").tag("catchup")
-                        Text("续写").tag("continue")
-                        Text("创作大纲").tag("write_outline")
-                        Text("创作章节").tag("write_chapter")
-                    }
+            }
+            AdminFilterMenu("类型", value: kindFilterTitle) {
+                Picker("类型", selection: $kindFilter) {
+                    Text("全部").tag("all")
+                    Text("前情提要").tag("summary")
+                    Text("回顾总结").tag("catchup")
+                    Text("续写").tag("continue")
+                    Text("创作大纲").tag("write_outline")
+                    Text("创作章节").tag("write_chapter")
                 }
-                AdminFilterMenu("状态", value: statusFilterTitle) {
-                    Picker("状态", selection: $statusFilter) {
-                        Text("已发布").tag("published")
-                        Text("草稿").tag("draft")
-                        Text("已拒绝").tag("rejected")
-                        Text("全部").tag("all")
-                    }
+            }
+            AdminFilterMenu("状态", value: statusFilterTitle) {
+                Picker("状态", selection: $statusFilter) {
+                    Text("已发布").tag("published")
+                    Text("草稿").tag("draft")
+                    Text("已拒绝").tag("rejected")
+                    Text("全部").tag("all")
                 }
             }
         }
@@ -332,64 +334,67 @@ struct AdminAIGenerationsView: View {
 
         return HStack(alignment: .top, spacing: 10) {
             if selectionMode {
-                selectionControl(
-                    ids: group.itemIDs,
-                    label: "\(item.novelTitle ?? "此小说")续写批次"
-                )
+                selectionControl(ids: group.itemIDs, label: "\(item.novelTitle ?? "此小说")续写批次")
             }
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(spacing: 6) {
-                    AdminStatusBadge("续写批次", tint: AppTheme.primary)
+            VStack(alignment: .leading, spacing: 10) {
+                Text(item.novelTitle ?? "作品名称未提供")
+                    .font(serifFont(.title3, .medium))
+                    .foregroundStyle(ReadingSpace.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                AppAdaptiveRow {
+                    Text(group.progressText)
+                    Spacer(minLength: 8)
+                    Text(AdminFormat.relativeTime(group.latestCreatedAt))
+                }
+                .font(.footnote)
+                .foregroundStyle(ReadingSpace.profileMuted)
+                AppAdaptiveRow {
                     if group.draftCount > 0 {
                         AdminStatusBadge("\(group.draftCount) 个草稿", tint: AppTheme.warning)
                     }
                     if group.publishedCount > 0 {
                         AdminStatusBadge("\(group.publishedCount) 已发布", tint: AppTheme.success)
                     }
-                    Spacer()
-                    Text(AdminFormat.relativeTime(group.latestCreatedAt))
-                        .font(.caption2)
-                        .foregroundStyle(AppTheme.textSecondary)
                 }
-                Text(item.novelTitle ?? "—")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .appTextLineLimit(1)
-                Text(group.progressText)
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-                Text("发布时按批次编号从小到大排列；已单独发布的草稿会自动跳过。")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .appTextLineLimit(2)
-
-                HStack(spacing: 10) {
+                AccountSettingsNote("发布时按批次编号从小到大排列；已单独发布的草稿会自动跳过。")
+                AppAdaptiveRow(spacing: 12) {
                     Button {
                         toggleBatchExpansion(group.id)
                     } label: {
-                        Label(
-                            isExpanded ? "收起章节" : "查看章节",
-                            systemImage: isExpanded ? "chevron.up" : "chevron.down"
-                        )
-                        .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
+                        Label(isExpanded ? "收起章节" : "查看章节",
+                              systemImage: isExpanded ? "chevron.up" : "chevron.down")
+                            .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
+                            .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
                     }
-                    .font(.subheadline.weight(.medium))
-
-                    Spacer(minLength: 4)
+                    .accessibilityValue(isExpanded ? "已展开" : "已收起")
+                    Spacer(minLength: 8)
                     if publishingBatchID == group.batchID {
-                        AdminInlineProgress()
-                    } else if group.draftCount > 0 {
-                        Button("整批发布", systemImage: "paperplane.fill") {
-                            requestBatchPublish(group)
+                        Label {
+                            Text("整批发布中…")
+                        } icon: {
+                            ProgressView().controlSize(.small)
                         }
-                        .font(.subheadline.weight(.semibold))
-                        .disabled(batchBusy || busyItemId != nil)
+                        .font(.subheadline)
+                        .frame(minHeight: AppLayout.minimumTouchTarget)
+                    } else if group.draftCount > 0 {
+                        Button("整批发布", systemImage: "paperplane.fill") { requestBatchPublish(group) }
+                            .frame(minHeight: AppLayout.minimumTouchTarget)
+                            .disabled(hasPendingAction)
                     }
                 }
+                .font(.subheadline.weight(.medium))
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
+        .buttonStyle(.borderless)
+    }
+
+    private func generationTitle(_ item: AiGeneration) -> String {
+        for title in [item.draftTitle, item.chapterTitle] {
+            if let title, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return title }
+        }
+        return AdminFormat.aiTaskKind(item.kind ?? "")
     }
 
     private func generationRow(_ item: AiGeneration, isBatchChild: Bool = false) -> some View {
@@ -397,40 +402,39 @@ struct AdminAIGenerationsView: View {
             if selectionMode {
                 selectionControl(ids: [item.id], label: item.novelTitle ?? "此项")
             }
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    AdminStatusBadge(
-                        AdminFormat.aiTaskKind(item.kind ?? ""),
-                        tint: AppTheme.primary
-                    )
-                    if isBatchChild, let batchIndex = item.batchIndex, batchIndex > 0 {
-                        AdminStatusBadge("批次第 \(batchIndex) 项", tint: AppTheme.textSecondary)
-                    }
-                    if item.isDraft {
-                        AdminStatusBadge("草稿", tint: AppTheme.warning)
-                    } else if item.isPublished {
-                        AdminStatusBadge("已发布", tint: AppTheme.success)
-                    }
-                    Spacer()
-                    Text(AdminFormat.relativeTime(item.createdAt ?? 0))
-                        .font(.caption2)
-                        .foregroundStyle(AppTheme.textSecondary)
-                }
-                Text(item.novelTitle ?? "—")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .appTextLineLimit(1)
-                if let chapter = item.chapterTitle, !chapter.isEmpty {
-                    Text(chapter)
+            VStack(alignment: .leading, spacing: 8) {
+                AppAdaptiveRow {
+                    Text(AdminFormat.aiTaskKind(item.kind ?? ""))
                         .font(.caption)
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .appTextLineLimit(1)
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                    Spacer(minLength: 8)
+                    AdminStatusBadge(item.isDraft ? "草稿" : item.isPublished ? "已发布" : "已拒绝",
+                                     tint: item.isDraft ? AppTheme.warning : item.isPublished ? AppTheme.success : ReadingSpace.profileMuted)
                 }
+                Text(generationTitle(item))
+                    .font(serifFont(.body, .medium))
+                    .foregroundStyle(ReadingSpace.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let novel = item.novelTitle, !novel.isEmpty {
+                    Text(novel)
+                        .font(.footnote)
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                AppAdaptiveRow {
+                    if isBatchChild, let batchIndex = item.batchIndex, batchIndex > 0 {
+                        Text("批次第 \(batchIndex) 项")
+                    }
+                    Spacer(minLength: 8)
+                    Text(AdminFormat.relativeTime(item.createdAt ?? 0))
+                }
+                .font(.caption)
+                .foregroundStyle(ReadingSpace.profileMuted)
                 if let result = item.result, !result.isEmpty {
                     Text(result)
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.textSecondary)
+                        .font(.footnote)
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                        .lineSpacing(3)
                         .appTextLineLimit(2)
                 }
                 if let quality = item.quality, let warning = quality.warnings.first {
@@ -439,13 +443,16 @@ struct AdminAIGenerationsView: View {
                         .foregroundStyle(AppTheme.warning)
                     Text(warning.message)
                         .font(.caption)
-                        .foregroundStyle(AppTheme.textSecondary)
+                        .foregroundStyle(ReadingSpace.profileMuted)
                         .appTextLineLimit(2)
                 }
                 HStack(spacing: 10) {
                     Button("查看") { viewing = item }
                         .font(.subheadline.weight(.medium))
-                    Spacer(minLength: 4)
+                        .frame(minHeight: AppLayout.minimumTouchTarget)
+                        .disabled(hasPendingAction)
+                        .accessibilityHint("打开全文与可用的草稿操作")
+                    Spacer(minLength: 8)
                     if busyItemId == item.id {
                         AdminInlineProgress()
                     } else {
@@ -458,23 +465,29 @@ struct AdminAIGenerationsView: View {
                                     Task { await unpublish(item) }
                                 }
                             }
-                            Button("删除", systemImage: "trash", role: .destructive) {
-                                pendingDelete = item
-                            }
+                            Button("删除", systemImage: "trash", role: .destructive) { pendingDelete = item }
                         } label: {
                             Image(systemName: "ellipsis.circle")
                                 .font(.title3)
-                                .foregroundStyle(AppTheme.textSecondary)
+                                .foregroundStyle(ReadingSpace.profileMuted)
                                 .frame(width: 44, height: 44)
                         }
-                        .disabled(busyItemId != nil || batchBusy || publishingBatchID != nil)
+                        .disabled(hasPendingAction)
                         .accessibilityLabel("内容操作")
                     }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.vertical, 2)
-        .padding(.leading, isBatchChild ? 20 : 0)
+        .padding(.vertical, 4)
+        .padding(.leading, isBatchChild ? 14 : 0)
+        .overlay(alignment: .leading) {
+            if isBatchChild {
+                Rectangle().fill(ReadingSpace.profileLine).frame(width: 1)
+                    .accessibilityHidden(true)
+            }
+        }
+        .buttonStyle(.borderless)
     }
 
     private func selectionControl(ids: [String], label: String) -> some View {
@@ -498,6 +511,7 @@ struct AdminAIGenerationsView: View {
         .disabled(batchBusy || publishingBatchID != nil)
         .accessibilityLabel(isFullySelected ? "取消选择\(label)" : "选择\(label)")
         .accessibilityValue("已选择 \(selectedCount) / \(ids.count) 条")
+        .accessibilityAddTraits(isFullySelected ? .isSelected : [])
     }
 
     private func toggleSelect(_ ids: [String]) {
@@ -511,7 +525,7 @@ struct AdminAIGenerationsView: View {
     }
 
     private func toggleBatchExpansion(_ id: String) {
-        withAnimation(reduceMotion ? AppMotion.micro : AppMotion.state) {
+        withAnimation(reduceMotion ? nil : AppMotion.state) {
             if expandedBatchIDs.contains(id) {
                 expandedBatchIDs.remove(id)
             } else {
@@ -521,10 +535,7 @@ struct AdminAIGenerationsView: View {
     }
 
     private var batchChildTransition: AnyTransition {
-        if reduceMotion {
-            return .opacity.animation(AppMotion.micro)
-        }
-        return .move(edge: .top).combined(with: .opacity)
+        reduceMotion ? .identity : .opacity
     }
 
     private func requestBatchPublish(_ batch: GenerationDisplayGroup) {
@@ -625,12 +636,13 @@ struct AdminAIGenerationsView: View {
         }
         do {
             let result: AiGenerationsResponse
+            let linkage: String?
             if let taskID, !taskID.isEmpty {
                 let taskResult = try await AdminAPI.aiTaskGenerations(id: taskID)
-                taskLinkage = taskResult.linkage
+                linkage = taskResult.linkage
                 result = AiGenerationsResponse(items: taskResult.items, total: taskResult.items.count, limit: taskResult.items.count, offset: 0)
             } else {
-                taskLinkage = nil
+                linkage = nil
                 result = try await AdminAPI.aiGenerations(
                     kind: ticket.query[1],
                     scope: ticket.query[2],
@@ -644,10 +656,15 @@ struct AdminAIGenerationsView: View {
             if let novelID, result.novelId != novelID {
                 throw APIError.http(status: 409, message: "当前服务端不支持按作品查看草稿，请更新服务端后重试。")
             }
-            items = result.items
-            selectedIds.formIntersection(items.map(\.id))
-            totalCount = result.total ?? items.count
-            offset = 0
+            let changesQuery = displayedQuery != ticket.query
+            withAnimation(changesQuery && !reduceMotion ? AppMotion.micro : nil) {
+                items = result.items
+                selectedIds.formIntersection(items.map(\.id))
+                totalCount = result.total ?? items.count
+                offset = 0
+                taskLinkage = linkage
+                displayedQuery = ticket.query
+            }
             errorMessage = nil
             requests.finish(ticket, succeeded: true)
             isLoading = false
@@ -658,7 +675,7 @@ struct AdminAIGenerationsView: View {
     }
 
     private func loadMore() async {
-        guard !isLoading, !loadingMore, errorMessage == nil, offset + pageSize < totalCount,
+        guard !isLoading, !loadingMore, !isTransitioning, errorMessage == nil, offset + pageSize < totalCount,
               let ticket = requests.beginNext(query) else { return }
         loadingMore = true
         defer {
@@ -682,7 +699,9 @@ struct AdminAIGenerationsView: View {
                 throw APIError.http(status: 409, message: "服务端未确认作品筛选，请刷新后重试。")
             }
             let existing = Set(items.map(\.id))
-            items += result.items.filter { !existing.contains($0.id) }
+            withAnimation(reduceMotion ? nil : AppMotion.micro) {
+                items += result.items.filter { !existing.contains($0.id) }
+            }
             offset = next
             totalCount = result.total ?? items.count
         } catch {
@@ -774,6 +793,14 @@ struct AdminAIGenerationsView: View {
 private struct GenerationDetailSheet: View {
     let item: AiGeneration
     let onClose: (Bool) -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var showMetadata = false
+    @State private var showQualityDetails = false
+    @State private var showRewriteTools = false
+    @State private var showTitleCandidates = false
+    @State private var editorIsFocused = false
+    @FocusState private var focusedField: Field?
+    private enum Field: Hashable { case title, rewrite }
 
     @State private var savedText = ""
     @State private var editorText = ""
@@ -866,232 +893,44 @@ private struct GenerationDetailSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section("信息") {
-                    LabeledContent("类型", value: AdminFormat.aiTaskKind(item.kind ?? ""))
-                    if let novel = item.novelTitle, !novel.isEmpty {
-                        LabeledContent("小说", value: novel)
-                    }
-                    if let chapter = item.chapterTitle, !chapter.isEmpty {
-                        LabeledContent("章节", value: chapter)
-                    }
-                    if let model = item.model, !model.isEmpty {
-                        LabeledContent("模型", value: model)
-                    }
-                    LabeledContent("状态") {
-                        Text(item.isDraft ? "草稿" : item.isPublished ? "已发布" : "已拒绝")
-                            .foregroundStyle(item.isDraft ? AppTheme.warning : item.isPublished ? AppTheme.success : AppTheme.textSecondary)
-                    }
-                }
-
-                if quality != nil || qualityNotice != nil {
-                    qualitySection
-                }
-
-                Section("内容") {
-                    if isEditing {
-                        DraftSelectionTextView(text: $editorText, selectedRange: $selectedRange)
-                            .frame(minHeight: 260)
-                            .padding(AppLayout.textEditorInset)
-                            .appFieldSurface()
-                            .padding(.vertical, 4)
-                    } else {
-                        Text(savedText.isEmpty ? "（无内容）" : savedText)
-                            .font(.subheadline)
-                            .foregroundStyle(AppTheme.textSecondary)
-                            .textSelection(.enabled)
-                    }
-                }
-
-                if isEditableDraft {
-                    Section("草稿操作") {
-                        if !isEditing {
-                            Button("编辑草稿") {
-                                editorText = savedText
-                                isEditing = true
-                            }
-                        } else {
-                            Button {
-                                Task { await saveDraft() }
-                            } label: {
-                                if savingAction == "draft" {
-                                    Label("保存中…", systemImage: "hourglass")
-                                } else {
-                                    Text("保存修改")
-                                }
-                            }
-                                .disabled(saving)
-                            Button("放弃编辑") {
-                                editorText = savedText
-                                isEditing = false
-                            }
-                        }
-                    }
-                    if isPublishableDraft {
-                        Section("选段改写") {
-                            Text("先点“编辑草稿”，在正文中选择一段；改写建议会单独生成，应用前仍需确认。")
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.textSecondary)
-                            if let quality, quality.needsShortening {
-                                if savedText.unicodeScalars.count <= maxRewriteScalars {
-                                    Button("精简至目标篇幅") { prepareShortening(targetWords: quality.targetWords) }
-                                        .disabled(saving || rewriteBusy || (isEditing && isDirty))
-                                        .frame(minHeight: 44)
-                                    Text("准备全文选区与约 \(quality.targetWords) 字的精简要求，点击“生成改写建议”后再查看和应用。")
-                                        .font(.caption).foregroundStyle(AppTheme.textSecondary)
-                                } else {
-                                    Button("选择一段精简") { prepareShortening(targetWords: quality.targetWords) }
-                                        .disabled(saving || rewriteBusy || (isEditing && isDirty))
-                                        .frame(minHeight: 44)
-                                    Text("全文超过单次改写的 6000 字符上限（含空白与换行），请在正文中选一段精简。")
-                                        .font(.caption).foregroundStyle(AppTheme.textSecondary)
-                                }
-                            }
-                            Picker("模式", selection: $rewriteMode) {
-                                Text("润色").tag("polish")
-                                Text("扩写").tag("expand")
-                                Text("精简").tag("shorten")
-                                Text("自定义").tag("custom")
-                            }
-                            if rewriteMode == "custom" || rewriteMode == "shorten" || !rewriteInstruction.isEmpty {
-                                TextField(rewriteMode == "custom" ? "改写说明（最多 2000 字符）" : "补充要求（选填，最多 2000 字符）", text: $rewriteInstruction, axis: .vertical)
-                                    .lineLimit(2...5)
-                            }
-                            Button {
-                                Task { await startRewrite() }
-                            } label: {
-                                if rewriteBusy {
-                                    Label("正在生成建议…", systemImage: "hourglass")
-                                } else {
-                                    Label("生成改写建议", systemImage: "wand.and.stars")
-                                }
-                            }
-                            .disabled(!canRewriteSelection || saving || rewriteBusy || rewriteInstruction.unicodeScalars.count > 2_000 || (rewriteMode == "custom" && rewriteInstruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
-                            if let selectedSavedText {
-                                LabeledContent("当前选区", value: "\(selectedSavedText.unicodeScalars.count) 字符")
-                                if selectedSavedText.unicodeScalars.count > maxRewriteScalars {
-                                    Text("选区超过 6000 字符，请缩小范围后生成建议。")
-                                        .font(.caption).foregroundStyle(AppTheme.warning)
-                                }
-                            }
-                            if rewriteInstruction.unicodeScalars.count > 2_000 {
-                                Text("改写要求超过 2000 字符，请缩短后生成建议。")
-                                    .font(.caption).foregroundStyle(AppTheme.warning)
-                            }
-                            if !rewriteTaskStatus.isEmpty {
-                                Text(rewriteTaskStatus)
-                                    .font(.caption)
-                                    .foregroundStyle(AppTheme.textSecondary)
-                            }
-                            if let rewriteSuggestion {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("原选段")
-                                        .font(.caption.weight(.semibold))
-                                    Text(rewriteSuggestion.selectedText ?? "")
-                                        .font(.caption)
-                                        .foregroundStyle(AppTheme.textSecondary)
-                                    Text("改写建议")
-                                        .font(.caption.weight(.semibold))
-                                    Text(rewriteSuggestion.suggestion ?? "")
-                                        .font(.subheadline)
-                                        .textSelection(.enabled)
-                                    if let rewriteSuggestionLengthNotice {
-                                        Label(rewriteSuggestionLengthNotice, systemImage: "exclamationmark.triangle")
-                                            .font(.caption)
-                                            .foregroundStyle(AppTheme.warning)
-                                    }
-                                    if !rewriteSuggestionIsApplicable {
-                                        Label("草稿正文已变化或有未保存修改，这条建议不可应用，请重新选择选段。", systemImage: "exclamationmark.triangle")
-                                            .font(.caption)
-                                            .foregroundStyle(AppTheme.warning)
-                                    }
-                                    HStack {
-                                        Button("复制建议") {
-                                            UIPasteboard.general.string = rewriteSuggestion.suggestion ?? ""
-                                        }
-                                        .buttonStyle(.bordered)
-                                        .disabled((rewriteSuggestion.suggestion ?? "").isEmpty)
-                                        Spacer()
-                                    }
-                                    Button("应用到草稿") {
-                                        Task { await applyRewrite() }
-                                    }
-                                    .buttonStyle(.borderedProminent)
-                                    .tint(AppTheme.primary)
-                                    .disabled(rewriteBusy || !rewriteSuggestionIsApplicable)
-                                }
-                                .padding(.vertical, 4)
-                            }
-                        }
-                    }
-                    if isPublishableDraft {
-                        Section("发布为正式章节") {
-                        TextField("章节标题", text: $publishTitle)
-                        Button("AI 生成标题") { Task { await generateTitles() } }
-                            .disabled(generatingTitles)
-                        if generatingTitles {
-                            HStack {
-                                ProgressView()
-                                Text("正在分析草稿并生成候选标题…")
-                                    .font(.caption)
-                                    .foregroundStyle(AppTheme.textSecondary)
-                                Spacer()
-                            }
-                        }
-                        if !titleCandidates.isEmpty {
-                            ForEach(titleCandidates, id: \.self) { title in
-                                Button(title) { publishTitle = title }
-                                    .font(.subheadline)
-                                    .foregroundStyle(AppTheme.textPrimary)
-                            }
-                        }
-                        Button {
-                            Task { await publish() }
-                        } label: {
-                            if savingAction == "publish" {
-                                Label("发布中…", systemImage: "hourglass")
-                            } else {
-                                Label("发布", systemImage: "paperplane.fill")
-                            }
-                        }
-                        .disabled(publishTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || saving || publishStatusUnknown)
-                        .buttonStyle(.borderedProminent)
-                        .tint(AppTheme.primary)
-                        }
-                    }
+            AgentPanelPage {
+                detailHeading
+                draftBody
+                if isEditableDraft { draftActions }
+                if quality != nil || qualityNotice != nil { qualitySection }
+                if isPublishableDraft {
+                    rewriteSection
+                    publicationSection
                 } else if item.isPublished {
-                    Section {
-                        Button {
-                            Task { await unpublish() }
-                        } label: {
-                            if savingAction == "unpublish" {
-                                Label("撤销发布中…", systemImage: "hourglass")
-                            } else {
-                                Text("撤销发布")
-                            }
-                        }
-                        .disabled(saving)
+                    Button {
+                        clearInputFocus()
+                        Task { await unpublish() }
+                    } label: {
+                        actionLabel("撤销发布", symbol: "arrow.uturn.backward", working: savingAction == "unpublish")
                     }
+                    .buttonStyle(AgentPanelButtonStyle())
+                    .disabled(saving)
                 }
-
                 if let actionError {
-                    Section {
-                        Text(actionError)
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.danger)
-                    }
+                    AgentPanelNotice(actionError, isError: true)
                 }
+                metadataSection
             }
-            .scrollContentBackground(.hidden)
-            .appListStyle(.settings)
-            .navigationTitle(item.draftTitle?.isEmpty == false ? item.draftTitle! : "生成内容")
-            .navigationBarTitleDisplayMode(.inline)
+            .disabled(saving)
+            .transaction { transaction in
+                if reduceMotion { transaction.animation = nil }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") { requestClose() }
+                    Button("关闭") { requestClose() }.disabled(saving)
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("完成") { clearInputFocus() }
                 }
             }
         }
+        .presentationBackground(ReadingSpace.profilePaper)
         .presentationDetents([.large])
         .interactiveDismissDisabled(saving || (isEditing && isDirty))
         .confirmationDialog(
@@ -1138,24 +977,308 @@ private struct GenerationDetailSheet: View {
         onClose(refresh)
     }
 
-    private var qualitySection: some View {
-        Section("篇幅与质量提示") {
-            if let quality {
-                LabeledContent("已保存正文", value: "约 \(quality.bodyCharacters) 字")
-                if quality.targetWords > 0 {
-                    LabeledContent("目标篇幅", value: "约 \(quality.targetWords) 字")
+    private var detailTitle: String {
+        for title in [item.draftTitle, item.chapterTitle] {
+            if let title, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return title }
+        }
+        return "生成内容"
+    }
+
+    private var detailHeading: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            AgentPanelHeading(detailTitle, detail: item.novelTitle ?? "")
+            AppAdaptiveRow {
+                Text(AdminFormat.aiTaskKind(item.kind ?? ""))
+                    .font(.footnote)
+                    .foregroundStyle(ReadingSpace.profileMuted)
+                Spacer(minLength: 8)
+                AdminStatusBadge(item.isDraft ? "草稿" : item.isPublished ? "已发布" : "已拒绝",
+                                 tint: item.isDraft ? AppTheme.warning : item.isPublished ? AppTheme.success : ReadingSpace.profileMuted)
+            }
+            if isEditing && isDirty {
+                Label("有未保存修改", systemImage: "pencil")
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.warning)
+            }
+        }
+    }
+
+    private var draftBody: some View {
+        AgentPanelSection("正文") {
+            if isEditing {
+                AgentPanelField("草稿正文", isFocused: editorIsFocused) {
+                    DraftSelectionTextView(text: $editorText, selectedRange: $selectedRange, isFocused: $editorIsFocused)
+                        .frame(minHeight: 340)
                 }
-                ForEach(Array(quality.warnings.enumerated()), id: \.offset) { _, warning in
-                    Label(warning.message, systemImage: "exclamationmark.triangle")
-                        .font(.caption).foregroundStyle(AppTheme.warning)
+            } else {
+                Text(savedText.isEmpty ? "（无内容）" : savedText)
+                    .font(.body)
+                    .foregroundStyle(ReadingSpace.ink)
+                    .lineSpacing(7)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+            }
+        }
+    }
+
+    private var draftActions: some View {
+        AppAdaptiveRow(spacing: 12) {
+            if !isEditing {
+                Button("编辑草稿") {
+                    editorText = savedText
+                    isEditing = true
                 }
-                if isEditing && isDirty {
-                    Text("提示依据已保存正文；保存修改后更新。")
-                        .font(.caption).foregroundStyle(AppTheme.textSecondary)
+                .buttonStyle(AgentPanelButtonStyle())
+            } else {
+                Button {
+                    clearInputFocus()
+                    Task { await saveDraft() }
+                } label: {
+                    actionLabel("保存修改", symbol: "checkmark", working: savingAction == "draft")
+                }
+                .buttonStyle(AgentPanelButtonStyle(prominent: true))
+                .disabled(saving)
+                Button("放弃编辑") {
+                    clearInputFocus()
+                    editorText = savedText
+                    isEditing = false
+                }
+                .buttonStyle(AgentPanelButtonStyle())
+                .disabled(saving)
+            }
+        }
+    }
+
+    private var metadataSection: some View {
+        DisclosureGroup(isExpanded: $showMetadata) {
+            VStack(alignment: .leading, spacing: 16) {
+                if let novel = item.novelTitle, !novel.isEmpty {
+                    AgentPanelFact(title: "小说", value: novel)
+                }
+                if let chapter = item.chapterTitle, !chapter.isEmpty {
+                    AgentPanelFact(title: "章节", value: chapter)
+                }
+                if let model = item.model, !model.isEmpty {
+                    AgentPanelFact(title: "模型", value: model)
+                }
+                AgentPanelFact(title: "内容 ID", value: item.id)
+            }
+            .padding(.top, 12)
+        } label: {
+            Text("来源与模型").font(serifFont(.title3, .medium))
+        }
+    }
+
+    private var rewriteSection: some View {
+        DisclosureGroup(isExpanded: $showRewriteTools) {
+            VStack(alignment: .leading, spacing: 16) {
+                AccountSettingsNote("先点“编辑草稿”，在正文中选择一段；改写建议会单独生成，应用前仍需确认。")
+                if let quality, quality.needsShortening {
+                    shorteningAction(targetWords: quality.targetWords)
+                }
+                AgentPanelField("改写模式") {
+                    Picker("模式", selection: $rewriteMode) {
+                        Text("润色").tag("polish")
+                        Text("扩写").tag("expand")
+                        Text("精简").tag("shorten")
+                        Text("自定义").tag("custom")
+                    }
+                    .pickerStyle(.menu)
+                    .disabled(rewriteBusy)
+                }
+                if rewriteMode == "custom" || rewriteMode == "shorten" || !rewriteInstruction.isEmpty {
+                    AgentPanelField("改写要求", isFocused: focusedField == .rewrite) {
+                        TextField(rewriteMode == "custom" ? "改写说明（最多 2000 字符）" : "补充要求（选填，最多 2000 字符）", text: $rewriteInstruction, axis: .vertical)
+                            .lineLimit(2...5)
+                            .focused($focusedField, equals: .rewrite)
+                            .disabled(rewriteBusy)
+                    }
+                }
+                if let selectedSavedText {
+                    LabeledContent("当前选区", value: "\(selectedSavedText.unicodeScalars.count) 字符")
+                        .font(.footnote)
+                    if selectedSavedText.unicodeScalars.count > maxRewriteScalars {
+                        Text("选区超过 6000 字符，请缩小范围后生成建议。")
+                            .font(.footnote).foregroundStyle(AppTheme.warning)
+                    }
+                }
+                if rewriteInstruction.unicodeScalars.count > 2_000 {
+                    Text("改写要求超过 2000 字符，请缩短后生成建议。")
+                        .font(.footnote).foregroundStyle(AppTheme.warning)
+                }
+                Button {
+                    clearInputFocus()
+                    Task { await startRewrite() }
+                } label: {
+                    actionLabel("生成改写建议", symbol: "wand.and.stars", working: rewriteBusy)
+                }
+                .buttonStyle(AgentPanelButtonStyle())
+                .disabled(!canRewriteSelection || saving || rewriteBusy || rewriteInstruction.unicodeScalars.count > 2_000 || (rewriteMode == "custom" && rewriteInstruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
+                if !rewriteTaskStatus.isEmpty {
+                    AccountSettingsNote(rewriteTaskStatus)
+                }
+                if let rewriteSuggestion {
+                    rewriteComparison(rewriteSuggestion)
                 }
             }
-            if let qualityNotice {
-                Text(qualityNotice).font(.caption).foregroundStyle(AppTheme.textSecondary)
+            .padding(.top, 12)
+        } label: {
+            Text("选段改写").font(serifFont(.title3, .medium))
+        }
+    }
+
+    private func shorteningAction(targetWords: Int) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button(savedText.unicodeScalars.count <= maxRewriteScalars ? "精简至目标篇幅" : "选择一段精简") {
+                showRewriteTools = true
+                prepareShortening(targetWords: targetWords)
+            }
+            .buttonStyle(AgentPanelButtonStyle())
+            .disabled(saving || rewriteBusy || (isEditing && isDirty))
+            AccountSettingsNote(savedText.unicodeScalars.count <= maxRewriteScalars
+                ? "准备全文选区与约 \(targetWords) 字的精简要求，点击“生成改写建议”后再查看和应用。"
+                : "全文超过单次改写的 6000 字符上限（含空白与换行），请在正文中选一段精简。")
+        }
+    }
+
+    private func rewriteComparison(_ suggestion: AiRewriteTaskResult) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            AgentPanelSection("原选段") {
+                Text(suggestion.selectedText ?? "")
+                    .font(.body)
+                    .foregroundStyle(ReadingSpace.profileMuted)
+                    .textSelection(.enabled)
+                    .lineSpacing(5)
+            }
+            AgentPanelSection("改写建议") {
+                Text(suggestion.suggestion ?? "")
+                    .font(.body)
+                    .foregroundStyle(ReadingSpace.ink)
+                    .textSelection(.enabled)
+                    .lineSpacing(5)
+            }
+            if let rewriteSuggestionLengthNotice {
+                Label(rewriteSuggestionLengthNotice, systemImage: "exclamationmark.triangle")
+                    .font(.footnote).foregroundStyle(AppTheme.warning)
+            }
+            if !rewriteSuggestionIsApplicable {
+                Label("草稿正文已变化或有未保存修改，这条建议不可应用，请重新选择选段。", systemImage: "exclamationmark.triangle")
+                    .font(.footnote).foregroundStyle(AppTheme.warning)
+            }
+            AppAdaptiveRow(spacing: 12) {
+                Button("复制建议") {
+                    UIPasteboard.general.string = suggestion.suggestion ?? ""
+                }
+                .buttonStyle(AgentPanelButtonStyle())
+                .disabled((suggestion.suggestion ?? "").isEmpty)
+                Button {
+                    clearInputFocus()
+                    Task { await applyRewrite() }
+                } label: {
+                    actionLabel("应用到草稿", symbol: "checkmark", working: rewriteBusy)
+                }
+                .buttonStyle(AgentPanelButtonStyle(prominent: true))
+                .disabled(rewriteBusy || !rewriteSuggestionIsApplicable)
+            }
+        }
+    }
+
+    private var publicationSection: some View {
+        AgentPanelSection("发布为正式章节") {
+            AgentPanelField("章节标题", isFocused: focusedField == .title) {
+                TextField("章节标题", text: $publishTitle)
+                    .focused($focusedField, equals: .title)
+            }
+            DisclosureGroup(isExpanded: $showTitleCandidates) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Button {
+                        clearInputFocus()
+                        Task { await generateTitles() }
+                    } label: {
+                        actionLabel("AI 生成标题", symbol: "sparkles", working: generatingTitles)
+                    }
+                    .buttonStyle(AgentPanelButtonStyle())
+                    .disabled(generatingTitles)
+                    ForEach(titleCandidates, id: \.self) { title in
+                        Button { publishTitle = title } label: {
+                            HStack(alignment: .top, spacing: 10) {
+                                Text(title).fixedSize(horizontal: false, vertical: true)
+                                Spacer(minLength: 8)
+                                if publishTitle == title {
+                                    Image(systemName: "checkmark").accessibilityHidden(true)
+                                }
+                            }
+                            .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(publishTitle == title ? AppTheme.primary : ReadingSpace.ink)
+                        .accessibilityAddTraits(publishTitle == title ? .isSelected : [])
+                    }
+                }
+                .padding(.top, 12)
+            } label: {
+                Text("候选标题").font(.subheadline.weight(.medium))
+            }
+            Button {
+                clearInputFocus()
+                Task { await publish() }
+            } label: {
+                actionLabel("发布", symbol: "paperplane.fill", working: savingAction == "publish")
+            }
+            .buttonStyle(AgentPanelButtonStyle(prominent: true))
+            .disabled(publishTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || saving || publishStatusUnknown)
+        }
+    }
+
+    private func clearInputFocus() {
+        focusedField = nil
+        editorIsFocused = false
+    }
+
+    private func actionLabel(_ title: String, symbol: String, working: Bool) -> some View {
+        HStack(spacing: 8) {
+            if working { ProgressView().controlSize(.small).accessibilityHidden(true) }
+            else { Image(systemName: symbol).accessibilityHidden(true) }
+            Text(title)
+        }
+        .accessibilityValue(working ? "正在处理" : "")
+    }
+
+    private var qualitySection: some View {
+        DisclosureGroup(isExpanded: $showQualityDetails) {
+            VStack(alignment: .leading, spacing: 12) {
+                if let quality {
+                    LabeledContent("已保存正文", value: "约 \(quality.bodyCharacters) 字")
+                    if quality.targetWords > 0 {
+                        LabeledContent("目标篇幅", value: "约 \(quality.targetWords) 字")
+                    }
+                    ForEach(Array(quality.warnings.enumerated()), id: \.offset) { _, warning in
+                        Label(warning.message, systemImage: "exclamationmark.triangle")
+                            .font(.footnote)
+                            .foregroundStyle(AppTheme.warning)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if isEditing && isDirty {
+                        AccountSettingsNote("提示依据已保存正文；保存修改后更新。")
+                    }
+                }
+                if let qualityNotice { AccountSettingsNote(qualityNotice) }
+            }
+            .padding(.top, 12)
+        } label: {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("篇幅与质量提示").font(serifFont(.title3, .medium))
+                if let quality {
+                    Text("\(quality.warnings.count) 项提示 · 已保存正文约 \(quality.bodyCharacters) 字")
+                        .font(.footnote)
+                        .foregroundStyle(quality.warnings.isEmpty ? ReadingSpace.profileMuted : AppTheme.warning)
+                } else if qualityNotice != nil {
+                    Text("质量提示暂未更新")
+                        .font(.footnote)
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                }
             }
         }
     }
@@ -1498,19 +1621,25 @@ private struct GenerationDetailSheet: View {
 private struct DraftSelectionTextView: UIViewRepresentable {
     @Binding var text: String
     @Binding var selectedRange: NSRange?
+    @Binding var isFocused: Bool
+    @Environment(\.isEnabled) private var isEnabled
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text, selectedRange: $selectedRange)
+        Coordinator(text: $text, selectedRange: $selectedRange, isFocused: $isFocused)
     }
 
     func makeUIView(context: Context) -> UITextView {
         let view = UITextView()
         view.delegate = context.coordinator
-        view.isEditable = true
+        view.isEditable = isEnabled
         view.isSelectable = true
         view.isScrollEnabled = true
         view.backgroundColor = .clear
         view.font = .preferredFont(forTextStyle: .body)
+        view.adjustsFontForContentSizeCategory = true
+        view.textColor = UIColor(ReadingSpace.ink)
+        view.tintColor = UIColor(AppTheme.primary)
+        view.accessibilityLabel = "草稿正文"
         view.text = text
         view.textContainerInset = .zero
         view.textContainer.lineFragmentPadding = 0
@@ -1518,6 +1647,10 @@ private struct DraftSelectionTextView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: UITextView, context: Context) {
+        uiView.isEditable = isEnabled
+        uiView.font = .preferredFont(forTextStyle: .body)
+        uiView.textColor = UIColor(ReadingSpace.ink)
+        uiView.tintColor = UIColor(AppTheme.primary)
         if uiView.text != text {
             uiView.text = text
             let length = (text as NSString).length
@@ -1527,15 +1660,28 @@ private struct DraftSelectionTextView: UIViewRepresentable {
         if let selectedRange, selectedRange.location + selectedRange.length <= (text as NSString).length, uiView.selectedRange != selectedRange {
             uiView.selectedRange = selectedRange
         }
+        if (!isFocused || !isEnabled) && uiView.isFirstResponder {
+            uiView.resignFirstResponder()
+        }
     }
 
     final class Coordinator: NSObject, UITextViewDelegate {
         @Binding var text: String
         @Binding var selectedRange: NSRange?
+        @Binding var isFocused: Bool
 
-        init(text: Binding<String>, selectedRange: Binding<NSRange?>) {
+        init(text: Binding<String>, selectedRange: Binding<NSRange?>, isFocused: Binding<Bool>) {
             _text = text
             _selectedRange = selectedRange
+            _isFocused = isFocused
+        }
+
+        func textViewDidBeginEditing(_ textView: UITextView) {
+            isFocused = true
+        }
+
+        func textViewDidEndEditing(_ textView: UITextView) {
+            isFocused = false
         }
 
         func textViewDidChange(_ textView: UITextView) {
@@ -1543,6 +1689,8 @@ private struct DraftSelectionTextView: UIViewRepresentable {
         }
 
         func textViewDidChangeSelection(_ textView: UITextView) {
+            // 键盘收起后 UIKit 可能清空高亮，保留选段供下面的改写工具使用。
+            guard textView.isFirstResponder || textView.selectedRange.length > 0 else { return }
             selectedRange = textView.selectedRange.length > 0 ? textView.selectedRange : nil
         }
     }

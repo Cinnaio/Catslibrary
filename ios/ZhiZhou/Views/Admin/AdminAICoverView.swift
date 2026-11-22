@@ -32,6 +32,8 @@ struct AdminAICoverView: View {
         }
     }
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var showCoverHistory = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -199,9 +201,10 @@ struct AdminAICoverView: View {
     }
 
     var body: some View {
-        List {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("封面生成", detail: "选择作品与视觉方向，审阅候选后再采纳。")
             if isLoading && selectedNovelId.isEmpty {
-                Section {
+                Group {
                     ProgressView("加载中…")
                         .frame(maxWidth: .infinity, minHeight: 160)
                         .listRowBackground(Color.clear)
@@ -213,10 +216,9 @@ struct AdminAICoverView: View {
                 candidateSection
             }
         }
-        .scrollContentBackground(.hidden)
-        .appListStyle(.settings)
-        .navigationTitle("封面生成")
-        .navigationBarTitleDisplayMode(.large)
+        .transaction { transaction in
+            if reduceMotion { transaction.animation = nil }
+        }
         .refreshable {
             await loadCandidates()
             await loadHistory()
@@ -265,6 +267,7 @@ struct AdminAICoverView: View {
                     historyBusyID = ""
                     coverRefreshFailed = false
                     showNovelPicker = false
+                    showCoverHistory = false
                     Task {
                         await loadCandidates()
                         await loadHistory()
@@ -347,20 +350,19 @@ struct AdminAICoverView: View {
     // MARK: - 选书
 
     private var novelSection: some View {
-        Section("目标小说") {
+        AdminWorkspaceSection("目标小说") {
             if let novel = selectedNovel {
-                HStack(spacing: 10) {
+                AppAdaptiveRow(spacing: 12) {
                     Image(systemName: "book.closed.fill")
                         .foregroundStyle(AppTheme.primary)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(novel.title)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundStyle(AppTheme.textPrimary)
-                            .appTextLineLimit(1)
+                            .font(serifFont(.title3, .medium))
+                            .foregroundStyle(ReadingSpace.ink)
+                            .fixedSize(horizontal: false, vertical: true)
                         Text("\(novel.author.isEmpty ? "佚名" : novel.author) · \(novel.chapterCount) 章")
                             .font(.caption)
-                            .foregroundStyle(AppTheme.textSecondary)
+                            .foregroundStyle(ReadingSpace.profileMuted)
                     }
                     Spacer()
                     if initialNovel == nil {
@@ -370,7 +372,7 @@ struct AdminAICoverView: View {
                     }
                 }
 
-                HStack(alignment: .top, spacing: 12) {
+                historyRowLayout {
                     CachedAsyncImage(
                         url: APIClient.shared.coverURL(novelId: novel.id, updatedAt: novel.updatedAt),
                         targetSize: AppLayout.coverCurrentPreview
@@ -383,7 +385,7 @@ struct AdminAICoverView: View {
                             RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius)
                                 .fill(AppTheme.surface.opacity(0.6))
                             Image(systemName: "photo")
-                                .foregroundStyle(AppTheme.textSecondary)
+                                .foregroundStyle(ReadingSpace.profileMuted)
                         }
                     }
                     .frame(width: AppLayout.coverCurrentPreview.width, height: AppLayout.coverCurrentPreview.height)
@@ -393,10 +395,10 @@ struct AdminAICoverView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("当前封面")
                             .font(.subheadline.weight(.medium))
-                            .foregroundStyle(AppTheme.textPrimary)
+                            .foregroundStyle(ReadingSpace.ink)
                         Text("采纳候选或上传图片后，这里会使用服务端的新版本时间戳刷新。")
                             .font(.caption)
-                            .foregroundStyle(AppTheme.textSecondary)
+                            .foregroundStyle(ReadingSpace.profileMuted)
                             .fixedSize(horizontal: false, vertical: true)
                         if coverRefreshFailed {
                             Button("刷新当前封面") {
@@ -437,63 +439,47 @@ struct AdminAICoverView: View {
     // MARK: - 生成配置
 
     private var configSection: some View {
-        Section("生成配置") {
+        AdminWorkspaceSection("生成配置") {
             Toggle("封面渲染书名", isOn: $renderTitle)
                 .disabled(selectedNovelId.isEmpty || promptTaskInFlight || coverTaskInFlight || usesExactPrompt)
-
-            Picker("平台版式", selection: $platform) {
-                ForEach(platformOptions, id: \.value) { option in
-                    Text(option.label).tag(option.value)
+            AccountSettingsField("平台版式") {
+                Picker("平台版式", selection: $platform) {
+                    ForEach(platformOptions, id: \.value) { option in Text(option.label).tag(option.value) }
                 }
+                .pickerStyle(.menu)
+                .disabled(selectedNovelId.isEmpty || promptTaskInFlight || coverTaskInFlight || usesExactPrompt)
             }
-            .pickerStyle(.menu)
-            .disabled(selectedNovelId.isEmpty || promptTaskInFlight || coverTaskInFlight || usesExactPrompt)
-
-            Picker("主视觉风格", selection: $stylePreset) {
-                ForEach(styleOptions, id: \.value) { option in
-                    Text(option.label).tag(option.value)
+            AccountSettingsField("主视觉风格") {
+                Picker("主视觉风格", selection: $stylePreset) {
+                    ForEach(styleOptions, id: \.value) { option in Text(option.label).tag(option.value) }
                 }
+                .pickerStyle(.menu)
+                .disabled(selectedNovelId.isEmpty || promptTaskInFlight || coverTaskInFlight || usesExactPrompt)
             }
-            .pickerStyle(.menu)
-            .disabled(selectedNovelId.isEmpty || promptTaskInFlight || coverTaskInFlight || usesExactPrompt)
-
-            Text(styleDescriptions[stylePreset] ?? "会结合题材和变体轮换，让每一版都有明确的视觉方向。")
-                .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
-
-            Picker("构图方向", selection: $composition) {
-                ForEach(compositionOptions, id: \.value) { option in
-                    Text(option.label).tag(option.value)
+            AccountSettingsNote(styleDescriptions[stylePreset] ?? "会结合题材和变体轮换，让每一版都有明确的视觉方向。")
+            AccountSettingsField("构图方向") {
+                Picker("构图方向", selection: $composition) {
+                    ForEach(compositionOptions, id: \.value) { option in Text(option.label).tag(option.value) }
                 }
+                .pickerStyle(.menu)
+                .disabled(selectedNovelId.isEmpty || promptTaskInFlight || coverTaskInFlight || usesExactPrompt)
             }
-            .pickerStyle(.menu)
-            .disabled(selectedNovelId.isEmpty || promptTaskInFlight || coverTaskInFlight || usesExactPrompt)
-
-            Text("控制主体位置、镜头关系和留白方式。")
-                .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
-
+            AccountSettingsNote("控制主体位置、镜头关系和留白方式。")
             promptControls
-
-            Button {
-                showPhotoPicker = true
-            } label: {
-                if uploading {
-                    HStack {
-                        Spacer()
-                        ProgressView()
-                        Spacer()
-                    }
-                } else {
+            Button { showPhotoPicker = true } label: {
+                HStack(spacing: 8) {
+                    if uploading { ProgressView().controlSize(.small).accessibilityHidden(true) }
                     Label("上传本地图片替换封面", systemImage: "photo.badge.plus")
                 }
             }
+            .buttonStyle(AgentPanelButtonStyle())
             .disabled(selectedNovelId.isEmpty || uploading)
+            .accessibilityValue(uploading ? "正在上传" : "")
         }
     }
 
     private var promptActionLayout: AnyLayout {
-        dynamicTypeSize >= .xxxLarge
+        dynamicTypeSize >= .xxxLarge || horizontalSizeClass != .regular
             ? AnyLayout(VStackLayout(spacing: 10))
             : AnyLayout(HStackLayout(spacing: 10))
     }
@@ -508,17 +494,14 @@ struct AdminAICoverView: View {
                 } label: {
                     HStack(spacing: 6) {
                         Spacer(minLength: 0)
-                        if generatingPrompt {
-                            ProgressView()
-                        } else {
-                            Label("AI 生成描述词", systemImage: "wand.and.stars")
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
+                        if generatingPrompt { ProgressView().controlSize(.small).accessibilityHidden(true) }
+                        Label("AI 生成描述词", systemImage: "wand.and.stars")
+                            .fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 0)
                     }
                     .frame(minHeight: AppLayout.minimumTouchTarget)
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(AgentPanelButtonStyle())
                 .tint(AppTheme.primary)
                 .frame(maxWidth: .infinity)
                 .disabled(promptTaskInFlight || coverTaskInFlight || selectedNovelId.isEmpty)
@@ -534,7 +517,7 @@ struct AdminAICoverView: View {
                     }
                     .frame(minHeight: AppLayout.minimumTouchTarget)
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(AgentPanelButtonStyle())
                 .tint(AppTheme.primary)
                 .frame(maxWidth: .infinity)
                 .disabled(promptTaskInFlight || coverTaskInFlight || selectedNovelId.isEmpty)
@@ -564,26 +547,26 @@ struct AdminAICoverView: View {
                         .foregroundStyle(AppTheme.warning)
                     Text("可以按新配置重新生成描述词，也可以明确使用现有完整描述词。")
                         .font(.caption)
-                        .foregroundStyle(AppTheme.textSecondary)
+                        .foregroundStyle(ReadingSpace.profileMuted)
                     promptActionLayout {
                         Button("使用现有描述词") {
                             promptMode = "exact"
                             promptSourceSignature = ""
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(AgentPanelButtonStyle())
                         .tint(AppTheme.primary)
 
                         Button("按新设定更新") {
                             Task { await generatePrompt(forceNewVariation: true) }
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(AgentPanelButtonStyle())
                         .tint(AppTheme.primary)
                     }
                 }
                 .padding(10)
-                .appMaterialBackground(.thinMaterial, fallback: AppTheme.controlFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(ReadingSpace.profileFill, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             } else if usesExactPrompt {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                AppAdaptiveRow(spacing: 8) {
                     Label("画面以完整描述词为准", systemImage: "text.quote")
                         .font(.caption.weight(.medium))
                         .foregroundStyle(AppTheme.primary)
@@ -595,6 +578,7 @@ struct AdminAICoverView: View {
                         promptSourceSignature = ""
                     }
                     .font(.caption.weight(.medium))
+                    .frame(minHeight: AppLayout.minimumTouchTarget)
                 }
             }
 
@@ -603,15 +587,13 @@ struct AdminAICoverView: View {
                 Button {
                     Task { await generateCover() }
                 } label: {
-                    if generating {
-                        ProgressView()
-                            .frame(minWidth: 72, minHeight: 40)
-                    } else {
+                    HStack(spacing: 8) {
+                        if generating { ProgressView().controlSize(.small).accessibilityHidden(true) }
                         Label("生成封面", systemImage: "sparkles")
-                            .frame(minHeight: AppLayout.minimumTouchTarget)
                     }
+                    .frame(minHeight: AppLayout.minimumTouchTarget)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(AgentPanelButtonStyle(prominent: true))
                 .tint(AppTheme.primary)
                 .controlSize(.regular)
                 .disabled(coverTaskInFlight || promptTaskInFlight || selectedNovelId.isEmpty || promptConfigurationChanged)
@@ -619,65 +601,54 @@ struct AdminAICoverView: View {
             }
         }
         .padding(.vertical, 10)
-        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 6, trailing: 16))
+        .buttonStyle(.borderless)
     }
 
     private var promptEditor: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("封面描述词")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-                Text("可选")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-                Spacer()
-                Text("\(prompt.count)/\(coverPromptMaxCharacters)")
-                    .font(.caption)
-                    .foregroundStyle(prompt.count >= coverPromptMaxCharacters ? AppTheme.warning : AppTheme.textSecondary)
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                if prompt.isEmpty {
-                    Text("留空自动生成；已有描述词可打开完整编辑器修改。")
-                        .font(.subheadline)
-                        .foregroundStyle(AppTheme.textSecondary)
-                } else {
-                    Text(prompt)
-                        .font(.subheadline)
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .lineLimit(3)
-                        .lineSpacing(2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: 10) {
+            AccountSettingsField("封面描述词（可选）") {
+                VStack(alignment: .leading, spacing: 12) {
+                    if prompt.isEmpty {
+                        Text("留空自动生成；已有描述词可打开完整编辑器修改。")
+                            .font(.subheadline)
+                            .foregroundStyle(ReadingSpace.profileMuted)
+                    } else {
+                        Text(prompt)
+                            .font(.body)
+                            .foregroundStyle(ReadingSpace.ink)
+                            .appTextLineLimit(3)
+                            .lineSpacing(4)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    Button { showPromptEditor = true } label: {
+                        Label(prompt.isEmpty ? "填写完整描述词" : "编辑完整描述词", systemImage: "square.and.pencil")
+                            .frame(minHeight: AppLayout.minimumTouchTarget)
+                    }
+                    .buttonStyle(.borderless)
+                    .tint(AppTheme.primary)
+                    .disabled(generatingPrompt)
                 }
-                Button {
-                    showPromptEditor = true
-                } label: {
-                    Label(prompt.isEmpty ? "填写完整描述词" : "编辑完整描述词", systemImage: "square.and.pencil")
-                        .frame(minHeight: AppLayout.minimumTouchTarget)
-                }
-                .buttonStyle(.borderless)
-                .tint(AppTheme.primary)
-                .disabled(generatingPrompt)
             }
-            .frame(maxWidth: .infinity)
-            .padding(AppLayout.textEditorInset)
-            .appFieldSurface()
+            Text("\(prompt.count)/\(coverPromptMaxCharacters)")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(prompt.count >= coverPromptMaxCharacters ? AppTheme.warning : ReadingSpace.profileMuted)
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
     }
 
     @ViewBuilder
     private var taskProgressSection: some View {
         if let activeTask {
-            Section("当前任务") {
+            AdminWorkspaceSection("当前任务") {
                 AdminAITaskProgressView(
                     task: activeTask,
                     showsPromptPreview: activeTask.kind == "cover_prompt"
                 )
                 if let taskStatusText {
                     Text(taskStatusText)
+                        .textSelection(.enabled)
                         .font(.caption)
-                        .foregroundStyle(activeTask.status == "failed" ? AppTheme.danger : AppTheme.textSecondary)
+                        .foregroundStyle(activeTask.status == "failed" ? AppTheme.danger : ReadingSpace.profileMuted)
                 }
                 if pollingPaused, activeTask.isRunning {
                     Button("继续查询任务") {
@@ -692,10 +663,10 @@ struct AdminAICoverView: View {
                 }
             }
         } else if let taskStatusText {
-            Section {
+            Group {
                 Label(taskStatusText, systemImage: "hourglass")
                     .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .foregroundStyle(ReadingSpace.profileMuted)
             }
         }
     }
@@ -705,7 +676,7 @@ struct AdminAICoverView: View {
     @ViewBuilder
     private var candidateSection: some View {
         if selectedNovelId.isEmpty {
-            Section {
+            Group {
                 ContentUnavailableView {
                     Label("未选择小说", systemImage: "book.closed")
                 } description: {
@@ -718,7 +689,7 @@ struct AdminAICoverView: View {
         } else {
             comparisonSection
             if candidatesLoaded && candidates.isEmpty {
-                Section("封面候选（0）") {
+                AdminWorkspaceSection("封面候选（0）") {
                     ContentUnavailableView {
                         Label("暂无候选", systemImage: "photo.on.rectangle.angled")
                     } description: {
@@ -728,9 +699,9 @@ struct AdminAICoverView: View {
                     .listRowSeparator(.hidden)
                 }
             } else if !candidates.isEmpty {
-                Section("封面候选（\(candidates.count)）") {
-                    ForEach(candidates) { candidate in
-                        candidateRow(candidate)
+                AdminWorkspaceSection("封面候选（\(candidates.count)）") {
+                    ForEach(Array(candidates.enumerated()), id: \.element.id) { index, candidate in
+                        candidateRow(candidate).readingSpaceEntrance(index)
                     }
                 }
             }
@@ -741,49 +712,51 @@ struct AdminAICoverView: View {
     @ViewBuilder
     private var historySection: some View {
         if coverHistoryLoaded {
-            Section("封面历史（\(coverHistory.count)）") {
-                Text("最多保留最近 10 个旧版本；历史图片仅管理员可查看。")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                if coverHistory.isEmpty {
-                    Text("暂时没有可恢复的旧封面。")
-                        .font(.subheadline)
-                        .foregroundStyle(AppTheme.textSecondary)
-                } else {
-                    ForEach(coverHistory) { history in
-                        Button {
-                            previewHistory = history
-                        } label: {
-                            historyRowLayout {
-                                AuthenticatedCoverHistoryImage(novelID: selectedNovelId, historyID: history.id)
-                                    .frame(width: AppLayout.coverHistoryThumbnail.width, height: AppLayout.coverHistoryThumbnail.height)
-                                    .background(AppTheme.surface.opacity(0.45))
-                                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous))
-                                VStack(alignment: .leading, spacing: 5) {
-                                    Text(AdminFormat.relativeTime(history.createdAt ?? 0))
-                                        .font(.subheadline.weight(.medium))
-                                        .foregroundStyle(AppTheme.textPrimary)
-                                    Text("来源：\(history.source?.isEmpty == false ? history.source! : "未知") · \(history.reason?.isEmpty == false ? history.reason! : "替换")")
-                                        .font(.caption)
-                                        .foregroundStyle(AppTheme.textSecondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                    if let prompt = history.prompt, !prompt.isEmpty {
-                                        Text(prompt)
-                                            .font(.caption2)
-                                            .foregroundStyle(AppTheme.textSecondary)
-                                            .lineLimit(3)
+            AdminWorkspaceSection("封面历史（\(coverHistory.count)）") {
+                Button(showCoverHistory ? "收起历史封面" : "查看历史封面",
+                       systemImage: showCoverHistory ? "chevron.up" : "clock.arrow.circlepath") {
+                    withAnimation(reduceMotion ? nil : AppMotion.micro) { showCoverHistory.toggle() }
+                }
+                .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+                .buttonStyle(.borderless)
+                .accessibilityValue(showCoverHistory ? "已展开" : "已收起")
+                if showCoverHistory {
+                    AccountSettingsNote("最多保留最近 10 个旧版本；历史图片仅管理员可查看。")
+                    if coverHistory.isEmpty {
+                        AccountSettingsNote("暂时没有可恢复的旧封面。")
+                    } else {
+                        ForEach(Array(coverHistory.enumerated()), id: \.element.id) { index, history in
+                            Button { previewHistory = history } label: {
+                                historyRowLayout {
+                                    AuthenticatedCoverHistoryImage(novelID: selectedNovelId, historyID: history.id)
+                                        .frame(width: AppLayout.coverHistoryThumbnail.width, height: AppLayout.coverHistoryThumbnail.height)
+                                        .background(ReadingSpace.profileFill)
+                                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous))
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text(AdminFormat.relativeTime(history.createdAt ?? 0))
+                                            .font(.subheadline.weight(.medium))
+                                            .foregroundStyle(ReadingSpace.ink)
+                                        Text("来源：\(history.source?.isEmpty == false ? history.source! : "未知") · \(history.reason?.isEmpty == false ? history.reason! : "替换")")
+                                            .font(.footnote)
+                                            .foregroundStyle(ReadingSpace.profileMuted)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                        if let prompt = history.prompt, !prompt.isEmpty {
+                                            Text(prompt).font(.caption).foregroundStyle(ReadingSpace.profileMuted)
+                                                .appTextLineLimit(3)
+                                        }
+                                        Label("查看预览并恢复", systemImage: "arrow.uturn.backward.circle")
+                                            .font(.subheadline.weight(.medium))
+                                            .foregroundStyle(AppTheme.primary)
                                     }
-                                    Label("查看预览并恢复", systemImage: "arrow.uturn.backward.circle")
-                                        .font(.caption.weight(.medium))
-                                        .foregroundStyle(AppTheme.primary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                                 }
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .frame(minHeight: AppLayout.minimumTouchTarget)
+                                .contentShape(Rectangle())
                             }
-                            .contentShape(Rectangle())
+                            .buttonStyle(.plain)
+                            .disabled(historyBusyID == history.id)
+                            .readingSpaceEntrance(index)
                         }
-                        .buttonStyle(.plain)
-                        .disabled(historyBusyID == history.id)
                     }
                 }
             }
@@ -809,20 +782,12 @@ struct AdminAICoverView: View {
 
     @ViewBuilder
     private var comparisonSection: some View {
-        Section("封面对比") {
-            Text("当前封面固定为参考；最多选择两张候选。加入对比只改变本地比较状态，不会采纳或弃用。")
-                .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-            if comparedCandidates.isEmpty {
-                Text("在候选中点“加入对比”后，会在这里并排或纵向显示。")
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
-            }
-            comparisonLayout {
-                currentCoverComparisonCard
-                ForEach(comparedCandidates) { candidate in
-                    candidateComparisonCard(candidate)
+        if !comparedCandidates.isEmpty {
+            AdminWorkspaceSection("封面对比") {
+                AccountSettingsNote("当前封面固定为参考；最多选择两张候选。加入对比只改变本地比较状态，不会采纳或弃用。")
+                comparisonLayout {
+                    currentCoverComparisonCard
+                    ForEach(comparedCandidates) { candidate in candidateComparisonCard(candidate) }
                 }
             }
         }
@@ -842,7 +807,7 @@ struct AdminAICoverView: View {
                     RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
                         .fill(AppTheme.surface.opacity(0.65))
                     Image(systemName: "photo")
-                        .foregroundStyle(AppTheme.textSecondary)
+                        .foregroundStyle(ReadingSpace.profileMuted)
                 }
             }
             .frame(maxWidth: .infinity)
@@ -851,13 +816,12 @@ struct AdminAICoverView: View {
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous))
             Text("当前封面")
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(AppTheme.textPrimary)
-            Text("固定参考 · 不产生新请求")
+                .foregroundStyle(ReadingSpace.ink)
+            Text("作为采纳前的对照")
                 .font(.caption2)
-                .foregroundStyle(AppTheme.textSecondary)
+                .foregroundStyle(ReadingSpace.profileMuted)
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .paperCard()
     }
 
     private func candidateComparisonCard(_ candidate: AiCoverCandidate) -> some View {
@@ -872,7 +836,7 @@ struct AdminAICoverView: View {
                         RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous)
                             .fill(AppTheme.surface.opacity(0.65))
                         Image(systemName: "photo.slash")
-                            .foregroundStyle(AppTheme.textSecondary)
+                            .foregroundStyle(ReadingSpace.profileMuted)
                     }
                 }
             }
@@ -882,10 +846,10 @@ struct AdminAICoverView: View {
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous))
             Text(["候选", String(candidate.id.prefix(8))].joined(separator: " "))
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(AppTheme.textPrimary)
+                .foregroundStyle(ReadingSpace.ink)
             Text(candidate.taskId?.isEmpty == false ? "来源：AI 任务 \(candidate.taskId!.prefix(8))" : "来源：AI 生成候选")
                 .font(.caption2)
-                .foregroundStyle(AppTheme.textSecondary)
+                .foregroundStyle(ReadingSpace.profileMuted)
             if let metadata = candidate.metadata, metadata.promptMode == "exact" {
                 Text("完整描述词")
                     .font(.caption2.weight(.medium))
@@ -898,13 +862,12 @@ struct AdminAICoverView: View {
             if let prompt = candidate.prompt, !prompt.isEmpty {
                 Text(prompt)
                     .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .foregroundStyle(ReadingSpace.profileMuted)
                     .lineLimit(4)
                     .lineSpacing(2)
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .paperCard()
     }
 
     private func candidateRow(_ candidate: AiCoverCandidate) -> some View {
@@ -916,7 +879,7 @@ struct AdminAICoverView: View {
                 Spacer(minLength: 8)
                 Text(AdminFormat.relativeTime(candidate.createdAt ?? 0))
                     .font(.caption2)
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .foregroundStyle(ReadingSpace.profileMuted)
                     .appTextLineLimit(1)
             }
 
@@ -937,7 +900,7 @@ struct AdminAICoverView: View {
                     if let promptText = candidate.prompt, !promptText.isEmpty {
                         Text(promptText)
                             .font(.caption)
-                            .foregroundStyle(AppTheme.textSecondary)
+                            .foregroundStyle(ReadingSpace.profileMuted)
                             .appTextLineLimit(3)
                             .lineSpacing(2)
 
@@ -976,8 +939,6 @@ struct AdminAICoverView: View {
                 .layoutPriority(1)
             }
 
-            Divider()
-
             if candidateBusy == candidate.id {
                 ProgressView("处理中…")
                     .frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget)
@@ -989,7 +950,7 @@ struct AdminAICoverView: View {
                         Label(compareCandidateIDs.contains(candidate.id) ? "移出对比" : "加入对比", systemImage: compareCandidateIDs.contains(candidate.id) ? "checkmark.circle" : "rectangle.split.2x1")
                             .frame(minHeight: AppLayout.minimumTouchTarget)
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(AgentPanelButtonStyle())
                     .tint(AppTheme.primary)
                     .frame(maxWidth: .infinity)
                     .disabled(!compareCandidateIDs.contains(candidate.id) && compareCandidateIDs.count >= 2)
@@ -1000,7 +961,7 @@ struct AdminAICoverView: View {
                         Label("采纳", systemImage: "checkmark")
                             .frame(minHeight: AppLayout.minimumTouchTarget)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(AgentPanelButtonStyle(prominent: true))
                     .tint(AppTheme.primary)
                     .frame(maxWidth: .infinity)
                     .disabled(!candidateBusy.isEmpty)
@@ -1011,17 +972,14 @@ struct AdminAICoverView: View {
                         Label("弃用", systemImage: "trash")
                             .frame(minHeight: AppLayout.minimumTouchTarget)
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.borderless)
                     .tint(AppTheme.danger)
                     .disabled(!candidateBusy.isEmpty)
                 }
             }
         }
-        .padding(12)
-        .paperCard()
-        .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
+        .padding(.vertical, 8)
+        .buttonStyle(.borderless)
     }
 
     @ViewBuilder
@@ -1035,7 +993,7 @@ struct AdminAICoverView: View {
                 RoundedRectangle(cornerRadius: AppTheme.controlCornerRadius)
                     .fill(AppTheme.surface.opacity(0.6))
                 Image(systemName: "photo")
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .foregroundStyle(ReadingSpace.profileMuted)
             }
         }
     }
@@ -1849,6 +1807,8 @@ private struct NovelPickerSheet: View {
     let selectedId: String
     let onSelect: (String) -> Void
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var filtered: [AdminNovelSummary] {
         let q = search.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1860,43 +1820,58 @@ private struct NovelPickerSheet: View {
 
     var body: some View {
         NavigationStack {
-            List(filtered) { novel in
-                Button {
-                    onSelect(novel.id)
-                    dismiss()
-                } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(novel.title)
-                                .font(.subheadline)
-                                .foregroundStyle(AppTheme.textPrimary)
-                                .appTextLineLimit(1)
-                            Text("\(novel.author.isEmpty ? "佚名" : novel.author) · \(novel.chapterCount) 章")
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.textSecondary)
+            AdminWorkspaceList {
+                AdminWorkspaceHeading("选择小说", detail: "选择要生成封面的作品。")
+                if filtered.isEmpty {
+                    ContentUnavailableView(options.isEmpty ? "暂无可用作品" : "没有匹配的作品",
+                                           systemImage: "book.closed",
+                                           description: Text(options.isEmpty ? "当前没有可以选择的作品。" : "试试其他书名或作者。"))
+                } else {
+                    ForEach(Array(filtered.enumerated()), id: \.element.id) { index, novel in
+                        Button {
+                            onSelect(novel.id)
+                            dismiss()
+                        } label: {
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(novel.title)
+                                        .font(serifFont(.body, .medium))
+                                        .foregroundStyle(ReadingSpace.ink)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    Text("\(novel.author.isEmpty ? "佚名" : novel.author) · \(novel.chapterCount) 章")
+                                        .font(.footnote)
+                                        .foregroundStyle(ReadingSpace.profileMuted)
+                                }
+                                Spacer(minLength: 8)
+                                if novel.id == selectedId {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(AppTheme.primary)
+                                        .accessibilityHidden(true)
+                                }
+                            }
+                            .padding(.vertical, 6)
+                            .frame(minHeight: AppLayout.minimumTouchTarget)
+                            .contentShape(Rectangle())
                         }
-                        Spacer()
-                        if novel.id == selectedId {
-                            Image(systemName: "checkmark")
-                                .foregroundStyle(AppTheme.primary)
-                        }
+                        .buttonStyle(.plain)
+                        .listRowBackground(novel.id == selectedId ? ReadingSpace.profileFill : Color.clear)
+                        .accessibilityAddTraits(novel.id == selectedId ? .isSelected : [])
+                        .readingSpaceEntrance(index)
+                        .transition(reduceMotion ? .identity : .opacity)
                     }
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(ScaleButtonStyle())
             }
-            .scrollContentBackground(.hidden)
-            .appListStyle(.settings)
-            .navigationTitle("选择小说")
-            .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $search, prompt: "搜索书名 / 作者")
+            .searchable(text: Binding(get: { search }, set: { value in
+                withAnimation(reduceMotion ? nil : AppMotion.micro) { search = value }
+            }), prompt: "搜索书名 / 作者")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationBackground(ReadingSpace.profilePaper)
+        .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
     }
 }
 
@@ -1985,7 +1960,7 @@ private struct AuthenticatedCoverHistoryImage: View {
                     .scaledToFit()
             } else if failed {
                 Image(systemName: "photo.slash")
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .foregroundStyle(ReadingSpace.profileMuted)
             } else {
                 ProgressView()
             }
@@ -2017,59 +1992,43 @@ private struct AdminCoverHistoryPreviewSheet: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    Group {
-                        if let image {
-                            Image(uiImage: image)
-                                .resizable()
-                                .scaledToFit()
-                        } else if failed {
-                            ContentUnavailableView("图片不可用", systemImage: "photo.slash")
-                        } else {
-                            ProgressView("加载历史图片…")
-                        }
+            AgentPanelPage {
+                AgentPanelHeading("历史封面", detail: "生成于 \(AdminFormat.relativeTime(item.createdAt ?? 0))")
+                Group {
+                    if let image {
+                        Image(uiImage: image).resizable().scaledToFit()
+                    } else if failed {
+                        ContentUnavailableView("图片不可用", systemImage: "photo.slash")
+                    } else {
+                        ProgressView("加载历史图片…")
                     }
-                    .frame(maxWidth: .infinity, minHeight: 300)
-                    .background(AppTheme.surface.opacity(0.45))
-                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous))
-
-                    Text("生成于 \(AdminFormat.relativeTime(item.createdAt ?? 0))")
-                        .font(.headline)
-                        .foregroundStyle(AppTheme.textPrimary)
-                    Text("来源：\(item.source?.isEmpty == false ? item.source! : "未知") · 原因：\(item.reason?.isEmpty == false ? item.reason! : "替换")")
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.textSecondary)
-                    if let prompt = item.prompt, !prompt.isEmpty {
-                        Text("提示词")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(AppTheme.textPrimary)
-                        Text(prompt)
-                            .font(.body)
-                            .foregroundStyle(AppTheme.textSecondary)
-                            .textSelection(.enabled)
-                    }
-                    Button {
-                        dismiss()
-                        onRestore()
-                    } label: {
-                        Label("恢复此版本", systemImage: "arrow.uturn.backward.circle.fill")
-                            .frame(maxWidth: .infinity, minHeight: 46)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(AppTheme.primary)
                 }
-                .padding(16)
+                .frame(maxWidth: .infinity, minHeight: 300)
+                .background(ReadingSpace.profileFill)
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius, style: .continuous))
+                AgentPanelFact(title: "来源与原因",
+                               value: "\(item.source?.isEmpty == false ? item.source! : "未知") · \(item.reason?.isEmpty == false ? item.reason! : "替换")")
+                if let prompt = item.prompt, !prompt.isEmpty {
+                    DisclosureGroup("完整描述词") {
+                        Text(prompt).font(.body).foregroundStyle(ReadingSpace.ink)
+                            .lineSpacing(5).textSelection(.enabled).padding(.top, 12)
+                    }
+                }
+                Button {
+                    dismiss()
+                    onRestore()
+                } label: {
+                    Label("恢复此版本", systemImage: "arrow.uturn.backward.circle.fill")
+                }
+                .buttonStyle(AgentPanelButtonStyle(prominent: true))
             }
-            .pageBackground(.browsing)
-            .navigationTitle("历史封面")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { dismiss() }
                 }
             }
         }
+        .presentationBackground(ReadingSpace.profilePaper)
         .presentationDetents([.large])
         .task(id: "\(novelID)-\(item.id)") {
             do {
@@ -2100,39 +2059,29 @@ private struct AdminCoverPromptEditorSheet: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("完整描述词")
-                        .font(.headline)
-                        .foregroundStyle(AppTheme.textPrimary)
+            AgentPanelPage {
+                AgentPanelHeading("编辑提示词", detail: "完整描述词")
+                AgentPanelField("描述词正文", isFocused: editorFocused) {
                     TextEditor(text: $draft)
                         .focused($editorFocused)
                         .font(.body)
-                        .frame(minHeight: 320)
+                        .frame(minHeight: 340)
                         .scrollContentBackground(.hidden)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                        .padding(AppLayout.textEditorInset)
-                        .appFieldSurface()
+                        .accessibilityLabel("完整封面描述词")
                         .onChange(of: draft) { _, value in
                             if value.count > maxCharacters {
                                 draft = String(value.prefix(maxCharacters))
                             }
                         }
-                    HStack {
-                        Text("长描述词可滚动编辑，生成失败时会保留原词。")
-                        Spacer()
-                        Text("\(draft.count)/\(maxCharacters)")
-                    }
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
                 }
-                .padding(16)
+                AccountSettingsNote("长描述词可滚动编辑，生成失败时会保留原词。")
+                Text("\(draft.count)/\(maxCharacters)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(draft.count >= maxCharacters ? AppTheme.warning : ReadingSpace.profileMuted)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            .scrollDismissesKeyboard(.interactively)
-            .pageBackground(.browsing)
-            .navigationTitle("编辑提示词")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { requestClose() }
@@ -2141,8 +2090,13 @@ private struct AdminCoverPromptEditorSheet: View {
                     Button("使用") { save() }
                         .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("完成") { editorFocused = false }
+                }
             }
         }
+        .presentationBackground(ReadingSpace.profilePaper)
         .presentationDetents([.large])
         .interactiveDismissDisabled(isDirty)
         .confirmationDialog("有未保存的描述词修改", isPresented: $showCloseConfirmation, titleVisibility: .visible) {

@@ -24,6 +24,9 @@ struct AdminAIWritingView: View {
         _novelId = State(initialValue: initialNovel?.id ?? "")
     }
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @FocusState private var focusedField: String?
+    @FocusState private var instructionEditorFocused: Bool
 
     enum Mode: String, CaseIterable, Identifiable {
         case new = "新写"
@@ -173,22 +176,25 @@ struct AdminAIWritingView: View {
     // Each opaque view is a type-checking boundary. Keep modifier order while
     // avoiding one expression containing every sheet, alert and state observer.
     private var writingContent: some View {
-        List {
+        AdminWorkspaceList {
+            AdminWorkspaceHeading("AI 创作", detail: "选择作品、填写要求，核对后再启动生成。")
             if isLoading {
-                Section {
-                    ProgressView("加载中…")
-                        .frame(maxWidth: .infinity, minHeight: 160)
-                        .listRowBackground(Color.clear)
-                }
+                ProgressView("加载中…").frame(maxWidth: .infinity, minHeight: 160)
             } else {
-                workflowSections
+                workflowSections.disabled(starting).buttonStyle(.borderless)
                 taskProgressSection
             }
         }
-        .scrollContentBackground(.hidden)
-        .appListStyle(.settings)
-        .navigationTitle("AI 创作")
-        .navigationBarTitleDisplayMode(.large)
+        .transaction { transaction in
+            if reduceMotion { transaction.animation = nil }
+        }
+        .onChange(of: workflowStep) { _, _ in focusedField = nil }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("完成") { focusedField = nil }
+            }
+        }
     }
 
     private var inputDraftContent: some View {
@@ -206,10 +212,18 @@ struct AdminAIWritingView: View {
         }
         .sheet(isPresented: $showInstructionEditor) {
             NavigationStack {
-                TextEditor(text: $instruction)
-                    .font(.body).padding()
-                    .accessibilityIdentifier("admin.writing.instructionEditor")
-                    .navigationTitle("创作要求")
+                AgentPanelPage {
+                    AgentPanelHeading("创作要求")
+                    AgentPanelField("完整要求", isFocused: instructionEditorFocused) {
+                        TextEditor(text: $instruction)
+                            .font(.body)
+                            .scrollContentBackground(.hidden)
+                            .frame(minHeight: 340)
+                            .focused($instructionEditorFocused)
+                            .accessibilityIdentifier("admin.writing.instructionEditor")
+                    }
+                }
+                .presentationBackground(ReadingSpace.profilePaper)
                     .toolbar { ToolbarItem(placement: .confirmationAction) {
                         Button("完成") { showInstructionEditor = false }
                     } }
@@ -401,52 +415,66 @@ struct AdminAIWritingView: View {
 
     @ViewBuilder
     private var workflowSections: some View {
-        Section {
-            Picker("创作步骤", selection: $workflowStep) {
-                Text("1 作品").tag(0)
-                Text("2 要求").tag(1)
-                Text("3 生成").tag(2)
-            }
-            .accessibleSegmentedPicker()
-            .accessibilityIdentifier("admin.writing.steps")
+        Picker("创作步骤", selection: Binding(get: { workflowStep }, set: { value in
+            focusedField = nil
+            withAnimation(reduceMotion ? nil : AppMotion.micro) { workflowStep = value }
+        })) {
+            Text("1 作品").tag(0)
+            Text("2 要求").tag(1)
+            Text("3 生成").tag(2)
         }
+        .accessibleSegmentedPicker()
+        .accessibilityIdentifier("admin.writing.steps")
         if workflowStep == 0 {
             modeSection
             novelSection
-            Section {
-                Button("下一步：填写要求", systemImage: "arrow.right") { workflowStep = 1 }
-                    .accessibilityIdentifier("admin.writing.next")
-            } footer: {
-                draftAutosaveFooter
-            }
+            Button("下一步：填写要求", systemImage: "arrow.right") { workflowStep = 1 }
+                .buttonStyle(AgentPanelButtonStyle(prominent: true))
+                .accessibilityIdentifier("admin.writing.next")
+            draftAutosaveFooter
         } else if workflowStep == 1 {
             if mode == .continueWriting { continueSection } else { newSection }
-            Section {
-                Button(showAdvancedOptions ? "收起高级创作选项" : "高级创作选项", systemImage: "slider.horizontal.3") {
-                    showAdvancedOptions.toggle()
-                }
+            Button(showAdvancedOptions ? "收起高级创作选项" : "高级创作选项", systemImage: "slider.horizontal.3") {
+                withAnimation(reduceMotion ? nil : AppMotion.micro) { showAdvancedOptions.toggle() }
             }
+            .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+            .buttonStyle(.borderless)
             if showAdvancedOptions {
                 contentPreferencesSection
                 analysisReferenceSection
                 if mode == .continueWriting { continuationAssistSection }
             }
-            Section {
-                Button("下一步：检查并生成", systemImage: "arrow.right") { workflowStep = 2 }
-                    .accessibilityIdentifier("admin.writing.review")
-                    .disabled(!canStart)
-            } footer: {
-                draftAutosaveFooter
+            Button("下一步：检查并生成", systemImage: "arrow.right") {
+                focusedField = nil
+                workflowStep = 2
             }
+            .buttonStyle(AgentPanelButtonStyle(prominent: true))
+            .accessibilityIdentifier("admin.writing.review")
+            .disabled(!canStart)
+            draftAutosaveFooter
         } else {
-            Section("本次创作") {
+            AdminWorkspaceSection("本次创作") {
                 LabeledContent("作品", value: selectedNovel?.title ?? title)
                 LabeledContent("类型", value: mode == .continueWriting ? "续写" : taskKind.rawValue)
                 LabeledContent("目标字数", value: String(targetWords))
-                if !instruction.isEmpty { Text(instruction).font(.subheadline).textSelection(.enabled) }
+                if !instruction.isEmpty {
+                    Text(instruction).font(.body).lineSpacing(5).textSelection(.enabled)
+                }
                 Button("返回修改要求") { workflowStep = 1 }
+                    .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+                    .buttonStyle(.borderless)
             }
             launchSection
+        }
+    }
+
+    private func writingField(_ label: String, placeholder: String? = nil, text: Binding<String>,
+                              lines: ClosedRange<Int> = 1...1, identifier: String? = nil) -> some View {
+        AccountSettingsField(label, isFocused: focusedField == label) {
+            TextField(placeholder ?? label, text: text, axis: .vertical)
+                .lineLimit(lines)
+                .focused($focusedField, equals: label)
+                .accessibilityIdentifier(identifier ?? label)
         }
     }
 
@@ -524,26 +552,19 @@ struct AdminAIWritingView: View {
     // MARK: - 模式与选书
 
     private var modeSection: some View {
-        Section {
+        AdminWorkspaceSection("创作方式") {
             Picker("模式", selection: $mode) {
-                ForEach(Mode.allCases) { m in
-                    Text(m.rawValue).tag(m)
-                }
+                ForEach(Mode.allCases) { m in Text(m.rawValue).tag(m) }
             }
             .accessibleSegmentedPicker()
             if mode == .new {
-                AdminFilterBar {
-                    AdminFilterMenu("任务类型", value: taskKind.rawValue) {
-                        Picker("任务类型", selection: $taskKind) {
-                            ForEach(TaskKind.allCases) { k in
-                                Text(k.rawValue).tag(k)
-                            }
-                        }
+                AdminFilterMenu("任务类型", value: taskKind.rawValue) {
+                    Picker("任务类型", selection: $taskKind) {
+                        ForEach(TaskKind.allCases) { k in Text(k.rawValue).tag(k) }
                     }
                 }
             }
-        } footer: {
-            Text(mode == .new
+            AccountSettingsNote(mode == .new
                 ? (taskKind == .outline ? "根据书名与要求生成创作大纲，不需要选书。" : "根据书籍设定与要求生成单章草稿，结果保存在「已生成内容」。")
                 : "从指定章节后继续创作，可一次生成多章，草稿可在「已生成内容」中发布。")
         }
@@ -551,25 +572,26 @@ struct AdminAIWritingView: View {
 
     @ViewBuilder
     private var novelSection: some View {
-        Section("目标小说") {
+        AdminWorkspaceSection("目标小说") {
             if let novel = selectedNovel {
-                HStack(spacing: 10) {
+                AppAdaptiveRow(spacing: 12) {
                     Image(systemName: "book.closed.fill")
                         .foregroundStyle(AppTheme.primary)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(novel.title)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundStyle(AppTheme.textPrimary)
-                            .appTextLineLimit(1)
+                            .font(serifFont(.title3, .medium))
+                            .foregroundStyle(ReadingSpace.ink)
+                            .fixedSize(horizontal: false, vertical: true)
                         Text("\(novel.author.isEmpty ? "佚名" : novel.author) · \(novel.chapterCount) 章")
                             .font(.caption)
-                            .foregroundStyle(AppTheme.textSecondary)
+                            .foregroundStyle(ReadingSpace.profileMuted)
                     }
                     Spacer()
                     if draftContextID == "general" {
                         Button("换一本") { showNovelPicker = true }
                             .font(.subheadline)
+                            .frame(minHeight: AppLayout.minimumTouchTarget)
+                            .buttonStyle(.borderless)
                     }
                 }
                 .listRowBackground(Color.clear)
@@ -591,23 +613,21 @@ struct AdminAIWritingView: View {
     // MARK: - 新写表单
 
     private var newSection: some View {
-        Section(taskKind == .outline ? "大纲要求" : "章节要求") {
-            TextField("标题（书名 / 章节标题）", text: $title)
+        AdminWorkspaceSection(taskKind == .outline ? "大纲要求" : "章节要求") {
+            writingField("标题", placeholder: "标题（书名 / 章节标题）", text: $title)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
             if taskKind == .chapter {
-                TextField("写作要求（可选）", text: $instruction, axis: .vertical)
-                    .lineLimit(2...4)
-                TextField("大纲要点（可选）", text: $outline, axis: .vertical)
-                    .lineLimit(2...4)
-                TextField("前文背景（可选）", text: $context, axis: .vertical)
-                    .lineLimit(2...4)
+                writingField("写作要求", placeholder: "写作要求（可选）", text: $instruction, lines: 2...4)
+                writingField("大纲要点", placeholder: "大纲要点（可选）", text: $outline, lines: 2...4)
+                writingField("前文背景", placeholder: "前文背景（可选）", text: $context, lines: 2...4)
             } else {
-                TextField("创作要求（可选）", text: $instruction, axis: .vertical)
-                    .lineLimit(2...4)
+                writingField("创作要求", placeholder: "创作要求（可选）", text: $instruction, lines: 2...4)
             }
             detailedBriefSection
             Button("展开编辑创作要求", systemImage: "arrow.up.left.and.arrow.down.right") { showInstructionEditor = true }
+                .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+                .buttonStyle(.borderless)
             Stepper("目标字数：\(targetWords)", value: $targetWords, in: 500...8000, step: 500)
         }
     }
@@ -615,7 +635,7 @@ struct AdminAIWritingView: View {
     // MARK: - 续写表单
 
     private var continueSection: some View {
-        Section("续写设置") {
+        AdminWorkspaceSection("续写设置") {
             if !chapterOptions.isEmpty {
                 Picker("起点章节", selection: $afterChapterId) {
                     Text("从最新章节续写").tag("")
@@ -636,13 +656,13 @@ struct AdminAIWritingView: View {
                     .disabled(selectionRequests.isLoading)
                 }
             }
-            TextField("本次章节标题（可选）", text: $continuationTitle)
+            writingField("本次章节标题", placeholder: "本次章节标题（可选）", text: $continuationTitle)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-            TextField("续写要求（可选）", text: $instruction, axis: .vertical)
-                .lineLimit(2...4)
-                .accessibilityIdentifier("admin.writing.instruction")
+            writingField("续写要求", placeholder: "续写要求（可选）", text: $instruction, lines: 2...4,
+                         identifier: "admin.writing.instruction")
             Button("展开编辑创作要求", systemImage: "arrow.up.left.and.arrow.down.right") { showInstructionEditor = true }
+                .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
             Picker("写作范围", selection: $continuationScope) {
                 ForEach(ContinuationScope.allCases) { scope in
                     Text(scope.rawValue).tag(scope)
@@ -655,7 +675,7 @@ struct AdminAIWritingView: View {
             } else {
                 Text("本次生成 1 章")
                     .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .foregroundStyle(ReadingSpace.profileMuted)
             }
             Stepper("目标字数：\(targetWords)", value: $targetWords, in: 300...30000, step: 500)
         }
@@ -664,7 +684,7 @@ struct AdminAIWritingView: View {
     @ViewBuilder
     private var contentPreferencesSection: some View {
         if mode == .continueWriting || taskKind == .chapter {
-            Section {
+            AdminWorkspaceSection("成人内容参数") {
                 Picker("成人内容模式", selection: $adultContentMode) {
                     ForEach(AdultContentMode.allCases) { option in
                         Text(option.title).tag(option)
@@ -681,17 +701,14 @@ struct AdminAIWritingView: View {
                             Text(option.title).tag(option)
                         }
                     }
-                    LabeledContent("成年人确认", value: "adultCharactersConfirmed: true")
+                    LabeledContent("成年人确认", value: "本次任务已确认")
                     if let error = contentPreferencesValidationError {
                         Text(error)
                             .font(.caption)
                             .foregroundStyle(AppTheme.warning)
                     }
                 }
-            } header: {
-                Text("成人内容参数")
-            } footer: {
-                Text(adultContentMode == .explicit
+                AccountSettingsNote(adultContentMode == .explicit
                     ? "权重表示亲密内容在剧情中的叙事强调程度，不是固定字数百分比；即使开启，上游模型仍可能依据其内容政策拒绝请求。"
                     : "默认不主动加入成人露骨内容。该参数只作用于本次创作任务。")
             }
@@ -701,45 +718,34 @@ struct AdminAIWritingView: View {
     @ViewBuilder
     private var detailedBriefSection: some View {
         DisclosureGroup("更多创作要求", isExpanded: $showDetailedBrief) {
-            TextField("叙事视角（最多 200 字）", text: $briefViewpoint, axis: .vertical)
-                .lineLimit(1...3)
-            TextField("节奏（最多 200 字）", text: $briefPace, axis: .vertical)
-                .lineLimit(1...3)
-            TextField("本章目标（最多 1000 字）", text: $briefObjective, axis: .vertical)
-                .lineLimit(2...5)
-            TextField("必须保留的事实（可选）", text: $briefRequiredFacts, axis: .vertical)
-                .lineLimit(2...5)
-            TextField("禁止发生的事件（可选）", text: $briefForbiddenEvents, axis: .vertical)
-                .lineLimit(2...5)
-            if mode == .continueWriting {
-                TextField("分章目标：每行对应一章，从第 1 章开始", text: $chapterGoalsText, axis: .vertical)
-                    .lineLimit(3...8)
+            VStack(alignment: .leading, spacing: 16) {
+                writingField("叙事视角", placeholder: "叙事视角（最多 200 字）", text: $briefViewpoint, lines: 1...3)
+                writingField("节奏", placeholder: "节奏（最多 200 字）", text: $briefPace, lines: 1...3)
+                writingField("本章目标", placeholder: "本章目标（最多 1000 字）", text: $briefObjective, lines: 2...5)
+                writingField("必须保留的事实", placeholder: "必须保留的事实（可选）", text: $briefRequiredFacts, lines: 2...5)
+                writingField("禁止发生的事件", placeholder: "禁止发生的事件（可选）", text: $briefForbiddenEvents, lines: 2...5)
+                if mode == .continueWriting {
+                    writingField("分章目标", placeholder: "分章目标：每行对应一章，从第 1 章开始", text: $chapterGoalsText, lines: 3...8)
+                }
+                if let error = writingBriefValidationError {
+                    AccountSettingsNote(error, isError: true)
+                } else if let preview = writingBriefPreview {
+                    AccountSettingsNote(preview)
+                }
             }
-            if let error = writingBriefValidationError {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.warning)
-            } else if let preview = writingBriefPreview {
-                Text(preview)
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-            }
+            .padding(.top, 12)
         }
         .font(.subheadline)
     }
 
     private var analysisReferenceSection: some View {
-        Section {
-            Text("生成时自动选取当前起点以内、正文未变化的各主题最新完整报告；没有可用报告时直接依据正文创作。")
-                .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
+        AdminWorkspaceSection("小说分析参考") {
+            AccountSettingsNote("生成时自动选取当前起点以内、正文未变化的各主题最新完整报告；没有可用报告时直接依据正文创作。")
             if let analysisURL {
                 Link("阅读与修订分析报告", destination: analysisURL)
+                    .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
             }
-        } header: {
-            Text("小说分析参考")
-        } footer: {
-            Text("报告可能包含推断，应结合原文核对。需要手动选择或取消参考时，可在网页创作工作区调整。")
+            AccountSettingsNote("报告可能包含推断，应结合原文核对。需要手动选择或取消参考时，可在网页创作工作区调整。")
         }
     }
 
@@ -755,9 +761,8 @@ struct AdminAIWritingView: View {
     }
 
     private var continuationAssistSection: some View {
-        Section {
-            TextField("创作重点（可选，例如：强化冲突、推进感情线）", text: $suggestionFocus, axis: .vertical)
-                .lineLimit(1...3)
+        AdminWorkspaceSection("本次情节与大纲") {
+            writingField("创作重点", placeholder: "创作重点（可选，例如：强化冲突、推进感情线）", text: $suggestionFocus, lines: 1...3)
 
             Button {
                 Task { await loadPlotSuggestions() }
@@ -775,29 +780,32 @@ struct AdminAIWritingView: View {
 
             if let suggestionError {
                 Text(suggestionError)
+                    .textSelection(.enabled)
                     .font(.caption)
                     .foregroundStyle(AppTheme.warning)
             }
 
             if !suggestions.isEmpty {
-                ForEach(suggestions) { suggestion in
+                ForEach(Array(suggestions.enumerated()), id: \.element.id) { index, suggestion in
                     Button {
                         chooseSuggestion(suggestion)
                     } label: {
                         VStack(alignment: .leading, spacing: 5) {
                             Text(suggestion.direction)
                                 .font(.subheadline)
-                                .foregroundStyle(AppTheme.textPrimary)
+                                .foregroundStyle(ReadingSpace.ink)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             Text(suggestion.effect)
                                 .font(.caption)
-                                .foregroundStyle(AppTheme.textSecondary)
+                                .foregroundStyle(ReadingSpace.profileMuted)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .padding(.vertical, 3)
                     }
                     .buttonStyle(.plain)
                     .accessibilityHint("选择后填入续写要求")
+                    .frame(minHeight: AppLayout.minimumTouchTarget)
+                    .readingSpaceEntrance(index)
                 }
                 if suggestionFillBackup != nil {
                     Button("撤销上次填入") {
@@ -812,56 +820,50 @@ struct AdminAIWritingView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                HStack {
+                AppAdaptiveRow {
                     Text("续写大纲")
                         .font(.subheadline.weight(.medium))
                     Spacer()
                     Button {
                         Task { await generateContinuationOutline() }
                     } label: {
-                        if outlineBusy {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
+                        HStack(spacing: 6) {
+                            if outlineBusy { ProgressView().controlSize(.small).accessibilityHidden(true) }
                             Text(outline.isEmpty
                                 ? (continuationScope == .multiple ? "按情节推荐生成大纲（多章）" : "按情节推荐生成大纲（单章）")
                                 : "重新生成")
                         }
                     }
                     .font(.caption.weight(.medium))
+                    .frame(minHeight: AppLayout.minimumTouchTarget)
                     .disabled(!canUseContinuationAssist || suggestionBusy || outlineBusy)
                 }
-                TextField(
-                    continuationScope == .multiple
-                        ? "每章一行、以「第N章」开头；可手动编辑生成结果"
-                        : "可留空，也可补充本章提纲；生成后仍可手动编辑",
-                    text: $outline,
-                    axis: .vertical
-                )
-                    .lineLimit(4...12)
+                writingField("续写大纲",
+                             placeholder: continuationScope == .multiple
+                                ? "每章一行、以「第N章」开头；可手动编辑生成结果"
+                                : "可留空，也可补充本章提纲；生成后仍可手动编辑",
+                             text: $outline, lines: 4...12)
                 if let outlineStatusText {
                     Text(outlineStatusText)
                         .font(.caption)
-                        .foregroundStyle(AppTheme.textSecondary)
+                        .foregroundStyle(ReadingSpace.profileMuted)
                 }
                 if let outlineError {
                     Text(outlineError)
+                        .textSelection(.enabled)
                         .font(.caption)
                         .foregroundStyle(AppTheme.warning)
                 }
             }
             .padding(.top, 6)
-        } header: {
-            Text("本次情节与大纲")
-        } footer: {
-            Text(continuationScope == .multiple
+            AccountSettingsNote(continuationScope == .multiple
                 ? "选定的推荐情节会作为大纲主线，按章节展开；生成后仍可手动修改。"
                 : "选定的推荐情节会作为本章大纲方向；生成后仍可手动修改。")
         }
     }
 
     private var launchSection: some View {
-        Section {
+        AdminWorkspaceSection("生成回执") {
             if mode == .continueWriting {
                 LabeledContent("小说", value: selectedNovel?.title ?? "未选择")
                 LabeledContent("续写起点", value: selectedAnchorTitle)
@@ -870,36 +872,32 @@ struct AdminAIWritingView: View {
                 LabeledContent("R18", value: adultContentMode == .explicit ? "开启" : "关闭")
             }
             Button {
+                focusedField = nil
                 Task { await startTask() }
             } label: {
-                if starting {
-                    HStack { Spacer(); ProgressView(); Spacer() }
-                } else {
+                HStack(spacing: 8) {
+                    if starting { ProgressView().controlSize(.small).accessibilityHidden(true) }
                     Label(mode == .continueWriting ? "启动续写任务" : "启动创作任务", systemImage: "paperplane.fill")
                 }
             }
             .disabled(starting || !canStart)
-            .buttonStyle(.borderedProminent)
-            .tint(AppTheme.primary)
-        } header: {
-            Text("生成回执")
-        } footer: {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("任务完成后，草稿会出现在「已生成内容」中，可编辑后发布为正式章节。")
-                draftAutosaveFooter
-            }
+            .buttonStyle(AgentPanelButtonStyle(prominent: true))
+            .accessibilityValue(starting ? "正在提交" : "")
+            AccountSettingsNote("任务完成后，草稿会出现在「已生成内容」中，可编辑后发布为正式章节。")
+            draftAutosaveFooter
         }
     }
 
     @ViewBuilder
     private var taskProgressSection: some View {
         if let activeTask {
-            Section("当前任务") {
+            AdminWorkspaceSection("当前任务") {
                 AdminAITaskProgressView(task: activeTask)
                 if let taskStatusText {
                     Text(taskStatusText)
+                        .textSelection(.enabled)
                         .font(.caption)
-                        .foregroundStyle(activeTask.status == "failed" ? AppTheme.danger : AppTheme.textSecondary)
+                        .foregroundStyle(activeTask.status == "failed" ? AppTheme.danger : ReadingSpace.profileMuted)
                 }
                 if pollingPaused, activeTask.isRunning {
                     Button("继续查询任务") {
@@ -922,10 +920,10 @@ struct AdminAIWritingView: View {
                 }
             }
         } else if let taskStatusText {
-            Section {
+            Group {
                 Label(taskStatusText, systemImage: "hourglass")
                     .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .foregroundStyle(ReadingSpace.profileMuted)
             }
         }
     }
