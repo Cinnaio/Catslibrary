@@ -33,6 +33,7 @@ struct NovelDetailView: View {
     @State private var isShowingOffline = false
     @State private var showOfflineOptions = false
     @State private var showAdminWorkspace = false
+    @State private var showKeepsakes = false
     @State private var showBodySearch = false
     @State private var bodySearchSnapshot: BookSearchSnapshot?
     @State private var searchLaunch: BookSearchLaunch?
@@ -67,6 +68,12 @@ struct NovelDetailView: View {
         .readingSpaceNavigation()
         .toolbar(horizontalSizeClass == .regular ? .visible : .hidden, for: .tabBar)
         .toolbar {
+            if appState.user != nil && !isShowingOffline {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("合上书以后", systemImage: "book.closed") { showKeepsakes = true }
+                        .labelStyle(.iconOnly)
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button("正文搜索", systemImage: "text.magnifyingglass") { showBodySearch = true }
                     .labelStyle(.iconOnly)
@@ -93,6 +100,9 @@ struct NovelDetailView: View {
                 .disabled(chapters.isEmpty || isSelectingOffline || currentNovel.isRestricted)
                 .help(currentNovel.isRestricted ? "限制级作品暂不提供离线下载" : "离线下载")
             }
+        }
+        .sheet(isPresented: $showKeepsakes) {
+            ReadingKeepsakesView(novelId: currentNovel.id)
         }
         .sheet(isPresented: $showBodySearch) {
             BookSearchView(novel: currentNovel, state: $bodySearchSnapshot) { hit, query in

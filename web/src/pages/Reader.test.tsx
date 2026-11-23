@@ -48,6 +48,7 @@ vi.mock('../lib/api', async (importOriginal) => ({
   novelsApi: { get: mocks.novel },
   thoughtsApi: { chapter: mocks.thoughts, list: mocks.thoughts },
 }))
+vi.mock('../components/reader/ReadingKeepsakes', () => ({ default: ({ onClose }: { onClose: () => void }) => <div role="dialog" aria-label="合上书以后"><button onClick={onClose}>关闭余温页</button></div> }))
 vi.mock('../components/ThemeMenu', () => ({ ThemeMenu: () => null }))
 vi.mock('../components/reader/ChapterRecap', () => ({ default: () => null }))
 vi.mock('../components/reader/ThoughtPanel', () => ({ default: () => null }))
@@ -393,5 +394,27 @@ describe('回声原文导航刷新', () => {
       if (originalRect) Object.defineProperty(Range.prototype, 'getBoundingClientRect', originalRect)
       else Reflect.deleteProperty(Range.prototype, 'getBoundingClientRect')
     }
+  })
+})
+
+
+describe('阅读器余温页入口', () => {
+  it('当前最后一章显示留念入口，展开时暂停统计，关闭后恢复', async () => {
+    mocks.session = { user: { id: 'reader', role: 'reader' }, loading: false }
+    mocks.novel.mockResolvedValue({ novel: { id: 'book', title: '测试小说' } })
+    mocks.chapters.mockResolvedValue({ chapters: [{ id: 'chapter', novelId: 'book', title: '测试章节', order: 1 }] })
+    mount(); await screen.findByText('正文')
+    fireEvent.click(screen.getByRole('button', { name: '合上书以后 · 留一页余温' }))
+    expect(screen.getByRole('dialog', { name: '合上书以后' })).toBeInTheDocument()
+    expect(mocks.stats.mock.lastCall?.[0].enabled).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: '关闭余温页' }))
+    expect(mocks.stats.mock.lastCall?.[0].enabled).toBe(true)
+  })
+  it('目录还有后续章节时不展示末尾留念邀请', async () => {
+    mocks.session = { user: { id: 'reader', role: 'reader' }, loading: false }
+    mocks.novel.mockResolvedValue({ novel: { id: 'book', title: '测试小说' } })
+    mocks.chapters.mockResolvedValue({ chapters: [{ id: 'chapter', novelId: 'book', title: '测试章节', order: 1 }, { id: 'second', novelId: 'book', title: '下一章', order: 2 }] })
+    mount(); await screen.findByText('正文')
+    expect(screen.queryByRole('button', { name: '合上书以后 · 留一页余温' })).not.toBeInTheDocument()
   })
 })

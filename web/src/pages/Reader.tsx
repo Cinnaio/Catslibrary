@@ -1,3 +1,4 @@
+import ReadingKeepsakes from '../components/reader/ReadingKeepsakes'
 import type { StoryEchoInput, StoryEchoSource } from '@shared/story-echoes'
 import StoryEchoes from '../components/reader/StoryEchoes'
 import { storyEchoSourceURL } from '../lib/story-echoes'
@@ -122,7 +123,7 @@ function ReaderContent() {
     setNovel(null)
     setAllChapters([])
     setChapterThoughts([])
-    setEchoSelection(null)
+    setEchoSelection(null); setKeepsakesOpen(false)
     setEchoOrigin(null)
     setLoading(true)
     return () => {
@@ -176,6 +177,7 @@ function ReaderContent() {
   const [pendingSelection, setPendingSelection] = useState<{ paragraphIndex: number; paragraphHash: string; selectedText: string } | null>(null)
   const [popoverPos, setPopoverPos] = useState<{ left: number; top: number } | null>(null)
   const [thoughtPanelOpen, setThoughtPanelOpen] = useState(false)
+  const [keepsakesOpen, setKeepsakesOpen] = useState(false)
   const [echoSelection, setEchoSelection] = useState<StoryEchoInput | null>(null)
   const [echoOrigin, setEchoOrigin] = useState<StoryEchoSource | null>(null)
   const readerAi = useAiStatus(!!user)
@@ -190,7 +192,7 @@ function ReaderContent() {
     userId: user?.id || '', novelId: chapter?.novelId || novelId, chapterId: chapter?.id || '',
     enabled: !loading && !notFound && !loadError && !blocked && !sessionLoading && !checking && !policyBlocked
       && chapter?.id === chapterId && !bodySearchOpen && !dropdownOpen && !bookmarkPanelOpen && !bookmarkNoteOpen
-      && !settingsPanelOpen && !mobileSettingsOpen && !mobileLibraryOpen && !thoughtPanelOpen && !echoSelection && !tempoOpen,
+      && !settingsPanelOpen && !mobileSettingsOpen && !mobileLibraryOpen && !thoughtPanelOpen && !echoSelection && !keepsakesOpen && !tempoOpen,
     contentMode: mode, ready: statsReady,
   })
 
@@ -204,7 +206,7 @@ function ReaderContent() {
       cacheRef.current.clear()
       contextRef.current = null
       setChapter(null); setNovel(null); setAllChapters([]); setChapterThoughts([])
-      setPendingSelection(null); setPopoverPos(null); setThoughtPanelOpen(false); setEchoSelection(null)
+      setPendingSelection(null); setPopoverPos(null); setThoughtPanelOpen(false); setEchoSelection(null); setKeepsakesOpen(false)
       setLoading(false); setLoadError('')
       setNotFound(status === 404); setBlocked(isRestrictedContentError(error))
     }
@@ -355,7 +357,7 @@ function ReaderContent() {
       setChapterThoughts([])
       setPopoverPos(null)
       setPendingSelection(null)
-      setEchoSelection(null)
+      setEchoSelection(null); setKeepsakesOpen(false)
       // 重置每章状态
       currentPageRef.current = 0
       totalPagesRef.current = 0
@@ -1108,7 +1110,7 @@ function ReaderContent() {
     function tick(ts: number) {
       const s = autoScrollRef.current
       if (!s.running) return
-      if (document.hidden || bodySearchOpen || dropdownOpen || bookmarkPanelOpen || bookmarkNoteOpen || settingsPanelOpen || mobileSettingsOpen || mobileLibraryOpen || thoughtPanelOpen || echoSelection || tempoOpen) {
+      if (document.hidden || bodySearchOpen || dropdownOpen || bookmarkPanelOpen || bookmarkNoteOpen || settingsPanelOpen || mobileSettingsOpen || mobileLibraryOpen || thoughtPanelOpen || echoSelection || keepsakesOpen || tempoOpen) {
         s.frame = requestAnimationFrame(tick)
         return
       }
@@ -1161,7 +1163,7 @@ function ReaderContent() {
       stop()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [readerAutoScrollSpeed, bodySearchOpen, dropdownOpen, bookmarkPanelOpen, bookmarkNoteOpen, settingsPanelOpen, mobileSettingsOpen, mobileLibraryOpen, thoughtPanelOpen, echoSelection, tempoOpen, pageMode])
+  }, [readerAutoScrollSpeed, bodySearchOpen, dropdownOpen, bookmarkPanelOpen, bookmarkNoteOpen, settingsPanelOpen, mobileSettingsOpen, mobileLibraryOpen, thoughtPanelOpen, echoSelection, keepsakesOpen, tempoOpen, pageMode])
 
   // ---------- Wake Lock ----------
   useEffect(() => {
@@ -1542,6 +1544,12 @@ function ReaderContent() {
           {!!thoughtsByParagraph['-1']?.length && <Button variant="secondary" size="sm"  onClick={() => openThoughtPanel(-1)}>查看原段落已变更的想法（{thoughtsByParagraph['-1'].length}）</Button>}
         </article>
 
+        {user && allChapters.length > 0 && currentIdx === allChapters.length - 1 && (
+          <div className={styles.keepsakeEntry}>
+            <Button variant="secondary" onClick={() => setKeepsakesOpen(true)}>合上书以后 · 留一页余温</Button>
+          </div>
+        )}
+
         {/* Bottom nav */}
         <div className="reader-bottom">
           <Button variant="ghost" className="reader-nav-btn" disabled={currentIdx <= 0} onClick={() => navigateToChapter('prev')}><ArrowLeft size={16} aria-hidden="true" />上一章</Button>
@@ -1654,13 +1662,16 @@ function ReaderContent() {
         </div>
       )}
 
+      {keepsakesOpen && user && novel && !checking && !blocked && !policyBlocked && (
+        <ReadingKeepsakes key={`${user.id}:${mode}:${novel.id}:${chapter.id}`} novelId={novel.id} mode={mode} onClose={() => setKeepsakesOpen(false)} />
+      )}
       {echoSelection && echoSelection.chapterId === chapter.id && !checking && !blocked && (
         <StoryEchoes key={`${user?.id}:${mode}:${chapter.id}:${echoSelection.paragraphHash}:${echoSelection.selectedText}`}
           input={echoSelection} chapterTitle={chapter.title} onClose={() => setEchoSelection(null)}
           onSource={source => {
             setEchoOrigin({ chapterId: chapter.id, chapterTitle: chapter.title, chapterOrder: chapter.order,
               paragraphIndex: echoSelection.paragraphIndex, paragraphHash: echoSelection.paragraphHash, quote: echoSelection.selectedText })
-            setEchoSelection(null)
+            setEchoSelection(null); setKeepsakesOpen(false)
             navigateToEcho(source)
           }} />
       )}

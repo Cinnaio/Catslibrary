@@ -1,3 +1,4 @@
+import ReadingKeepsakes from '../components/reader/ReadingKeepsakes'
 import { isAdministrator } from '@shared/roles'
 import { Spinner } from '@/components/ui/spinner'
 import '@/styles/novel-indicators.css'
@@ -95,6 +96,7 @@ export default function Novel() {
   const [serverProgress, setServerProgress] = useState<ServerProgress | null>(null)
   const [descExpanded, setDescExpanded] = useState(false)
   const [descOverflows, setDescOverflows] = useState(false)
+  const [keepsakesOpen, setKeepsakesOpen] = useState(false)
   const [coverFailed, setCoverFailed] = useState(false)
   const [chapterQuery, setChapterQuery] = useState('')
   const deferredChapterQuery = useDeferredValue(chapterQuery)
@@ -108,6 +110,7 @@ export default function Novel() {
   const loadGeneration = useRef(0)
   useLayoutEffect(() => {
     loadGeneration.current++
+    setKeepsakesOpen(false)
     setNovel(null)
     setChapters([])
     setBlocked(false)
@@ -117,6 +120,7 @@ export default function Novel() {
   const activeIdRef = useRef(id)
   useLayoutEffect(() => {
     activeIdRef.current = id
+    setKeepsakesOpen(false)
     setLoading(true)
     setNotFound(false)
     setCoverFailed(false)
@@ -493,6 +497,7 @@ export default function Novel() {
             )}
             <div className="novel-hero__actions">
               <BookSearch novelId={novel.id} title={novel.title} />
+              {user && <Button variant="ghost" onClick={() => setKeepsakesOpen(true)}>合上书以后</Button>}
               {chapters.length > 0 && (
                 <Button variant="default"  onClick={() => startTargetId && navigate(`/read/${encodeURIComponent(novel.id)}/${encodeURIComponent(startTargetId)}`)}>
                   {lastReadChapter ? '继续阅读' : '开始阅读'}
@@ -515,6 +520,10 @@ export default function Novel() {
 
         {/* 回来接着读：隔了很久才回来时，用已缓存的提要合成连贯回顾（进书之前） */}
         <CatchupRecap novelId={novel.id} novelTitle={novel.title} lastReadAt={lastReadAt(progress)} />
+
+        {keepsakesOpen && user && !checking && !blocked && !policyBlocked && (
+          <ReadingKeepsakes key={`${user.id}:${mode}:${novel.id}`} novelId={novel.id} mode={mode} onClose={() => setKeepsakesOpen(false)} />
+        )}
 
         {/* 章节目录 */}
         <section className="section detail-section">

@@ -138,6 +138,7 @@ struct ReaderView: View {
     @State private var isSelectingBodyText = false
     @State private var showBookmark = false
     @State private var showRecap = false
+    @State private var showKeepsakes = false
     @State private var echoEnabled = false
     @State private var echoInput: StoryEchoInput?
     @State private var echoTarget: StoryEchoSource?
@@ -159,13 +160,13 @@ struct ReaderView: View {
         !isLoading && chapter != nil && pendingScrollRestore == nil
             && (!novel.isRestricted || (!offlineOnly && ContentAccessStore.shared.mode == "adult"))
             && !showTOC && !showBodySearch && !showSettings && !showEdge && !showThoughtPanel && !showBookmark
-            && !showRecap && echoInput == nil && !showIllustrationsNotice && scenePhase == .active
+            && !showRecap && echoInput == nil && !showKeepsakes && !showIllustrationsNotice && scenePhase == .active
     }
 
     private var autoScrollActive: Bool {
         !autoScrollPaused && settings.pageMode == "scroll" && !isLoading && chapter != nil
             && pendingScrollRestore == nil && !showTOC && !showBodySearch && !showSettings && !showEdge && !showThoughtPanel
-            && !showBookmark && !showRecap && echoInput == nil && !showIllustrationsNotice && !isSelectingBodyText && scenePhase == .active
+            && !showBookmark && !showRecap && echoInput == nil && !showKeepsakes && !showIllustrationsNotice && !isSelectingBodyText && scenePhase == .active
     }
 
     private var edgeContext: ReaderEdgeContext? {
@@ -329,6 +330,9 @@ struct ReaderView: View {
         .sheet(isPresented: $showAdminWorkspace) {
             AdminNovelWorkspaceSheet(novel: novel, afterChapterID: chapter?.id)
         }
+        .sheet(isPresented: $showKeepsakes) {
+            ReadingKeepsakesView(novelId: novel.id)
+        }
         .sheet(item: $echoInput) { input in
             ReaderStoryEchoesView(input: input, chapterTitle: chapter?.title ?? "当前章节") { source in
                 if let chapter {
@@ -457,6 +461,7 @@ struct ReaderView: View {
         .task(id: ContentAccessStore.shared.revision) {
             recapEnabled = false
             echoEnabled = false
+            showKeepsakes = false
             echoInput = nil
             echoReturnSource = nil
             if echoTarget != nil { echoTarget = nil; searchQuery = ""; searchNeedsJump = false }
@@ -1233,6 +1238,11 @@ struct ReaderView: View {
                 .accessibilityHint(nextChapter?.title ?? "打开下一章")
                 .accessibilityIdentifier("reader.next-chapter")
             } else {
+                if !offlineOnly && appState.user != nil && !chapterMetas.isEmpty
+                    && !chapterMetas.contains(where: { $0.order > chapterOrder }) {
+                    Button("合上书以后 · 留一页余温") { showKeepsakes = true }
+                        .buttonStyle(ReaderPanelButtonStyle())
+                }
                 Text(offlineOnly ? "本机暂无下一章。" : "已到当前目录末尾。")
                     .font(.footnote)
                     .foregroundStyle(ink.opacity(0.72))
@@ -1319,6 +1329,9 @@ struct ReaderView: View {
                 Divider()
             }
             if !offlineOnly {
+                if appState.user != nil {
+                    Button("合上书以后", systemImage: "book.closed") { autoScrollPaused = true; showKeepsakes = true }
+                }
                 Button("保存章节书签", systemImage: "bookmark") { showBookmark = true }
                     .disabled(chapter == nil || appState.user == nil)
                 Button(bodySearchSnapshot?.hasSearch(for: novel.id) == true ? "返回搜索结果" : "书内正文搜索",
@@ -1548,6 +1561,7 @@ struct ReaderView: View {
         autoScrollPaused = true
         showBookmark = false
         showRecap = false
+        showKeepsakes = false
         echoInput = nil
         isSelectingBodyText = false
         chapterSwipeProgress = 0

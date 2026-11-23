@@ -40,6 +40,7 @@ import { backupMaintenance } from './middlewares/backup-maintenance'
 import { csrfProtection, browserSecurityHeaders } from './middlewares/browser-security'
 import { readingDataRoutes } from './routes/reading-data'
 import { readingStatsRoutes } from './routes/reading-stats'
+import { readingKeepsakesRoutes } from './routes/reading-keepsakes'
 import { passkeyRoutes } from './routes/passkeys'
 import { buildInfo } from './services/build-info'
 import { checkReadiness } from './services/readiness'
@@ -125,3 +126,4 @@ app.route('/api/admin/site-settings', adminSiteSettingsRoutes)
 app.route('/api/admin/backups', backupRoutes)
 app.route('/api/reading-data', readingDataRoutes)
 app.route('/api/reading-stats', readingStatsRoutes)
+app.route('/api/reading-keepsakes', readingKeepsakesRoutes)

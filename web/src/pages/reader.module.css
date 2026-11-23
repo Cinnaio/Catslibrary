@@ -208,3 +208,6 @@ body:has(.page) { background: var(--bg-primary); }
   :global(.reader-top), :global(.reader-paper), :global(.reader-settings-panel), :global(#reader-bookmarks-panel), :global(.chapter-dropdown), :global(.mobile-settings-sheet), :global(.mobile-library-sheet), :global(.mobile-reader-bar) { border-color: CanvasText; }
   :global(.chapter-dropdown__item--current), :global(.mobile-library-item--current) { outline: 2px solid Highlight; outline-offset: -2px; }
 }
+
+/* Quiet invitation at the current end of the book. */
+.keepsakeEntry { text-align: center; padding: 28px 16px; }
