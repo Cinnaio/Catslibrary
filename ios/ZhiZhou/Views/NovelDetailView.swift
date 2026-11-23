@@ -101,7 +101,7 @@ struct NovelDetailView: View {
         }
         .navigationDestination(item: $searchLaunch) { launch in
             ReaderView(novel: currentNovel, chapterOrder: launch.hit.chapterOrder, searchQuery: launch.query,
-                       searchChapterID: launch.hit.chapterId, searchSnapshot: bodySearchSnapshot)
+                       initialChapterID: launch.hit.chapterId, searchSnapshot: bodySearchSnapshot)
         }
         .sheet(isPresented: $showChapterSearch) {
             ChapterListView(

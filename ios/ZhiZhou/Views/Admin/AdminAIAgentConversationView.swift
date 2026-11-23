@@ -7,6 +7,7 @@ struct AdminAIAgentConversationView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var model: AdminAIAgentConversationModel
     @State private var panel: Panel?
+    @State private var chapterLink: ReaderChapterLink?
 
     private enum Panel: Identifiable {
         case outputs, artifact(String), settings, memory, chapterPlan
@@ -31,9 +32,17 @@ struct AdminAIAgentConversationView: View {
     var body: some View {
         VStack(spacing: 0) {
             if model.hasLoaded {
-                AgentMessagesView(model: model, readingOverlay: historyPresented || panel != nil || model.selectedAction != nil,
+                AgentMessagesView(model: model, readingOverlay: historyPresented || panel != nil
+                                  || model.selectedAction != nil || chapterLink != nil,
                                   showArtifact: { panel = .artifact($0) }, showOutputs: { panel = .outputs },
                                   showMemory: { panel = .memory }, showChapterPlan: { panel = .chapterPlan })
+                    .environment(\.openURL, OpenURLAction { url in
+                        guard let site = ServerConfig.shared.baseURL,
+                              let link = ReaderChapterLink(url: url, site: site) else { return .systemAction }
+                        guard model.isCurrentAccount else { return .discarded }
+                        chapterLink = link
+                        return .handled
+                    })
             } else if let error = model.loadError {
                 ContentUnavailableView {
                     Label("暂时无法读取对话", systemImage: "bubble.left.and.exclamationmark.bubble.right")
@@ -49,6 +58,9 @@ struct AdminAIAgentConversationView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .toolbar(.visible, for: .navigationBar)
+        .navigationDestination(item: $chapterLink) { link in
+            SavedChapterDestination(novelID: link.novelID, chapterID: link.chapterID)
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button { panel = .outputs } label: {

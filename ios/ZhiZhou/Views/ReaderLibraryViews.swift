@@ -12,7 +12,8 @@ struct SavedChapterDestination: View {
     var body: some View {
         Group {
             if let launch {
-                ReaderView(novel: launch.novel, chapterOrder: launch.chapterOrder, preloadedChapters: launch.preloadedChapters)
+                ReaderView(novel: launch.novel, chapterOrder: launch.chapterOrder, preloadedChapters: launch.preloadedChapters,
+                           initialChapterID: chapterID)
             } else if let error {
                 ContentUnavailableView {
                     Label("无法打开章节", systemImage: "book.closed")

@@ -181,7 +181,7 @@ struct ReaderView: View {
         preloadedChapters: [ChapterMeta] = [],
         offlineOnly: Bool = false,
         searchQuery: String = "",
-        searchChapterID: String = "",
+        initialChapterID: String = "",
         searchSnapshot: BookSearchSnapshot? = nil
     ) {
         self.novel = novel
@@ -189,7 +189,7 @@ struct ReaderView: View {
         self.offlineOnly = offlineOnly
         _chapterOrder = State(initialValue: chapterOrder)
         _searchQuery = State(initialValue: searchQuery)
-        _requestedChapterID = State(initialValue: searchChapterID)
+        _requestedChapterID = State(initialValue: initialChapterID)
         _searchNeedsJump = State(initialValue: !searchQuery.isEmpty)
         _bodySearchSnapshot = State(initialValue: searchSnapshot)
     }
