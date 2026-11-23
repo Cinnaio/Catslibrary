@@ -80,6 +80,12 @@ export const AGENT_PLAN_BRANCH_NAME_LIMIT = 60
 
 export const AGENT_CHAPTER_PLAN_LIMITS = { title: 200, goal: 1200, beats: 4000, characters: 1200, ending: 1200, constraints: 1200 } as const
 
+export const AGENT_OUTLINE_MIN = 3
+export const AGENT_OUTLINE_MAX = 5
+export const AGENT_OUTLINE_LIMITS = { title: 80, goal: 180, beats: 1000 } as const
+export interface AgentOutlineChapter { title: string; goal: string; beats: string }
+export interface AgentOutline { revision: number; chapters: AgentOutlineChapter[] }
+
 export type AgentContinuationNoteKind = 'question' | 'next_step' | 'author_message' | 'note'
 export interface AgentContinuationNote { kind: AgentContinuationNoteKind; text: string }
 export interface AgentContinuationPreview {
@@ -307,6 +313,7 @@ export interface AgentArtifact {
 export interface AgentSessionDetail {
   chapterPlan?: AgentChapterPlan | null
   chapterPlanBranchesAvailable?: true
+  outlineAvailable?: true
   writingReferences?: AgentWritingReferenceSnapshot[]
   turnUsage?: AgentTurnUsage[]
   messageReceipt?: { requestId: string; taskId: string } | null

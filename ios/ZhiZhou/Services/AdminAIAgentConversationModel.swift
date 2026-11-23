@@ -16,6 +16,7 @@ final class AdminAIAgentConversationModel {
     private(set) var chapterPlan: AIAgentChapterPlan?
     private(set) var supportsChapterPlan = false
     private(set) var supportsPlanBranches = false
+    private(set) var supportsOutline = false
     var tasks: [String: AIAgentTask] = [:]
     var presets: [AIAgentPreset] = []
     var localDraft: AIAgentLocalDraft { didSet { persist() } }
@@ -154,6 +155,7 @@ final class AdminAIAgentConversationModel {
             actions = value.actions
             supportsChapterPlan = value.supportsChapterPlan
             supportsPlanBranches = value.chapterPlanBranchesAvailable == true
+            supportsOutline = value.outlineAvailable == true
             if !value.supportsChapterPlan {
                 chapterPlan = nil
             } else if let plan = value.chapterPlan, plan.revision >= (chapterPlan?.revision ?? 0) {
@@ -358,6 +360,15 @@ final class AdminAIAgentConversationModel {
         await refresh()
         guard isCurrentAccount else { throw CancellationError() }
         return state
+    }
+
+    func applyOutlineChapter(_ index: Int, outlineRevision: Int, planRevision: Int) async throws {
+        guard supportsOutline, canChangeChapterPlan, beginWork() else { throw CancellationError() }
+        defer { working = false }
+        let plan = try await api.applyOutlineChapter(sessionID, index: index, outlineRevision: outlineRevision, planRevision: planRevision)
+        guard isCurrentAccount else { throw CancellationError() }
+        receiveChapterPlan(plan)
+        await refresh()
     }
 
     func resume(_ offer: AIAgentRecovery) async {

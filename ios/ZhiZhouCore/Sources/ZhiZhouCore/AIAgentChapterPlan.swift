@@ -42,3 +42,16 @@ public struct AIAgentPlanBranches: Decodable, Sendable {
     public let plan: AIAgentChapterPlan?
     public let branches: [AIAgentPlanBranch]
 }
+
+public struct AIAgentOutlineChapter: Codable, Sendable {
+    public var title = ""
+    public var goal = ""
+    public var beats = ""
+
+    public init() {}
+}
+
+public struct AIAgentOutline: Decodable, Sendable {
+    public let revision: Int
+    public let chapters: [AIAgentOutlineChapter]
+}

@@ -866,6 +866,7 @@ function AgentConversation({ sessionId, novelId, onSession, onOpenContinuation }
             onProviderChange={setProviderPresetId}
             focusRequest={focusRequest}
             tools={<>{data.chapterPlan !== undefined && <AiAgentChapterPlan key={sessionId} sessionId={sessionId} plan={data.chapterPlan || null} branchesAvailable={data.chapterPlanBranchesAvailable === true}
+              outlineAvailable={data.outlineAvailable === true}
               disabled={busy || running || !!pending} onChanged={reload}
               onDiscuss={prompt => send(prompt, undefined, true)}
               onStart={plan => send('我已确认章节计划第 ' + plan.revision + ' 版《' + plan.title + '》，请按这版计划生成一章草稿，暂不发布。', plan.revision)} />}

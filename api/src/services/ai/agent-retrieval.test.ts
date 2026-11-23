@@ -67,6 +67,30 @@ describe('Agent evidence retrieval', () => {
     })
     expect(result.matchingChapters).toBe(2)
   })
+  it('finds scoped alias and plot matches in directory order without promoting guesses to aliases', async () => {
+    await chapter('first-suspicion', '阿岚觉得师父有事瞒她。', 0)
+    await chapter('other-suspicion', '祭司因此起疑，连夜寄出信件。', -1)
+    await t.db.query('UPDATE chapters SET content=$1 WHERE id=$2', ['林岚又名阿岚。有人说林岚也叫岚影。林岚又名小舟？', 'early'])
+    await t.db.query('UPDATE chapters SET content=$1 WHERE id=$2', ['林岚又名过界。', 'z-tied-future'])
+    await t.db.query('UPDATE chapters SET content=$1 WHERE id=$2', ['林岚又名外书。', 'foreign'])
+
+    const result = await executeAgentTool(t.db, session, 'search_story', {
+      query: '林岚', kind: 'chapter', related: '起疑 有事瞒', order: 'earliest',
+    }, 'search', async () => ({})) as Awaited<ReturnType<typeof searchAgentStory>>
+    expect(result).toMatchObject({ method: 'expanded_keywords', order: 'earliest', relatedTerms: ['起疑', '有事瞒'],
+      aliases: [{ name: '林岚', alias: '阿岚', quote: '林岚又名阿岚', chapterId: 'early' }] })
+    expect(result.sources.slice(0, 2).map(source => source.chapterId)).toEqual(['other-suspicion', 'first-suspicion'])
+    const aliasEvidence = result.sources.find(source => source.chapterId === 'early')!
+    expect(aliasEvidence.excerpt).toContain('林岚又名阿岚')
+    expect(await readAgentChapter(t.db, session, 'early', aliasEvidence.offset, aliasEvidence.revision)).toMatchObject({
+      content: expect.stringContaining('林岚又名阿岚'),
+    })
+    expect((await searchAgentStory(t.db, session, '阿岚', 'chapter')).aliases).toMatchObject([{ name: '林岚', alias: '阿岚' }])
+    expect((await searchAgentStory(t.db, session, '林岚', 'chapter', 0, true)).aliases).toBeUndefined()
+
+    await chapter('duplicate-name', '燕棠也叫阿岚。', 1)
+    expect((await searchAgentStory(t.db, session, '林岚', 'chapter')).aliases).toBeUndefined()
+  })
   it('rejects cross-book, later chapters and chapters after the id tie-breaker', async () => {
     for (const id of ['foreign', 'future', 'z-tied-future']) await expect(readAgentChapter(t.db, session, id)).rejects.toMatchObject({ status: 404 })
     const overview = await executeAgentTool(t.db, session, 'read_overview', {}, 'op', async () => ({}))

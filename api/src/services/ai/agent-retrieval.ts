@@ -6,10 +6,12 @@ import { all, first } from '../../db/query'
 import { escapeLike } from '../text'
 import { AiError } from './client'
 import { getAnalysisReferences, listAnalysisReferences, readAnalysisReference } from './analysis-reference'
+import { findExplicitAliasPairs } from './story-ledger-integrity'
 
 const CHAPTER_BATCH = 6
 const MAX_SOURCES = 10
 const EXCERPT_LENGTH = 900
+const splitTerms = (value: string) => [...new Set(value.trim().split(/[\s,，、;；]+/u).filter(Boolean))]
 type Chapter = { id: string; title: string; content: string; sort_order: number }
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex')
 const sessionPublication = `EXISTS (SELECT 1 FROM ai_agent_artifacts a WHERE a.session_id=$2 AND a.task_id=c.ai_task_id)`
@@ -166,7 +168,43 @@ export async function readAgentAnalysis(db: Db, session: AgentSession, reportId:
     scope: '报告为分析材料，包含推断和人工修订；章节范围并非逐句出处。重要判断按 citations 用 read_chapter 核对原文。' }
 }
 
-/** Lexical retrieval with bounded output; never claims semantic/exhaustive coverage. */
+async function aliasChapterMatches(db: Db, session: AgentSession, anchor: { id: string; order: number }, terms: string[]) {
+  if (!terms.length) return []
+  const rows = await all<Chapter>(db,
+    `SELECT id,title,content,sort_order FROM chapters WHERE novel_id=$1 AND (sort_order,id)<=($2,$3)
+      AND char_length(content)<=80000 AND content ILIKE ANY($4::text[])
+      AND content ~ '又名|别名|化名|也叫|人称|唤作|原名|本名|真名'
+      ORDER BY sort_order DESC,id DESC LIMIT 24`,
+    [session.novelId, anchor.order, anchor.id, terms.map(term => `%${escapeLike(term)}%`)])
+  const wanted = new Set(terms)
+  return rows.flatMap(row => findExplicitAliasPairs(row.content, wanted).map(pair => ({ ...pair, row })))
+}
+
+async function verifiedSearchAliases(db: Db, session: AgentSession, anchor: { id: string; order: number }, terms: string[]) {
+  const names = new Set(terms)
+  const matches = await aliasChapterMatches(db, session, anchor, terms.filter(term => term.length >= 2 && term.length <= 20))
+  const possible = [...new Set(matches.map(pair => names.has(pair.name) ? pair.alias : pair.name))]
+    .filter(term => !names.has(term)).slice(0, 6)
+  if (!possible.length) return []
+  const allowed = new Set(possible)
+  const peers = await aliasChapterMatches(db, session, anchor, possible)
+  const ambiguous = new Set<string>()
+  const owners = new Map<string, string>()
+  for (const { alias, name } of [...matches, ...peers]) {
+    const owner = owners.get(alias)
+    if (owner && owner !== name) ambiguous.add(alias)
+    owners.set(alias, name)
+  }
+  const seen = new Set<string>()
+  return matches.flatMap(({ row, name, alias, quote, offset }) => {
+    const term = names.has(name) ? alias : name
+    if (!allowed.has(term) || ambiguous.has(alias) || seen.has(term)) return []
+    seen.add(term)
+    return [{ term, name, alias, quote, source: chapterEvidence(session, row, offset) }]
+  })
+}
+
+/** Bounded original-text retrieval with optional plot terms and directory order. */
 export async function searchAgentStory(
   db: Db,
   session: AgentSession,
@@ -174,22 +212,37 @@ export async function searchAgentStory(
   kind: 'all' | 'chapter' | 'analysis' = 'all',
   chapterOffset = 0,
   literalPhrase = false,
+  options: { related?: string; order?: 'relevance' | 'earliest' } = {},
 ) {
-  const terms = [...new Set((literalPhrase ? [query.trim()] : query.trim().split(/[\s,，、;；]+/u)).filter(Boolean))]
+  const terms = literalPhrase ? [query.trim()].filter(Boolean) : splitTerms(query)
   if (!terms.length || terms.length > 6 || query.length > 160) throw new AiError('invalid', '请用 1–6 个关键词检索，用空格分开，总长不超过 160 字', 422)
+  const related = literalPhrase ? [] : splitTerms(options.related || '')
+  if (related.length > 4 || (options.related?.length || 0) > 100)
+    throw new AiError('invalid', '相关情节词最多 4 个，总长不超过 100 字', 422)
   const anchor = await agentAnchor(db, session)
+  const aliases = anchor && !literalPhrase && kind !== 'analysis' ? await verifiedSearchAliases(db, session, anchor, terms) : []
+  const aliasTerms = aliases.map(alias => alias.term)
+  const contextTerms = related.filter(term => !terms.includes(term) && !aliasTerms.includes(term))
+  const keywords = [
+    ...terms.map(term => ({ term, textWeight: 5, titleWeight: 8 })),
+    ...aliasTerms.map(term => ({ term, textWeight: 4, titleWeight: 6 })),
+    ...contextTerms.map(term => ({ term, textWeight: 2, titleWeight: 3 })),
+  ]
+  const byChapter = options.order === 'earliest' && !literalPhrase && kind !== 'analysis'
+  const chapterRanks = new Map<string, number>()
   const candidates: Array<{ source: AgentEvidence; score: number }> = []
   const analyses: Array<{ id: string; kind: string; revision: number }> = []
   let analysisLimited = false
   let matchingChapters = 0,
     selectedChapters = 0
-  const patterns = terms.map((term) => new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'iu'))
-  const score = (text: string, title = '') => patterns.reduce((sum, pattern) => sum + (pattern.test(text) ? 5 : 0) + (pattern.test(title) ? 8 : 0), 0)
+  const patterns = keywords.map(keyword => ({ ...keyword, pattern: new RegExp(keyword.term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'iu') }))
+  const score = (text: string, title = '') => patterns.reduce((sum, { pattern, textWeight, titleWeight }) =>
+    sum + (pattern.test(text) ? textWeight : 0) + (pattern.test(title) ? titleWeight : 0), 0)
   let omittedPassages = 0
   function passages(text: string, title: string, create: (offset: number) => AgentEvidence, max = 2) {
     // Bounded candidate windows; regex indices preserve original UTF-16 offsets.
     const positions: number[] = []
-    for (const pattern of patterns) {
+    for (const { pattern } of patterns) {
       let count = 0
       for (const match of text.matchAll(new RegExp(pattern, 'giu'))) {
         positions.push(Math.max(0, match.index! - 180))
@@ -210,19 +263,21 @@ export async function searchAgentStory(
     candidates.push(...chosen.slice(0, max))
   }
   if (anchor && (kind === 'all' || kind === 'chapter')) {
-    const clauses = terms.map((_, index) => `(title ILIKE $${index + 4} ESCAPE '\\' OR content ILIKE $${index + 4} ESCAPE '\\')`)
-    const ranking = terms
+    const clauses = keywords.map((_, index) => `(title ILIKE $${index + 4} ESCAPE '\\' OR content ILIKE $${index + 4} ESCAPE '\\')`)
+    const ranking = keywords
       .map(
-        (_, index) =>
-          `(CASE WHEN title ILIKE $${index + 4} ESCAPE '\\' THEN 8 ELSE 0 END + CASE WHEN content ILIKE $${index + 4} ESCAPE '\\' THEN 5 ELSE 0 END)`,
+        ({ titleWeight, textWeight }, index) =>
+          `(CASE WHEN title ILIKE $${index + 4} ESCAPE '\\' THEN ${titleWeight} ELSE 0 END + CASE WHEN content ILIKE $${index + 4} ESCAPE '\\' THEN ${textWeight} ELSE 0 END)`,
       )
       .join(' + ')
+    const values = [session.novelId, anchor.order, anchor.id, ...keywords.map(({ term }) => `%${escapeLike(term)}%`)]
+    const order = byChapter ? 'sort_order ASC,id ASC' : `(${ranking}) DESC,sort_order DESC,id DESC`
     const rows = await all<Chapter & { total: number }>(
       db,
       `SELECT id,title,content,sort_order,COUNT(*) OVER()::int AS total FROM chapters
        WHERE novel_id=$1 AND (sort_order,id)<=($2,$3) AND (${clauses.join(' OR ')})
-       ORDER BY (${ranking}) DESC,sort_order DESC,id DESC LIMIT ${CHAPTER_BATCH} OFFSET $${terms.length + 4}`,
-      [session.novelId, anchor.order, anchor.id, ...terms.map((term) => `%${escapeLike(term)}%`), chapterOffset],
+       ORDER BY ${order} LIMIT ${CHAPTER_BATCH} OFFSET $${keywords.length + 4}`,
+      [...values, chapterOffset],
     )
     matchingChapters = Number(rows[0]?.total || 0)
     if (!rows.length && chapterOffset)
@@ -231,14 +286,17 @@ export async function searchAgentStory(
           await first<{ total: number }>(
             db,
             `SELECT COUNT(*)::int AS total FROM chapters WHERE novel_id=$1 AND (sort_order,id)<=($2,$3) AND (${clauses.join(' OR ')})`,
-            [session.novelId, anchor.order, anchor.id, ...terms.map((term) => `%${escapeLike(term)}%`)],
+            values,
           )
         )?.total || 0,
       )
     selectedChapters = rows.length
     // One passage per chapter ensures every selected chapter is returned; pagination
     // never skips candidates merely because the combined evidence budget was full.
-    for (const row of rows) passages(row.content, row.title, (offset) => chapterEvidence(session, row, offset), 1)
+    for (const [rank, row] of rows.entries()) {
+      chapterRanks.set(row.id, rank)
+      passages(row.content, row.title, (offset) => chapterEvidence(session, row, offset), 1)
+    }
   }
   if (anchor && kind !== 'chapter') {
     const result = await getAnalysisReferences(db, session.novelId, session.afterChapterId)
@@ -249,9 +307,14 @@ export async function searchAgentStory(
     }
   }
   candidates.sort(
-    (a, b) => b.score - a.score || Number(b.source.kind === 'chapter') - Number(a.source.kind === 'chapter') || a.source.id.localeCompare(b.source.id),
+    (a, b) => (byChapter ? (chapterRanks.get(a.source.chapterId || '') ?? CHAPTER_BATCH) - (chapterRanks.get(b.source.chapterId || '') ?? CHAPTER_BATCH) : 0) ||
+      b.score - a.score || Number(b.source.kind === 'chapter') - Number(a.source.kind === 'chapter') || a.source.id.localeCompare(b.source.id),
   )
-  const sources = candidates.slice(0, MAX_SOURCES).map((candidate) => candidate.source)
+  const sources = candidates.slice(0, MAX_SOURCES - Math.min(aliases.length, 2)).map((candidate) => candidate.source)
+  const resultCount = sources.length
+  for (const { source } of aliases.slice(0, 2)) {
+    if (!sources.some(candidate => candidate.id === source.id)) sources.push(source)
+  }
   return {
     query,
     terms,
@@ -261,9 +324,14 @@ export async function searchAgentStory(
     matchingChapters,
     examinedChapters: selectedChapters,
     nextChapterOffset: matchingChapters > chapterOffset + selectedChapters ? chapterOffset + selectedChapters : null,
-    omittedPassages: omittedPassages + Math.max(0, candidates.length - sources.length),
+    omittedPassages: omittedPassages + Math.max(0, candidates.length - resultCount),
     limited: true,
-    method: 'literal_keywords',
+    method: aliases.length || contextTerms.length ? 'expanded_keywords' : 'literal_keywords',
+    ...(byChapter ? { order: 'earliest' as const } : {}),
+    ...(contextTerms.length ? { relatedTerms: contextTerms } : {}),
+    ...(aliases.length ? { aliases: aliases.map(({ name, alias, quote, source }) => ({
+      name, alias, quote, chapterId: source.chapterId, revision: source.revision, offset: source.offset,
+    })) } : {}),
     scope: '仅当前作品、续写起点及之前章节，以及各主题最新可用分析报告（最多五份）。其他报告可用 list_novel_analyses 分页查阅。关键词匹配不等于穷尽相关事实；没有命中不代表正文不存在。报告是分析材料，重要事实须回读原文。',
     readMore: sources.map((source) => ({
       id: source.id,

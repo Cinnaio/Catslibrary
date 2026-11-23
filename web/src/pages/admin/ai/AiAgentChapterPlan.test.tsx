@@ -4,7 +4,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import type { AgentChapterPlan } from '@shared/ai-agent'
 import AiAgentChapterPlan from './AiAgentChapterPlan'
 
-const api = vi.hoisted(() => ({ saveChapterPlan: vi.fn(), planBranches: vi.fn(), selectPlanBranch: vi.fn() }))
+const api = vi.hoisted(() => ({ saveChapterPlan: vi.fn(), planBranches: vi.fn(), selectPlanBranch: vi.fn(), outline: vi.fn(), applyOutlineChapter: vi.fn() }))
 vi.mock('@/lib/ai-agent-api', () => ({ agentApi: api }))
 const plan: AgentChapterPlan = { version: 1, revision: 3, updatedAt: 1, title: '雨夜', goal: '发现线索', beats: '归家\n拆信', characters: '', ending: '门外响起脚步', constraints: '不揭露身份', targetWords: 2000 }
 const props = () => ({ sessionId: 'session', plan, disabled: false, onChanged: vi.fn(), onStart: vi.fn().mockResolvedValue(undefined), onDiscuss: vi.fn().mockResolvedValue(undefined) })
@@ -95,4 +95,28 @@ it('hides branch management on an older API and while there are unsaved edits', 
   await user.click(screen.getByRole('button', { name: '编辑计划' }))
   expect(screen.queryByRole('button', { name: '分支对比' })).not.toBeInTheDocument()
   expect(api.planBranches).not.toHaveBeenCalled()
+})
+
+it('brings a selected outline chapter to the plan editor flow before any writing call', async () => {
+  const p = props()
+  const user = userEvent.setup()
+  api.outline.mockResolvedValue({ outline: { revision: 7, chapters: [
+    { title: '藏钥匙', goal: '留下伏笔', beats: '把钥匙放进信封' },
+    { title: '开信封', goal: '认出钥匙', beats: '在码头拆信' },
+    { title: '乘船', goal: '离开雨港', beats: '买船票' },
+  ] } })
+  const next = { ...plan, title: '藏钥匙', goal: '留下伏笔', revision: 4, constraints: '将认出钥匙留到后章。' }
+  api.applyOutlineChapter.mockResolvedValue({ plan: next })
+  render(<AiAgentChapterPlan {...p} outlineAvailable />)
+  await user.click(screen.getByRole('button', { name: /章节计划/ }))
+  await user.click(screen.getByRole('button', { name: '多章大纲' }))
+  const select = await screen.findAllByRole('button', { name: '选作章节计划' })
+  await user.click(select[0]!)
+  expect(api.applyOutlineChapter).not.toHaveBeenCalled()
+  await user.click(screen.getByRole('button', { name: '确认设为章节计划' }))
+  expect(api.applyOutlineChapter).toHaveBeenCalledWith('session', 0, 7, 3)
+  expect(await screen.findByText('将认出钥匙留到后章。')).toBeInTheDocument()
+  expect(p.onStart).not.toHaveBeenCalled()
+  await user.click(screen.getByRole('button', { name: '确认计划并写作' }))
+  expect(p.onStart).toHaveBeenCalledExactlyOnceWith(next)
 })

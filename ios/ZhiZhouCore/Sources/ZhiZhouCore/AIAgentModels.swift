@@ -309,10 +309,11 @@ public struct AIAgentDetail: Decodable, Sendable {
     public let chapterPlan: AIAgentChapterPlan?
     public let supportsChapterPlan: Bool
     public let chapterPlanBranchesAvailable: Bool?
+    public let outlineAvailable: Bool?
 
     private enum CodingKeys: String, CodingKey {
         case session, events, hasEarlier, activeTask, artifacts, actions, memories, summary, messageReceipt, recovery
-        case chapterPlan, chapterPlanBranchesAvailable
+        case chapterPlan, chapterPlanBranchesAvailable, outlineAvailable
     }
 
     public init(from decoder: Decoder) throws {
@@ -330,6 +331,7 @@ public struct AIAgentDetail: Decodable, Sendable {
         chapterPlan = try values.decodeIfPresent(AIAgentChapterPlan.self, forKey: .chapterPlan)
         supportsChapterPlan = values.contains(.chapterPlan)
         chapterPlanBranchesAvailable = try values.decodeIfPresent(Bool.self, forKey: .chapterPlanBranchesAvailable)
+        outlineAvailable = try values.decodeIfPresent(Bool.self, forKey: .outlineAvailable)
     }
 
     public func confirmsDelivery(of requestID: String) -> Bool {

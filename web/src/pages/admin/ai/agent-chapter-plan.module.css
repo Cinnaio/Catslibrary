@@ -9,3 +9,13 @@
 @media (max-width: 800px) {
   .actions button, .discussion button { min-height: 48px; }
 }
+.outlineChapter { min-width: 0; margin: 0; padding: 0; border: 0; display: grid; gap: 12px; }
+.outlineChapter legend { padding: 0; margin-bottom: 12px; font-weight: 600; }
+.outlineList { display: grid; gap: 24px; padding-inline-start: 24px; margin: 0; min-width: 0; }
+.outlineList li { min-width: 0; line-height: 1.7; animation: outline-enter 180ms ease both; }
+.outlineList h3 { font-weight: 600; }
+.outlineList p { white-space: pre-wrap; overflow-wrap: anywhere; margin: 4px 0 8px; }
+.outlineList button[aria-pressed='true'] { border-color: var(--text-primary); }
+@keyframes outline-enter { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .outlineList li { animation: none; } }
+@media (max-width: 800px) { .outlineList button { min-height: 48px; } }

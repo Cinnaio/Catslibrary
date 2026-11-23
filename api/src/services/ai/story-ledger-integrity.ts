@@ -1,5 +1,8 @@
 import type { MemoryEntity, MemoryFact } from './story-ledger'
 
+const forwardAlias = '(?:又名|别名(?:是|为)?|化名(?:是|为)?|也叫|人称|唤作)'
+const reverseAlias = '(?:原名(?:为|是)?|本名(?:为|是)?|真名(?:为|是)?)'
+
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 /** Conservative identity evidence. Co-occurrence, shared surnames and partial
@@ -14,13 +17,32 @@ export function aliasIdentityQuote(name: string, alias: string, text: string, pl
   // Arbitrary prose before the name is never accepted as an identity assertion.
   const locations = places.filter((place) => place.length <= 60 && text.includes(place) && !/猜|疑|说|称|传闻|假设|如果|并非/u.test(place)).map(escapeRegExp)
   const title = `(?:(?:${locations.length ? `(?:${locations.join('|')})?` : ''})(?:管理员|检修员|职员|船匠|船长|信使|医师|掌柜|队长))?`
-  const statement = `(?:${title}${canonical}${space}(?:又名|别名(?:是|为)?|化名(?:是|为)?|也叫|人称|唤作)${quotes}${alternative}|${title}${alternative}${space}(?:原名(?:为|是)?|本名(?:为|是)?|真名(?:为|是)?)${quotes}${canonical})`
+  const statement = `(?:${title}${canonical}${space}${forwardAlias}${quotes}${alternative}|${title}${alternative}${space}${reverseAlias}${quotes}${canonical})`
   // Match in the full source, so a clipped identityQuote cannot turn
   // “沈砚猜测林舟又名阿舟” or a question into an asserted identity.
   return new RegExp(`(?:^|[。！？；\\n])\\s*(${statement})(?=$|[“”"‘’「」『』]*[，,。！；\\n])`, 'u').exec(text)?.[1] || ''
 }
 
 export const aliasIdentityGrounded = (name: string, alias: string, text: string) => !!aliasIdentityQuote(name, alias, text)
+
+/** Automatic expansion uses only standalone identity statements in the full source. */
+export function findExplicitAliasPairs(text: string, terms: ReadonlySet<string>) {
+  const name = '([\\p{Script=Han}·]{2,8}?|[a-zA-Z][a-zA-Z0-9_-]{1,19}?)'
+  const space = '[ \t]*'
+  const quotes = '[ \t“”"‘’「」『』]*'
+  const marker = '(' + forwardAlias + '|' + reverseAlias + ')'
+  const statement = new RegExp('(?:^|[。！？；\\n])' + space + '(' + name + space + marker + quotes + name + quotes + ')(?=$|[。！；]|\\r?\\n)', 'gu')
+  const uncertain = /猜|疑|说|传闻|觉得|认为|可能|似乎|也许|莫非|有人|并非|不是|如果|原来|其实|的|吗|呢|吧/u
+  const pairs: Array<{ name: string; alias: string; quote: string; offset: number }> = []
+  for (const match of text.matchAll(statement)) {
+    const [, quote, left, relation, right] = match
+    if (!quote || !left || !relation || !right || left === right || uncertain.test(left) || uncertain.test(right) ||
+        (!terms.has(left) && !terms.has(right))) continue
+    const reverse = /^(原名|本名|真名)/u.test(relation)
+    pairs.push({ name: reverse ? right : left, alias: reverse ? left : right, quote, offset: match.index + match[0].indexOf(quote) })
+  }
+  return pairs
+}
 const sameIds = (a: string[], b: string[]) => [...a].sort().join('\0') === [...b].sort().join('\0')
 export const memoryTopic = (value: string) => value.normalize('NFKC').replace(/[\s，,。:：、]/gu, '')
 const topic = memoryTopic

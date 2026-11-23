@@ -32,6 +32,7 @@ import { agentMemorySource, changeAgentMemory, createAgentMemory, getAgentSummar
 import { agentTaskParams, getAgentRecovery, requireRecoveryTask } from '../services/ai/agent-recovery'
 import { readAgentTurnUsage } from '../services/ai/agent-usage'
 import { readChapterPlan, saveChapterPlan } from '../services/ai/agent-chapter-plan'
+import { applyAgentOutlineChapter, readAgentOutline, saveAgentOutline } from '../services/ai/agent-outline'
 import { changePlanBranch, readPlanBranches, removePlanBranch } from '../services/ai/agent-plan-branches'
 
 import { changeWritingReference, createWritingReference, listWritingReferences, referenceSelection, snapshotWritingReferences } from '../services/ai/agent-writing-references'
@@ -128,6 +129,7 @@ export function createAgentRoutes(dispatch: Dispatch) {
       session,
       chapterPlan: await readChapterPlan(db, c.get('user').id, session.id),
       chapterPlanBranchesAvailable: true,
+      outlineAvailable: true,
       writingReferences: await snapshotWritingReferences(db, c.get('user').id, session.writingReferenceIds || [], false, false),
       messageReceipt: messageReceipt || null,
       ...history,
@@ -145,6 +147,9 @@ export function createAgentRoutes(dispatch: Dispatch) {
     return c.json({ plan: await saveChapterPlan(getDb(), c.get('user').id, c.req.param('id'), body.plan, body.expectedRevision) })
   })
   routes.get('/sessions/:id/chapter-plan/branches', async c => c.json(await readPlanBranches(getDb(), c.get('user').id, c.req.param('id'))))
+  routes.get('/sessions/:id/outline', async c => c.json({ outline: await readAgentOutline(getDb(), c.get('user').id, c.req.param('id')) }))
+  routes.patch('/sessions/:id/outline', async c => c.json({ outline: await saveAgentOutline(getDb(), c.get('user').id, c.req.param('id'), await c.req.json().catch(() => null) || {}) }))
+  routes.post('/sessions/:id/outline/apply', async c => c.json({ plan: await applyAgentOutlineChapter(getDb(), c.get('user').id, c.req.param('id'), await c.req.json().catch(() => null) || {}) }))
   routes.post('/sessions/:id/chapter-plan/branches', async c => c.json(await changePlanBranch(getDb(), c.get('user').id, c.req.param('id'), await c.req.json().catch(() => null))))
   routes.post('/sessions/:id/chapter-plan/branches/:branchId/select', async c => c.json(await changePlanBranch(getDb(), c.get('user').id, c.req.param('id'), await c.req.json().catch(() => null), c.req.param('branchId'))))
   routes.delete('/sessions/:id/chapter-plan/branches/:branchId', async c => c.json(await removePlanBranch(getDb(), c.get('user').id, c.req.param('id'), c.req.param('branchId'))))

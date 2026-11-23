@@ -4,6 +4,8 @@ import type {
   AgentChapterImpactReport,
   AgentContinuationInput,
   AgentContinuationPreview,
+  AgentOutline,
+  AgentOutlineChapter,
   AgentChapterPlanInput,
   AgentChapterPlanBranchState,
   AgentWritingReference,
@@ -25,6 +27,11 @@ import { request } from './api'
 const root = '/ai/agent/sessions'
 const path = (id: string) => `${root}/${encodeURIComponent(id)}`
 export const agentApi = {
+  outline: (id: string) => request<{ outline: AgentOutline | null }>('GET', path(id) + '/outline', null, true),
+  saveOutline: (id: string, chapters: AgentOutlineChapter[], expectedRevision: number) =>
+    request<{ outline: AgentOutline }>('PATCH', path(id) + '/outline', { chapters, expectedRevision }, true),
+  applyOutlineChapter: (id: string, index: number, expectedOutlineRevision: number, expectedPlanRevision: number) =>
+    request<{ plan: AgentChapterPlan }>('POST', path(id) + '/outline/apply', { index, expectedOutlineRevision, expectedPlanRevision }, true),
   planBranches: (id: string) => request<AgentChapterPlanBranchState>('GET', path(id) + '/chapter-plan/branches', null, true),
   savePlanBranch: (id: string, name: string, expectedRevision: number, operationId: string) =>
     request<AgentChapterPlanBranchState>('POST', path(id) + '/chapter-plan/branches', { name, expectedRevision, operationId }, true),

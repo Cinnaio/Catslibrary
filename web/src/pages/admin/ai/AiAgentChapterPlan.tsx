@@ -9,14 +9,16 @@ import FormField from '@/components/shared/FormField'
 import { ReadingDialog } from '@/components/shared/ReadingDialog'
 import styles from './agent-chapter-plan.module.css'
 import AiAgentPlanBranches from './AiAgentPlanBranches'
+import AiAgentOutline from './AiAgentOutline'
 import { chapterPlanLabels as labels, chapterPlanFields as fields } from './agent-chapter-plan-fields'
 
 const empty: AgentChapterPlanInput = { title: '', goal: '', beats: '', characters: '', ending: '', constraints: '', targetWords: 2000 }
 
-export default function AiAgentChapterPlan({ sessionId, plan, branchesAvailable = false, disabled, onChanged, onStart, onDiscuss }: {
+export default function AiAgentChapterPlan({ sessionId, plan, branchesAvailable = false, outlineAvailable = false, disabled, onChanged, onStart, onDiscuss }: {
   sessionId: string
   plan: AgentChapterPlan | null
   branchesAvailable?: boolean
+  outlineAvailable?: boolean
   disabled: boolean
   onChanged: () => void
   onStart: (plan: AgentChapterPlan) => Promise<void>
@@ -24,6 +26,7 @@ export default function AiAgentChapterPlan({ sessionId, plan, branchesAvailable 
 }) {
   const [open, setOpen] = useState(false)
   const [showBranches, setShowBranches] = useState(false)
+  const [showOutline, setShowOutline] = useState(false)
   const [editing, setEditing] = useState<{ input: AgentChapterPlanInput; revision: number } | null>(null)
   const [saved, setSaved] = useState<AgentChapterPlan | null>(null)
   const [busy, setBusy] = useState(false)
@@ -89,7 +92,9 @@ export default function AiAgentChapterPlan({ sessionId, plan, branchesAvailable 
   }
   return <Dialog open={open} onOpenChange={value => { if (!busy) setOpen(value) }}>
     <DialogTrigger asChild><Button type="button" size="sm" variant="ghost">章节计划{current ? ' · 第 ' + current.revision + ' 版' : ''}</Button></DialogTrigger>
-    {open && showBranches ? <AiAgentPlanBranches sessionId={sessionId} disabled={disabled} onBusyChange={setBusy}
+    {open && showOutline ? <AiAgentOutline sessionId={sessionId} currentPlan={current} disabled={disabled} onBack={() => setShowOutline(false)}
+      onBusyChange={setBusy} onApplied={next => { setSaved(next); setShowOutline(false); setError(''); onChanged() }} />
+      : open && showBranches ? <AiAgentPlanBranches sessionId={sessionId} disabled={disabled} onBusyChange={setBusy}
       onBack={() => setShowBranches(false)} onChanged={next => { setSaved(next); onChanged() }}
       onSelected={() => { setEditing(null); setError(''); setShowBranches(false) }} /> : open && <ReadingDialog title="章节计划" description="每段对话保留一张当前计划。请助手拟定或完善计划会调用文本模型；确认计划并写作会生成一章草稿，正文仍需另行采纳。"
       footer={<div className={styles.actions}>
@@ -107,6 +112,7 @@ export default function AiAgentChapterPlan({ sessionId, plan, branchesAvailable 
         <div className={styles.discussion}>
           <p>{current ? '第 ' + current.revision + ' 版 · 可继续讨论，修改不会影响已提交任务。' : '先和助手讨论计划，也可以直接填写。'}</p>
           <Button variant="outline" size="sm" disabled={blocked || !!editing} onClick={() => void discuss()}>{current ? '请助手完善计划' : '请助手拟定计划'}</Button>
+          {outlineAvailable && !editing && <Button variant="outline" size="sm" disabled={busy} onClick={() => setShowOutline(true)}>多章大纲</Button>}
         </div>
         {current?.sourceBranch && <p className={styles.note}>当前走向来自分支「{current.sourceBranch.name}」。核对后仍需确认写作。</p>}
         {error && <div role="alert"><p>{error}</p><Button variant="ghost" size="sm" disabled={busy} onClick={() => { setEditing(null); setSaved(null); setError(''); onChanged() }}>放弃编辑并刷新计划</Button></div>}

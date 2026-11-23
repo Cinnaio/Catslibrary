@@ -11,6 +11,8 @@ struct AgentChapterPlanSheet: View {
     @State private var busy = false
     @State private var error: String?
     @State private var showBranches = false
+    @State private var showOutline = false
+    @State private var outlineEditing = false
     @State private var confirmation: Confirmation?
 
     private enum Confirmation {
@@ -43,7 +45,9 @@ struct AgentChapterPlanSheet: View {
     var body: some View {
         NavigationStack {
             Group {
-                if showBranches {
+                if showOutline {
+                    AgentOutlinePage(model: model, busy: $busy, editing: $outlineEditing) { showOutline = false }
+                } else if showBranches {
                     AgentPlanBranchesView(model: model, busy: $busy) { showBranches = false }
                 } else {
                     planPage.id(editing)
@@ -51,9 +55,9 @@ struct AgentChapterPlanSheet: View {
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    if showBranches {
-                        Button("返回计划", systemImage: "chevron.backward") { showBranches = false }
-                            .labelStyle(.iconOnly).disabled(busy)
+                    if showOutline || showBranches {
+                        Button("返回计划", systemImage: "chevron.backward") { showOutline = false; showBranches = false }
+                            .labelStyle(.iconOnly).disabled(busy || outlineEditing)
                     } else if editing {
                         Button("取消编辑") { confirmation = .discard }.disabled(busy)
                     } else {
@@ -61,7 +65,7 @@ struct AgentChapterPlanSheet: View {
                     }
                 }
             }
-            .interactiveDismissDisabled(busy || editing)
+            .interactiveDismissDisabled(busy || editing || outlineEditing)
             .confirmationDialog(confirmation?.title ?? "", isPresented: Binding(
                 get: { confirmation != nil }, set: { if !$0 { confirmation = nil } }
             ), titleVisibility: .visible, presenting: confirmation) { option in
@@ -149,6 +153,14 @@ struct AgentChapterPlanSheet: View {
                     .buttonStyle(AgentPanelButtonStyle())
                     .disabled(busy)
                 }
+            }
+            if model.supportsOutline {
+                Button("多章大纲", systemImage: "list.bullet.rectangle") {
+                    error = nil
+                    showOutline = true
+                }
+                .buttonStyle(AgentPanelButtonStyle())
+                .disabled(busy)
             }
             AgentPanelNotice("请助手拟定或完善计划会调用当前选定的文本模型。")
         }
@@ -241,6 +253,189 @@ struct AgentChapterPlanSheet: View {
         } else {
             error = model.messageError
         }
+    }
+}
+
+private struct AgentOutlinePage: View {
+    let model: AdminAIAgentConversationModel
+    @Binding var busy: Bool
+    @Binding var editing: Bool
+    let onApplied: () -> Void
+    @State private var outline: AIAgentOutline?
+    @State private var draft: [AIAgentOutlineChapter] = []
+    @State private var revision = 0
+    @State private var chosen: Int?
+    @State private var loading = true
+    @State private var error: String?
+
+    private enum Field: String, CaseIterable {
+        case title, goal, beats
+        var label: String {
+            switch self {
+            case .title: "标题"
+            case .goal: "本章目标"
+            case .beats: "情节步骤"
+            }
+        }
+        var limit: Int {
+            switch self {
+            case .title: 80
+            case .goal: 180
+            case .beats: 1_000
+            }
+        }
+        var path: WritableKeyPath<AIAgentOutlineChapter, String> {
+            switch self {
+            case .title: \.title
+            case .goal: \.goal
+            case .beats: \.beats
+            }
+        }
+    }
+
+    private var stale: Bool { editing && revision != (outline?.revision ?? 0) }
+    private var valid: Bool {
+        draft.allSatisfy { chapter in
+            Field.allCases.allSatisfy { field in
+                let value = chapter[keyPath: field.path]
+                return !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && value.utf16.count <= field.limit
+            }
+        }
+    }
+
+    var body: some View {
+        AgentPanelPage {
+            AgentPanelHeading("多章大纲", detail: "按顺序安排接下来 3 至 5 章。设为章节计划后，可以继续核对和编辑。")
+            if loading { ProgressView("正在读取作品大纲…") }
+            if let error {
+                AgentPanelNotice(error, isError: true)
+                Button("重新读取大纲") { Task { await load(); await model.refresh() } }
+                    .buttonStyle(AgentPanelButtonStyle()).disabled(busy || loading)
+            }
+            if editing {
+                editor
+            } else if let outline {
+                reading(outline)
+            } else if !loading && error == nil {
+                AgentPanelNotice("这本书还没有保存的大纲。")
+                Button("新建大纲") { edit() }.buttonStyle(AgentPanelButtonStyle(prominent: true))
+            }
+        }
+        .task { await load() }
+    }
+
+    private func reading(_ outline: AIAgentOutline) -> some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Text("本书大纲 · 第 \(outline.revision) 版").font(.subheadline).foregroundStyle(ReadingSpace.profileMuted)
+            if let chosen, outline.chapters.indices.contains(chosen) {
+                let title = outline.chapters[chosen].title
+                let text = model.chapterPlan == nil ? "将使用「\(title)」建立当前章节计划。" : "将使用「\(title)」替换当前章节计划。"
+                AgentPanelNotice(text + "写作仍需返回计划确认。")
+                AppAdaptiveRow(spacing: 12) {
+                    Button("取消选择") { self.chosen = nil }.buttonStyle(AgentPanelButtonStyle())
+                    Button("确认设为章节计划") {
+                        Task {
+                            await write {
+                                try await model.applyOutlineChapter(chosen, outlineRevision: outline.revision,
+                                                                    planRevision: model.chapterPlan?.revision ?? 0)
+                                if model.isCurrentAccount { onApplied() }
+                            }
+                        }
+                    }.buttonStyle(AgentPanelButtonStyle(prominent: true))
+                        .disabled(!model.canChangeChapterPlan)
+                }
+            } else {
+                Button("编辑大纲") { edit() }.buttonStyle(AgentPanelButtonStyle())
+            }
+            ForEach(outline.chapters.indices, id: \.self) { index in
+                let chapter = outline.chapters[index]
+                AgentPanelSection("\(index + 1). \(chapter.title)") {
+                    AgentPanelFact(title: "本章目标", value: chapter.goal)
+                    AgentPanelFact(title: "情节步骤", value: chapter.beats)
+                    Button("选作章节计划") { chosen = index }
+                        .buttonStyle(AgentPanelButtonStyle(prominent: chosen == index))
+                        .accessibilityAddTraits(chosen == index ? .isSelected : [])
+                        .disabled(!model.canChangeChapterPlan)
+                }.readingSpaceEntrance(index)
+            }
+        }
+        .disabled(busy || loading)
+    }
+
+    private var editor: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            if stale {
+                AgentPanelNotice("已保存的大纲发生变化，当前编辑仍保留。放弃编辑后可查看新版本。", isError: true)
+            }
+            ForEach(draft.indices, id: \.self) { index in
+                AgentPanelSection("大纲第 \(index + 1) 章") {
+                    ForEach(Field.allCases, id: \.self) { field in
+                        let value = text(index, field)
+                        AgentPanelField(field.label) {
+                            TextField(field.label, text: value, axis: .vertical)
+                                .lineLimit(field == .title ? 1...3 : 2...6)
+                        }
+                        if value.wrappedValue.utf16.count > field.limit {
+                            AgentPanelNotice("\(field.label)最多 \(field.limit) 字。", isError: true)
+                        }
+                    }
+                    if draft.count > 3 {
+                        Button("移除这一章") { draft.remove(at: index) }.buttonStyle(AgentPanelButtonStyle())
+                    }
+                }
+            }
+            if draft.count < 5 {
+                Button("添加一章", systemImage: "plus") { draft.append(.init()) }.buttonStyle(AgentPanelButtonStyle())
+            }
+            AppAdaptiveRow(spacing: 12) {
+                Button("放弃编辑") { editing = false; error = nil }.buttonStyle(AgentPanelButtonStyle())
+                Button("保存大纲") {
+                    Task {
+                        await write {
+                            let saved = try await model.api.saveOutline(model.sessionID, chapters: draft, revision: revision)
+                            guard model.isCurrentAccount else { return }
+                            outline = saved
+                            editing = false
+                        }
+                    }
+                }.buttonStyle(AgentPanelButtonStyle(prominent: true))
+                    .disabled(!valid || stale)
+            }
+        }.disabled(busy || loading)
+    }
+
+    private func text(_ index: Int, _ field: Field) -> Binding<String> {
+        Binding(get: { draft.indices.contains(index) ? draft[index][keyPath: field.path] : "" },
+                set: { if draft.indices.contains(index) { draft[index][keyPath: field.path] = $0 } })
+    }
+
+    private func edit() {
+        revision = outline?.revision ?? 0
+        draft = outline?.chapters ?? Array(repeating: AIAgentOutlineChapter(), count: 3)
+        editing = true
+    }
+
+    private func load() async {
+        guard model.isCurrentAccount else { return }
+        loading = true
+        error = nil
+        chosen = nil
+        defer { loading = false }
+        do {
+            let value = try await model.api.outline(model.sessionID)
+            if model.isCurrentAccount, !Task.isCancelled { outline = value }
+        } catch {
+            if model.isCurrentAccount, !Task.isCancelled { self.error = AppCopy.friendlyError(error) }
+        }
+    }
+
+    private func write(_ operation: () async throws -> Void) async {
+        guard !busy, !loading, model.isCurrentAccount else { return }
+        busy = true
+        error = nil
+        defer { busy = false }
+        do { try await operation() }
+        catch { if model.isCurrentAccount { self.error = AppCopy.friendlyError(error) } }
     }
 }
 

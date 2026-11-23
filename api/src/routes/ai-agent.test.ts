@@ -16,7 +16,7 @@ import { setAgentPhase } from '../services/ai/agent-recovery'
 import { generationContentRevision } from '../services/ai/generations'
 import { replaceCoverForAdmin } from '../services/covers'
 import { AiError, type AiToolCall } from '../services/ai/client'
-import type { AgentAction, AgentChapterImpactReport, AgentContinuationPreview, AgentSession, AgentSessionDetail } from '@shared/ai-agent'
+import type { AgentAction, AgentChapterImpactReport, AgentChapterPlan, AgentContinuationPreview, AgentSession, AgentSessionDetail } from '@shared/ai-agent'
 import { subscribeAiTask } from '../services/ai/task-events'
 import { buildChapterEditParams, chapterRevision } from '../services/ai/chapter-edit'
 import { activeAgentMemories, changeAgentMemory, createAgentMemory, getAgentSummary, listAgentMemories, saveAgentSummary } from '../services/ai/agent-memory'
@@ -249,6 +249,40 @@ function request(path: string, method = 'GET', body?: unknown, token = adminToke
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   })
 }
+
+it('shares an outline across own book conversations and snapshots an explicitly chosen chapter plan', async () => {
+  const source = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+  const next = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+  const other = await createAgentSession(t.db, 'other', { novelId: 'novel' })
+  const outlinePath = (session: AgentSession) => `/api/ai/agent/sessions/${session.id}/outline`
+  const chapters = [
+    { title: '雨夜', goal: '先埋下铜钥匙线索', beats: '她看见了挂在门上的钥匙。' },
+    { title: '门后', goal: '让她认出钥匙的主人', beats: '她请师父指认钥匙。' },
+    { title: '远行', goal: '决定出发', beats: '她把行囊收进柜子。' },
+  ]
+  const path = outlinePath(source)
+  expect((await request(path, 'PATCH', { expectedRevision: 0, chapters: chapters.slice(0, 2) })).status).toBe(422)
+  expect(await (await request(path, 'PATCH', { expectedRevision: 0, chapters })).json()).toEqual({ outline: { revision: 1, chapters } })
+  expect(await (await request(outlinePath(next))).json()).toEqual({ outline: { revision: 1, chapters } })
+  expect(await (await request(outlinePath(other), 'GET', undefined, otherToken)).json()).toEqual({ outline: null })
+  expect((await request(path, 'GET', undefined, otherToken)).status).toBe(404)
+  const apply = outlinePath(next) + '/apply'
+  expect((await request(apply, 'POST', { index: 0, expectedOutlineRevision: 2, expectedPlanRevision: 0 })).status).toBe(409)
+  const input = { index: 0, expectedOutlineRevision: 1, expectedPlanRevision: 0 }
+  const response = await request(apply, 'POST', input)
+  expect(response.status).toBe(200)
+  const { plan } = await response.json() as { plan: AgentChapterPlan }
+  expect(plan).toMatchObject({ ...chapters[0], revision: 1, targetWords: 2000,
+    constraints: expect.stringContaining('《门后》：让她认出钥匙的主人') })
+  expect((await request(apply, 'POST', { ...input, index: 1 })).status).toBe(409)
+  expect((await request(path, 'PATCH', { expectedRevision: 0, chapters })).status).toBe(409)
+  expect((await request(path, 'PATCH', { expectedRevision: 1, chapters: [...chapters, { title: '归来', goal: '回到城里', beats: '雨停了。' }] })).status).toBe(200)
+  expect(fetchMock).not.toHaveBeenCalled()
+  expect((await readAgentEvents(t.db, next.id)).events).toEqual([])
+
+  const turn = await beginAgentTurn(t.db, 'admin', next.id, '确认按计划写作。', 'outline-plan-write', undefined, '', undefined, plan.revision)
+  expect(JSON.parse((await getAiTask(t.db, turn.taskId))!.params || '{}').chapterPlan).toEqual(plan)
+})
 
 it('starts one follow-up from the saved publication and carries only the selected notes', async () => {
   const novelId = 'continuation-novel'

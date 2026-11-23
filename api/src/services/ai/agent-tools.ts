@@ -55,10 +55,12 @@ export const AGENT_TOOLS: AiFunctionTool[] = [
   tool('search_chapters', '在起点之前的正式章节中搜索原文或标题，返回命中片段和章节 ID。只做字面检索，不代表没有其他相关内容。', {
     query: { type: 'string', maxLength: 100 },
   }),
-  tool('search_story', '按人物名、地点、物品或情节关键词检索章节原文和可用小说分析。用空格分开 1–6 个关键词，按匹配排序，返回片段、来源和继续读取参数。报告不是原文；无命中不代表事实不存在。', {
+  tool('search_story', '用 1–6 个原文关键词检索人物和情节。正文中明确写出的别名可参与检索，related 提供至多 4 个情节近义词；查找第一次出现可用 earliest。返回原文片段及回读入口。匹配词、分析报告和别名候选都不能代替对具体情节的原文核对。', {
     query: { type: 'string', maxLength: 160 },
     kind: { type: 'string', enum: ['all', 'chapter', 'analysis'] },
     chapterOffset: { type: 'integer', minimum: 0, maximum: 1000000 },
+    related: { type: 'string', maxLength: 100, description: '用空格分开至多 4 个可能出现在正文里的具体动作、场景或情节近义说法，避免使用代词和时间问词。' },
+    order: { type: 'string', enum: ['relevance', 'earliest'] },
   }, ['query']),
   tool(
     'read_chapter',
@@ -271,7 +273,8 @@ export async function executeAgentTool(
       limited: true,
     }
   }
-  if (name === 'search_story') return searchAgentStory(db, session, String(a.query), a.kind as 'all' | 'chapter' | 'analysis' | undefined, Number(a.chapterOffset || 0))
+  if (name === 'search_story') return searchAgentStory(db, session, String(a.query), a.kind as 'all' | 'chapter' | 'analysis' | undefined,
+    Number(a.chapterOffset || 0), false, { related: typeof a.related === 'string' ? a.related : undefined, order: a.order === 'earliest' ? 'earliest' : undefined })
   if (name === 'read_chapter')
     return readAgentChapter(db, session, String(a.chapterId), Number(a.offset || 0), String(a.expectedRevision || ''), String(a.quote || '').trim(), a.scope === 'edit')
   if (name === 'list_novel_analyses') return listAgentAnalyses(db, session, Number(a.offset || 0))

@@ -69,6 +69,29 @@ struct AdminAgentAPI {
         try await AdminAPI.parityRequest("GET", Self.path(id) + "/chapter-plan/branches", token: token)
     }
 
+    func outline(_ id: String) async throws -> AIAgentOutline? {
+        struct Response: Decodable { let outline: AIAgentOutline? }
+        let result: Response = try await AdminAPI.parityRequest("GET", Self.path(id) + "/outline", token: token)
+        return result.outline
+    }
+
+    func saveOutline(_ id: String, chapters: [AIAgentOutlineChapter], revision: Int) async throws -> AIAgentOutline {
+        struct Response: Decodable { let outline: AIAgentOutline }
+        let result: Response = try await AdminAPI.parityRequest("PATCH", Self.path(id) + "/outline", body: [
+            "chapters": chapters.map { ["title": $0.title, "goal": $0.goal, "beats": $0.beats] },
+            "expectedRevision": revision
+        ], token: token)
+        return result.outline
+    }
+
+    func applyOutlineChapter(_ id: String, index: Int, outlineRevision: Int, planRevision: Int) async throws -> AIAgentChapterPlan {
+        struct Response: Decodable { let plan: AIAgentChapterPlan }
+        let result: Response = try await AdminAPI.parityRequest("POST", Self.path(id) + "/outline/apply", body: [
+            "index": index, "expectedOutlineRevision": outlineRevision, "expectedPlanRevision": planRevision
+        ], token: token)
+        return result.plan
+    }
+
     enum PlanBranchChange {
         case save(name: String, revision: Int, operationID: String)
         case select(branchID: String, revision: Int, operationID: String)
