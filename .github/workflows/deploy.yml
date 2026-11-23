@@ -1,9 +1,16 @@
 name: Deploy
+run-name: >-
+  Deploy · ${{ inputs.build_only && '仅构建' || '生产部署' }} · ${{ inputs.core_ref }} · #${{ github.run_number }}${{ inputs.run_title && format(' · {0}', inputs.run_title) || '' }}
 
 # Public standard runner; private sources and archives stay on this one ephemeral runner.
 on:
   workflow_dispatch:
     inputs:
+      run_title:
+        description: '标题说明（可选，如 commit 标题或版本备注）'
+        required: false
+        default: ''
+        type: string
       core_ref:
         description: '核心分支、标签或完整 SHA'
         required: true

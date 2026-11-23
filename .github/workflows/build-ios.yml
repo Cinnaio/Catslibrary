@@ -5,10 +5,18 @@
 #   GitHub Secrets，用 fastlane match 或 xcodebuild -exportArchive 产出签名 ipa / TestFlight
 
 name: Build and Test iOS (unsigned IPA)
+run-name: >-
+  Build iOS · ${{ github.ref_name }} · #${{ github.run_number }} · ${{ inputs.run_title || github.sha }}
 
 on:
   # 在 Actions 中选择分支并手动运行，推送与 PR 均不自动构建 IPA。
   workflow_dispatch:
+    inputs:
+      run_title:
+        description: '标题说明（可选，如 commit 标题或版本备注；留空显示提交 SHA）'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
