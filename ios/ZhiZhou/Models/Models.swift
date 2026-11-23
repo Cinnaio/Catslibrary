@@ -102,6 +102,7 @@ struct ChapterMeta: Codable, Identifiable, Hashable {
 }
 
 struct ChapterFull: Codable {
+    var revision: String? = nil
     let id: String
     let novelId: String
     let title: String

@@ -84,3 +84,12 @@ it('preserves reading facts after deleting a novel, without exposing its old tit
   const stats = (await (await call('?contentMode=safe')).json()) as ReadingStats
   expect(stats.novels.find((n) => n.id === 'gone')).toMatchObject({ title: '已删除作品', available: false, milliseconds: 30000 })
 })
+
+it('does not reveal restricted chapter existence to a reader without access', async () => {
+  const now = Date.now() - 1000
+  const events = ['secret', 'absent'].map(id => ({ id: id + '-probe', sessionId: 'probe', novelId: id, chapterId: id + '-c', start: now - 30000, end: now }))
+  const safe = await call('/events?contentMode=safe', 'POST', { userId, events })
+  expect(await safe.json()).toEqual({ success: true, deferredIds: [] })
+  expect((await call('/events?contentMode=adult', 'POST', { userId, events })).status).toBe(403)
+  expect((await t.db.query("SELECT id FROM reading_stat_events WHERE id LIKE '%-probe'")).rows).toHaveLength(0)
+})

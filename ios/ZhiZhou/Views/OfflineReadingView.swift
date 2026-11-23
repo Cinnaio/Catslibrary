@@ -161,13 +161,13 @@ struct OfflineReadingView: View {
                         Button {
                             showClearConfirm = true
                         } label: {
-                            if isRemovingAll {
+                            if isRemovingAll || offlineStore.isRemovingAll {
                                 ProgressView()
                             } else {
                                 Image(systemName: "trash")
                             }
                         }
-                        .disabled(isRemovingAll)
+                        .disabled(isRemovingAll || offlineStore.isRemovingAll)
                         .accessibilityLabel("清除全部离线章节")
                     }
                 }
@@ -200,7 +200,7 @@ struct OfflineReadingView: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("已下载的章节会从本机删除，需要时可以重新下载。")
+            Text("将停止正在进行的下载，并在写入结束后清除已下载章节，需要时可以重新下载。")
         }
         .confirmationDialog(
             "删除所选书籍？",

@@ -62,6 +62,7 @@ bookmarksRoutes.put('/', requireUser(), async (c) => {
   })
   const deduped = [...byChapter.values()]
   const access = await resolveContentAccess(c)
+  const allowRestricted = access.canViewRestricted && c.req.query('contentMode') !== 'safe'
   for (const b of deduped) {
     const { rows } = await db.query<{ title: string; chapter_title: string; sort_order: number; content_rating: string }>(
       `SELECT n.title, ch.title AS chapter_title, ch.sort_order, n.content_rating FROM chapters ch JOIN novels n ON n.id = ch.novel_id WHERE n.id = $1 AND ch.id = $2 AND ${visibleNovelSql(c)}`,
@@ -69,7 +70,9 @@ bookmarksRoutes.put('/', requireUser(), async (c) => {
     )
     const row = rows[0]
     if (!row) return c.json({ error: '书签章节不存在或不属于该小说' }, 400)
-    if (row.content_rating === 'restricted' && !access.canViewRestricted) return restrictedContentResponse(c, access.reason)
+    if (row.content_rating === 'restricted' && !allowRestricted) {
+      return restrictedContentResponse(c, c.req.query('contentMode') === 'safe' ? 'safe_mode' : access.reason)
+    }
     b.novelTitle = row.title
     b.chapterTitle = row.chapter_title
     b.chapterOrder = row.sort_order
@@ -88,7 +91,7 @@ bookmarksRoutes.put('/', requireUser(), async (c) => {
 
   await withTx(db, async (q) => {
     // 安全模式的完整列表不包含隐藏作品，不能误删原有 R18 书签。
-    await q(`DELETE FROM user_bookmarks b WHERE b.user_id = $1 AND EXISTS (SELECT 1 FROM novels n WHERE n.id=b.novel_id AND ${visibleNovelSql(c)}) AND ($2 OR NOT EXISTS (SELECT 1 FROM novels n WHERE n.id = b.novel_id AND n.content_rating = 'restricted'))`, [userId, access.canViewRestricted])
+    await q(`DELETE FROM user_bookmarks b WHERE b.user_id = $1 AND EXISTS (SELECT 1 FROM novels n WHERE n.id=b.novel_id AND ${visibleNovelSql(c)}) AND ($2 OR NOT EXISTS (SELECT 1 FROM novels n WHERE n.id = b.novel_id AND n.content_rating = 'restricted'))`, [userId, allowRestricted])
     for (const [sql, p] of inserts) await q(sql, p)
   })
   return c.json({ success: true, count: inserts.length })

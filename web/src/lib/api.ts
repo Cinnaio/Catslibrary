@@ -450,7 +450,7 @@ export const chaptersApi = {
   create(data: Record<string, unknown>): Promise<{ chapter: ChapterMeta }> {
     return request('POST', '/chapters', data, true)
   },
-  update(id: string, data: Record<string, unknown>): Promise<{ chapter: ChapterMeta }> {
+  update(id: string, data: Record<string, unknown> & { baseRevision: string }): Promise<{ chapter: ChapterFull }> {
     return request('PUT', `/chapters/${encodeURIComponent(id)}`, data, true)
   },
   remove(id: string): Promise<{ ok: boolean }> {
@@ -3000,7 +3000,7 @@ export const readingStatsApi = {
   get(start: number, end: number, contentMode: string): Promise<ReadingStats> {
     return request('GET', `/reading-stats?start=${start}&end=${end}&contentMode=${contentMode}`, null, true)
   },
-  events(userId: string, events: ReadingEvent[], contentMode: string): Promise<{ success: boolean }> {
+  events(userId: string, events: ReadingEvent[], contentMode: string): Promise<{ success: boolean; deferredIds?: string[] }> {
     return request('POST', `/reading-stats/events?contentMode=${contentMode}`, { userId, events }, true)
   },
 }

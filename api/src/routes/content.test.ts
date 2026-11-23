@@ -144,7 +144,8 @@ describe('内容 API 端到端（pglite）', () => {
     const { chapters: list2 } = await jsonOf<{ chapters: Array<{ id: string }> }>(chapters)
     const first = list2[0]!.id
 
-    const upd = await req(`/api/chapters/${first}`, json('PUT', { title: '第一章 改名', content: '新内容' }, adminToken))
+    const base = await jsonOf<{ chapter: { revision: string } }>(await req(`/api/chapters/${first}`, json('GET', undefined, adminToken)))
+    const upd = await req(`/api/chapters/${first}`, json('PUT', { baseRevision: base.chapter.revision, title: '第一章 改名', content: '新内容' }, adminToken))
     expect(upd.status).toBe(200)
     const updData = await jsonOf<{ chapter: { title: string; wordCount: number } }>(upd)
     expect(updData.chapter.title).toBe('第一章 改名')

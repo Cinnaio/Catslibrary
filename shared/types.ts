@@ -83,6 +83,8 @@ export interface ChapterMeta {
 }
 
 export interface ChapterFull extends ChapterMeta {
+  /** Present on fresh chapter reads; older cached chapters may omit it. */
+  revision?: string
   content: string
 }
 

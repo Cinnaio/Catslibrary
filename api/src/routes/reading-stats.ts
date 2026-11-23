@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { requireUser, type AuthEnv } from '../middlewares/auth'
 import { getDb } from '../db/pool'
-import { contentPolicyHeaders, resolveContentAccess } from '../services/content-access'
+import { contentPolicyHeaders, restrictedContentResponse, resolveContentAccess } from '../services/content-access'
 import { aggregateReading, type StatEvent } from '../services/reading-stats'
 import { checkContentRate } from '../services/content-rate-limit'
 import type { ReadingEvent } from '@shared/reading-stats'
@@ -39,18 +39,22 @@ readingStatsRoutes.post('/events', async (c) => {
   const userId = c.get('user').id
   if (body.userId !== userId) return c.json({ error: '账号已变化' }, 409)
   const access = await resolveContentAccess(c)
+  if (c.req.query('contentMode') === 'adult' && !access.canViewRestricted) return restrictedContentResponse(c, access.reason)
   const allowRestricted = access.canViewRestricted && c.req.query('contentMode') !== 'safe'
   const db = getDb()
   const chapterIds = [...new Set(events.map((e) => e.chapterId))]
   const { rows } = await db.query<{ id: string; novel_id: string; content_rating: string }>(
     `SELECT ch.id,ch.novel_id,n.content_rating FROM chapters ch JOIN novels n ON n.id=ch.novel_id
      WHERE ${visibleNovelSql(c)} AND ch.id=ANY($1::text[]) AND ($2 OR COALESCE(n.content_rating,'unknown')<>'restricted')`,
-    [chapterIds, allowRestricted],
+    [chapterIds, access.canViewRestricted],
   )
   const valid = new Map(rows.map((r) => [r.id, r]))
-  // Inaccessible/deleted records are acknowledged but never persisted, so a stale offline queue can drain.
+  // Keep accessible events hidden only by safe mode for a later retry.
+  const deferredIds = events.filter(e => valid.get(e.chapterId)?.novel_id === e.novelId &&
+    valid.get(e.chapterId)?.content_rating === 'restricted' && !allowRestricted).map(e => e.id)
+  // Deleted/invisible/mismatched records can still drain without revealing their contents.
   const accepted = events
-    .filter((e) => valid.get(e.chapterId)?.novel_id === e.novelId)
+    .filter((e) => valid.get(e.chapterId)?.novel_id === e.novelId && (allowRestricted || valid.get(e.chapterId)?.content_rating !== 'restricted'))
     .map((e) => ({ ...e, contentRating: valid.get(e.chapterId)!.content_rating }))
   if (accepted.length) {
     await db.query(
@@ -61,7 +65,7 @@ readingStatsRoutes.post('/events', async (c) => {
       [userId, JSON.stringify(accepted), now],
     )
   }
-  return c.json({ success: true }, 200, contentPolicyHeaders())
+  return c.json({ success: true, deferredIds }, 200, contentPolicyHeaders())
 })
 readingStatsRoutes.get('/', async (c) => {
   const now = Date.now()

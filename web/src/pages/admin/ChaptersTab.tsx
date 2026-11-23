@@ -61,6 +61,7 @@ interface IndexNovel {
 }
 
 interface ChapterDraft {
+  baseRevision?: string
   order: number
   title: string
   content: string
@@ -315,10 +316,10 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
       setModal({ open: true, chapter, loading: true })
       try {
         const data = await chaptersApi.get(chapter.id)
-        const full = (data as { chapter?: { content?: string } }).chapter || (data as { content?: string })
+        const full = data.chapter
         if (requestId !== chapterRequest.current) return
-        if (typeof full.content !== 'string') throw new Error('章节正文返回异常')
-        setDraft({ order: chapter.order, title: chapter.title, content: full.content })
+        if (typeof full.content !== 'string' || !full.revision) throw new Error('章节版本返回异常')
+        setDraft({ order: full.order, title: full.title, content: full.content, baseRevision: full.revision })
       } catch {
         if (requestId === chapterRequest.current) setChapterLoadError('正文加载失败，请重试后再保存。')
       } finally {
@@ -343,7 +344,8 @@ export default function ChaptersTab({ mergeNovel, onMergeClose, onMergeApplied }
     setChapterSaving(true)
     try {
       if (modal.chapter) {
-        await chaptersApi.update(modal.chapter.id, { novelId: modal.chapter.novelId, title: draft.title.trim(), content: draft.content, order: draft.order })
+        if (!draft.baseRevision) throw new Error('请重新读取章节后再保存')
+        await chaptersApi.update(modal.chapter.id, { novelId: modal.chapter.novelId, title: draft.title.trim(), content: draft.content, order: draft.order, baseRevision: draft.baseRevision })
         toast('章节已更新', 'success')
       } else {
         await chaptersApi.create({ novelId: selectedNovel, title: draft.title.trim(), content: draft.content, order: draft.order })

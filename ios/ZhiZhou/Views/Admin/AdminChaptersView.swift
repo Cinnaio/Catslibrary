@@ -952,6 +952,7 @@ private struct ChapterEditSheet: View {
     @FocusState private var focusedField: Field?
     private enum Field: Hashable { case title, content }
     @State private var detailLoaded = false
+    @State private var baseRevision: String?
     @State private var loadingDetail = false
     @State private var saving = false
     @State private var errorMessage: String?
@@ -1042,7 +1043,14 @@ private struct ChapterEditSheet: View {
             defer { loadingDetail = false }
             do {
                 let full = try await AdminAPI.chapterDetail(id: chapter.id)
+                guard let revision = full.revision, !revision.isEmpty else {
+                    errorMessage = "章节版本缺失，请确认服务端已更新后重试。"
+                    return
+                }
+                title = full.title
+                order = full.order
                 content = full.content
+                baseRevision = revision
                 detailLoaded = true
             } catch {
                 errorMessage = AppCopy.friendlyError(error)
@@ -1062,7 +1070,11 @@ private struct ChapterEditSheet: View {
             defer { saving = false }
             do {
                 if let chapter {
-                    let full = try await AdminAPI.updateChapter(id: chapter.id, ["title": trimmedTitle, "content": content, "order": order])
+                    guard let baseRevision else {
+                        errorMessage = "请重新读取章节后再保存。"
+                        return
+                    }
+                    let full = try await AdminAPI.updateChapter(id: chapter.id, baseRevision: baseRevision, ["title": trimmedTitle, "content": content, "order": order])
                     let meta = ChapterMeta(
                         id: full.id, novelId: full.novelId, title: full.title, order: full.order,
                         wordCount: full.wordCount, sourceUrl: full.sourceUrl, createdAt: full.createdAt

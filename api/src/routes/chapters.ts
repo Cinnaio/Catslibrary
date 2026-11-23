@@ -7,6 +7,7 @@ import { getDb } from '../db/pool'
 import { all, first, run, withTx } from '../db/query'
 import { rowToChapterFull, rowToChapterMeta } from '../db/mappers'
 import { newId } from '../services/auth'
+import { chapterWriteRevision } from '../services/chapter-write-revision'
 import { simplifyChapterForSource } from '../services/zh-convert'
 import { optionalUser, requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { contentPolicyHeaders, restrictedContentResponse, resolveContentAccess } from '../services/content-access'
@@ -111,44 +112,47 @@ chaptersRoutes.get('/:id', optionalUser(), async (c) => {
   const protection = await checkChapterProtection(c, { chapterId: id, novelId: String(row.novel_id) }, policy)
   if (protection) return protection
   const chapter = rowToChapterFull(row)!
+  const revision = chapterWriteRevision(chapter)
   // Native search navigation reads the exact same visible text used by the search service.
   if (c.req.query('format') === 'text') chapter.content = searchableChapterText(chapter.content)
-  return c.json({ chapter }, 200, contentPolicyHeaders())
+  return c.json({ chapter: { ...chapter, revision } }, 200, contentPolicyHeaders())
 })
 
 chaptersRoutes.put('/:id', requireAdmin(), async (c) => {
   const db = getDb()
   const id = c.req.param('id')
-  const row = await first<Record<string, unknown>>(db, 'SELECT * FROM chapters WHERE id = $1', [id])
-  if (!row) return c.json({ error: 'Chapter not found' }, 404)
+  const body = await c.req.json().catch(() => null)
+  if (typeof body?.baseRevision !== 'string' || !body.baseRevision) {
+    return c.json({ error: '缺少章节版本，请更新客户端并重新读取章节后再保存', code: 'chapter_revision_required' }, 428)
+  }
 
-  const existing = rowToChapterFull(row)!
-  const body = await c.req.json().catch(() => ({}))
-  const now = Date.now()
-
-  const title = body.title ?? existing.title
-  const content = body.content ?? existing.content
-  const order = body.order ?? existing.order
-  const sourceUrl = body.sourceUrl ?? existing.sourceUrl
-  const wordCount = content.replace(/<[^>]*>/g, '').length
-  const novelId = body.novelId || existing.novelId
-  if (novelId !== existing.novelId) return c.json({ error: 'Chapter does not belong to this novel' }, 400)
-
-  await withTx(db, async (q) => {
-    await q('UPDATE chapters SET title=$1, content=$2, sort_order=$3, word_count=$4, source_url=$5 WHERE id=$6', [
-      title,
-      content,
-      order,
-      wordCount,
-      sourceUrl,
-      id,
-    ])
-    await q('UPDATE novels SET updated_at = $1 WHERE id = $2', [now, novelId])
+  return withTx(db, async (q) => {
+    // Read and compare under the same row lock as the write. Other writers need no revision column.
+    const { rows } = await q<Record<string, unknown>>('SELECT * FROM chapters WHERE id = $1 FOR UPDATE', [id])
+    const existing = rowToChapterFull(rows[0])
+    if (!existing) return c.json({ error: 'Chapter not found' }, 404)
+    if (body.baseRevision !== chapterWriteRevision(existing)) {
+      return c.json({ error: '章节已被其他操作更新，本次未保存。当前草稿仍保留，请先备份草稿，再重新打开章节核对最新内容。', code: 'chapter_conflict' }, 409)
+    }
+    const novelId = body.novelId || existing.novelId
+    if (novelId !== existing.novelId) return c.json({ error: 'Chapter does not belong to this novel' }, 400)
+    const title = body.title ?? existing.title
+    const content = body.content ?? existing.content
+    const order = body.order ?? existing.order
+    const sourceUrl = body.sourceUrl ?? existing.sourceUrl
+    if (typeof title !== 'string' || typeof content !== 'string' || typeof sourceUrl !== 'string' || !Number.isSafeInteger(order)) {
+      return c.json({ error: '章节字段无效' }, 400)
+    }
+    const wordCount = content.replace(/<[^>]*>/g, '').length
+    const updated = await q<Record<string, unknown>>(
+      'UPDATE chapters SET title=$1, content=$2, sort_order=$3, word_count=$4, source_url=$5 WHERE id=$6 RETURNING *',
+      [title, content, order, wordCount, sourceUrl, id],
+    )
+    await q('UPDATE novels SET updated_at = $1 WHERE id = $2', [Date.now(), novelId])
+    // 正文变化时由数据库触发器在同一事务内作废提要；标题更新不作废。
+    const chapter = rowToChapterFull(updated.rows[0])!
+    return c.json({ chapter: { ...chapter, revision: chapterWriteRevision(chapter) } })
   })
-
-  // 正文变化时由数据库触发器在同一事务内作废提要；标题更新不作废。
-
-  return c.json({ chapter: { id, novelId, title, content, order, wordCount, sourceUrl, createdAt: existing.createdAt } })
 })
 
 chaptersRoutes.delete('/:id', requireAdmin(), async (c) => {

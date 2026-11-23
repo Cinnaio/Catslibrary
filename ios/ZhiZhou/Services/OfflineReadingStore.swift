@@ -30,6 +30,16 @@ final class OfflineReadingStore {
     private let defaults: UserDefaults
     private let preserveChapter: (String, String) async throws -> Bool
     private let removeChapter: (String, String) async -> Void
+    private let downloadChapter: (String, String) async throws -> Void
+    private let hasChapter: (String, String) async -> Bool
+    private struct DownloadJob {
+        let session: Session
+        let chapterID: String
+        let task: Task<Void, Error>
+    }
+    private var downloadJobs: [UUID: DownloadJob] = [:]
+    private var clearingUserIDs: Set<String> = []
+    var isRemovingAll: Bool { activeUserID.map { clearingUserIDs.contains($0) } ?? false }
     private var sessionGeneration = UUID()
     private var manifestRevision = UUID()
     private(set) var activeUserID: String?
@@ -51,11 +61,19 @@ final class OfflineReadingStore {
         },
         removeChapter: @escaping (String, String) async -> Void = { chapterID, userID in
             await APIClient.shared.removeCachedChapter(id: chapterID, userID: userID)
+        },
+        downloadChapter: @escaping (String, String) async throws -> Void = { chapterID, userID in
+            try await APIClient.shared.downloadChapter(id: chapterID, userID: userID)
+        },
+        hasChapter: @escaping (String, String) async -> Bool = { chapterID, userID in
+            await APIClient.shared.hasCachedChapter(id: chapterID, userID: userID)
         }
     ) {
         self.defaults = defaults
         self.preserveChapter = preserveChapter
         self.removeChapter = removeChapter
+        self.downloadChapter = downloadChapter
+        self.hasChapter = hasChapter
         self.books = []
     }
 
@@ -158,7 +176,7 @@ final class OfflineReadingStore {
             lastError = "限制级作品仅支持在线阅读，暂不支持离线下载。"
             return
         }
-        guard let session = currentSession, batchNovelID == nil else { return }
+        guard let session = currentSession, !isRemovingAll, batchNovelID == nil else { return }
 
         batchNovelID = novel.id
         batchCompleted = 0
@@ -254,8 +272,20 @@ final class OfflineReadingStore {
     /// 删除离线目录中的全部章节；不影响尚未登记的普通阅读缓存。
     @discardableResult
     func removeAll() async -> Bool {
-        guard let session = currentSession else { return false }
-        let chapterIDs = books.flatMap { $0.chapters.map(\.id) }
+        guard let previousSession = currentSession, !isRemovingAll else { return false }
+        let pending = downloadJobs.values.filter { $0.session.userID == previousSession.userID }
+        let chapterIDs = Set(books.flatMap { $0.chapters.map(\.id) } + pending.map(\.chapterID))
+        clearingUserIDs.insert(previousSession.userID)
+        defer { clearingUserIDs.remove(previousSession.userID) }
+
+        // Invalidate old batch/refresh callbacks before suspending, including same-account work.
+        sessionGeneration = UUID()
+        let session = Session(userID: previousSession.userID, generation: sessionGeneration)
+        resetTransientState()
+        for job in pending { job.task.cancel() }
+        // Cancellation alone is insufficient: a disk write may already be running.
+        for job in pending { _ = await job.task.result }
+        guard isCurrent(session) else { return false }
         for chapterID in chapterIDs {
             await removeChapter(chapterID, session.userID)
             guard isCurrent(session) else { return false }
@@ -290,7 +320,7 @@ final class OfflineReadingStore {
     }
 
     private func refresh(session: Session) async {
-        guard isCurrent(session) else { return }
+        guard !isRemovingAll, isCurrent(session) else { return }
         let revision = manifestRevision
 
         var refreshed: [DownloadedBook] = []
@@ -330,18 +360,27 @@ final class OfflineReadingStore {
             lastError = "限制级作品仅支持在线阅读，暂不支持离线下载。"
             return false
         }
-        guard isCurrent(session), !chapter.id.isEmpty, !isDownloading(chapter.id) else { return false }
+        guard isCurrent(session), !isRemovingAll, !Task.isCancelled,
+              !chapter.id.isEmpty, !isDownloading(chapter.id) else { return false }
+        let jobID = UUID()
+        let task = Task { try await downloadChapter(chapter.id, session.userID) }
+        downloadJobs[jobID] = DownloadJob(session: session, chapterID: chapter.id, task: task)
         downloadingChapterIDs.insert(chapter.id)
         defer {
+            downloadJobs.removeValue(forKey: jobID)
             if isCurrent(session) {
                 downloadingChapterIDs.remove(chapter.id)
             }
         }
 
         do {
-            try await APIClient.shared.downloadChapter(id: chapter.id, userID: session.userID)
+            try await withTaskCancellationHandler {
+                try await task.value
+            } onCancel: {
+                task.cancel()
+            }
             guard isCurrent(session), !Task.isCancelled else { return false }
-            guard await APIClient.shared.hasCachedChapter(id: chapter.id, userID: session.userID) else {
+            guard await hasChapter(chapter.id, session.userID) else {
                 if isCurrent(session) {
                     lastError = "《\(novel.title)》第 \(chapter.order) 章无法保存到本机。"
                 }

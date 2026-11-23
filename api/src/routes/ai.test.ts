@@ -442,14 +442,17 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect(before.cached).toBe(true)
 
     // 改正文 → 缓存作废
-    await req(`/api/chapters/${chId}`, json('PUT', { content: LONG_CONTENT + '改过的结尾。' }, adminToken))
+    const base = (await jsonOf<{ chapter: { revision: string } }>(await req(`/api/chapters/${chId}`, json('GET', undefined, adminToken)))).chapter.revision
+    const updated = await req(`/api/chapters/${chId}`, json('PUT', { baseRevision: base, content: LONG_CONTENT + '改过的结尾。' }, adminToken))
+    expect(updated.status).toBe(200)
+    const nextRevision = (await jsonOf<{ chapter: { revision: string } }>(updated)).chapter.revision
     const invalidated = await jsonOf<{ cached: boolean; recap: string }>(await req(`/api/ai/recap?chapterId=${chId}`, json('GET', undefined, readerToken)))
     expect(invalidated.cached).toBe(false)
     expect(invalidated.recap).toBe('')
 
     // 重新生成后只改标题 → 缓存仍有效
     await req('/api/ai/recap', json('POST', { chapterId: chId }, readerToken))
-    await req(`/api/chapters/${chId}`, json('PUT', { title: '缓存作废章（改标题）' }, adminToken))
+    await req(`/api/chapters/${chId}`, json('PUT', { baseRevision: nextRevision, title: '缓存作废章（改标题）' }, adminToken))
     const afterTitle = await jsonOf<{ cached: boolean }>(await req(`/api/ai/recap?chapterId=${chId}`, json('GET', undefined, readerToken)))
     expect(afterTitle.cached).toBe(true)
   })
@@ -784,7 +787,8 @@ describe('AI API 端到端（pglite + fetch 桩）', () => {
     expect(firstCatchup.status).toBe(200)
     expect((await jsonOf<{ cached: boolean }>(firstCatchup)).cached).toBe(false)
     fetchMock.mockClear()
-    await req(`/api/chapters/${ids[1]}`, json('PUT', { content: LONG_CONTENT + '正文变更。' }, adminToken))
+    const baseRevision = (await jsonOf<{ chapter: { revision: string } }>(await req(`/api/chapters/${ids[1]}`, json('GET', undefined, adminToken)))).chapter.revision
+    expect((await req(`/api/chapters/${ids[1]}`, json('PUT', { baseRevision, content: LONG_CONTENT + '正文变更。' }, adminToken))).status).toBe(200)
     await req('/api/ai/recap', json('POST', { chapterId: ids[1] }, readerToken))
     const secondCatchup = await req('/api/ai/catchup', json('POST', { novelId }, readerToken))
     expect(secondCatchup.status).toBe(200)

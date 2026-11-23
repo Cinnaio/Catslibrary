@@ -403,7 +403,9 @@ enum AdminAPI {
     }
 
     /// PUT /api/chapters/:id：更新章节（title / content / order）。
-    static func updateChapter(id: String, _ fields: [String: Any]) async throws -> ChapterFull {
+    static func updateChapter(id: String, baseRevision: String, _ fields: [String: Any]) async throws -> ChapterFull {
+        var fields = fields
+        fields["baseRevision"] = baseRevision
         let r: ChapterResponse = try await APIClient.shared.request(
             "PUT", "/api/chapters/\(encodePathSegment(id))", body: try jsonBody(fields), auth: true
         )

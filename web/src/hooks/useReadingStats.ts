@@ -1,11 +1,12 @@
-import { useEffect } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { READING_IDLE_MS, type ReadingEvent } from '@shared/reading-stats'
 import { authHeaders, getToken, readingStatsApi, url, type ApiError } from '../lib/api'
 import { getStorageUser } from '../lib/storage'
 import { ReadingClock } from '../lib/reading-clock'
 
+type QueuedReadingEvent = ReadingEvent & { contentMode?: 'safe' | 'adult' }
 const sending = new Set<string>()
-function readQueue(key: string): ReadingEvent[] {
+function readQueue(key: string): QueuedReadingEvent[] {
   try {
     const value = JSON.parse(localStorage.getItem(key) || '[]')
     return Array.isArray(value) ? value.filter((e) => e && Number.isFinite(e.start) && e.start > Date.now() - 7 * 86400000).slice(-1000) : []
@@ -13,7 +14,7 @@ function readQueue(key: string): ReadingEvent[] {
     return []
   }
 }
-function writeQueue(key: string, events: ReadingEvent[]) {
+function writeQueue(key: string, events: QueuedReadingEvent[]) {
   try {
     localStorage.setItem(key, JSON.stringify(events.slice(-1000)))
   } catch {
@@ -35,6 +36,8 @@ export function useReadingStats({
   contentMode: string
   ready: () => boolean
 }) {
+  const currentMode = useRef(contentMode)
+  useLayoutEffect(() => { currentMode.current = contentMode }, [contentMode])
   useEffect(() => {
     if (!userId || !novelId || !chapterId) return
     const token = getToken()
@@ -75,7 +78,7 @@ export function useReadingStats({
       /* New session. */
     }
     const clock = new ReadingClock(Date.now(), performance.now())
-    let pending: ReadingEvent | null = null
+    let pending: QueuedReadingEvent | null = null
     function enqueue() {
       if (!pending) return
       if (pending.end > pending.start) writeQueue(queueKey, [...readQueue(queueKey), pending])
@@ -83,8 +86,8 @@ export function useReadingStats({
     }
     async function sendQueue(key: string, onExit = false) {
       if (!current() || sending.has(key)) return
-      const batch = readQueue(key).slice(0, 60)
-      if (!batch.length) {
+      const queue = readQueue(key)
+      if (!queue.length) {
         if (key !== queueKey) {
           try {
             localStorage.removeItem(key)
@@ -94,10 +97,18 @@ export function useReadingStats({
         }
         return
       }
+      // Safe mode defers adult events without blocking ordinary records behind them.
+      // Untagged legacy events are sent in the current mode; the API returns deferred IDs.
+      const eligible = queue.filter(e => e.contentMode !== 'adult' || currentMode.current === 'adult')
+      const first = eligible[0]
+      if (!first) return
+      const mode = first.contentMode ?? (currentMode.current === 'adult' ? 'adult' : 'safe')
+      const queued = eligible.filter(e => (e.contentMode ?? mode) === mode).slice(0, 60)
+      const batch: ReadingEvent[] = queued.map(({ contentMode: _mode, ...event }) => event)
       if (onExit) {
         // Retain until acknowledged; retries use the same IDs and are safe to repeat.
         try {
-          void fetch(url(`/reading-stats/events?contentMode=${contentMode}`), {
+          void fetch(url(`/reading-stats/events?contentMode=${mode}`), {
             method: 'POST',
             credentials: 'include',
             keepalive: true,
@@ -111,13 +122,16 @@ export function useReadingStats({
       }
       sending.add(key)
       try {
-        await readingStatsApi.events(userId, batch, contentMode)
+        const result = await readingStatsApi.events(userId, batch, mode)
         if (current()) {
           const ids = new Set(batch.map((e) => e.id))
-          writeQueue(
-            key,
-            readQueue(key).filter((e) => !ids.has(e.id)),
-          )
+          const deferred = new Set(result.deferredIds ?? [])
+          // An old server cannot distinguish accepted and mode-filtered legacy records.
+          const unconfirmedLegacy = new Set(mode === 'safe' && !Array.isArray(result.deferredIds)
+            ? queued.filter(e => !e.contentMode).map(e => e.id) : [])
+          writeQueue(key, readQueue(key)
+            .filter(e => !ids.has(e.id) || deferred.has(e.id) || unconfirmedLegacy.has(e.id))
+            .map(e => ids.has(e.id) && deferred.has(e.id) ? { ...e, contentMode: 'adult' } : e))
         }
       } catch (error) {
         if (current() && (error as ApiError).status === 400) {
@@ -174,7 +188,7 @@ export function useReadingStats({
         if (pending && pending.end === segment.start && segment.end - pending.start <= 30000) pending.end = Math.round(segment.end)
         else {
           enqueue()
-          pending = { id: crypto.randomUUID(), sessionId: session.id, novelId, chapterId, start: Math.round(segment.start), end: Math.round(segment.end) }
+          pending = { contentMode: contentMode === 'adult' ? 'adult' : 'safe', id: crypto.randomUUID(), sessionId: session.id, novelId, chapterId, start: Math.round(segment.start), end: Math.round(segment.end) }
         }
       } else enqueue()
       if (pending && pending.end - pending.start >= 29000) void flush()
