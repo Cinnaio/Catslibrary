@@ -428,12 +428,14 @@ struct AdminAIWritingView: View {
         if workflowStep == 0 {
             modeSection
             novelSection
+            storyGraphEntry
             Button("下一步：填写要求", systemImage: "arrow.right") { workflowStep = 1 }
                 .buttonStyle(AgentPanelButtonStyle(prominent: true))
                 .accessibilityIdentifier("admin.writing.next")
             draftAutosaveFooter
         } else if workflowStep == 1 {
             if mode == .continueWriting { continueSection } else { newSection }
+            storyGraphEntry
             Button(showAdvancedOptions ? "收起高级创作选项" : "高级创作选项", systemImage: "slider.horizontal.3") {
                 withAnimation(reduceMotion ? nil : AppMotion.micro) { showAdvancedOptions.toggle() }
             }
@@ -736,6 +738,18 @@ struct AdminAIWritingView: View {
             .padding(.top, 12)
         }
         .font(.subheadline)
+    }
+
+    @ViewBuilder private var storyGraphEntry: some View {
+        if !novelId.isEmpty, appState.user?.isAdmin == true {
+            NavigationLink {
+                AdminStoryGraphView(novelID: novelId, novelTitle: selectedNovel?.title ?? initialNovel?.title ?? "当前作品",
+                                    afterChapterID: afterChapterId.isEmpty ? nil : afterChapterId)
+            } label: {
+                AdminWorkspaceEntry("故事星图", systemImage: "point.3.connected.trianglepath.dotted", detail: "从人物展开关系与情节线索")
+            }
+            .accessibilityIdentifier("admin.writing.storyGraph")
+        }
     }
 
     private var analysisReferenceSection: some View {

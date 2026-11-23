@@ -64,6 +64,10 @@ struct AdminNovelWorkspaceView: View {
                     AdminAIAgentView(initialNovel: book, afterChapterID: afterChapterID)
                 }
                 .accessibilityIdentifier("admin.workspace.agent")
+                workspaceLink("故事星图", systemImage: "point.3.connected.trianglepath.dotted") {
+                    AdminStoryGraphView(novelID: book.id, novelTitle: book.title, afterChapterID: afterChapterID)
+                }
+                .accessibilityIdentifier("admin.workspace.storyGraph")
                 workspaceLink("生成与管理封面", systemImage: "photo.on.rectangle.angled") { AdminAICoverView(initialNovel: book) }
                     .accessibilityIdentifier("admin.workspace.cover")
                 workspaceLink("本书草稿与发布记录", systemImage: "doc.text.magnifyingglass") { AdminAIGenerationsView(novelID: book.id) }

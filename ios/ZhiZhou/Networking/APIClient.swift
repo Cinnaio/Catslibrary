@@ -683,7 +683,8 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
     }
 
     /// 读取服务端 SSE 文本行。用于可恢复任务的前台实时展示；连接中断不影响服务端任务本身。
-    func streamLines(_ path: String, auth: Bool = false, expectedToken: String? = nil) -> AsyncThrowingStream<String, Error> {
+    func streamLines(_ path: String, auth: Bool = false, expectedToken: String? = nil,
+                     method: String = "GET", body: Data? = nil) -> AsyncThrowingStream<String, Error> {
         let requestToken = auth ? (expectedToken ?? token) : nil
         return AsyncThrowingStream { continuation in
             let task = Task {
@@ -691,7 +692,9 @@ final class APIClient: NSObject, URLSessionTaskDelegate {
                     if auth && (requestToken == nil || token != requestToken) { throw CancellationError() }
                     let url = try makeURL(path)
                     var req = URLRequest(url: url)
-                    req.httpMethod = "GET"
+                    req.httpMethod = method
+                    req.httpBody = body
+                    if body != nil { req.setValue("application/json", forHTTPHeaderField: "Content-Type") }
                     req.timeoutInterval = 120
                     if let requestToken {
                         req.setValue("Bearer \(requestToken)", forHTTPHeaderField: "Authorization")

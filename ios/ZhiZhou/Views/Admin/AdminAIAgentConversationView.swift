@@ -12,7 +12,7 @@ struct AdminAIAgentConversationView: View {
     let onOpenContinuation: (AIAgentSession) -> Void
 
     private enum Panel: Identifiable {
-        case outputs, artifact(String), settings, memory, chapterPlan
+        case outputs, artifact(String), settings, memory, chapterPlan, storyGraph
         var id: String {
             switch self {
             case .outputs: "outputs"
@@ -20,6 +20,7 @@ struct AdminAIAgentConversationView: View {
             case .settings: "settings"
             case .memory: "memory"
             case .chapterPlan: "chapter-plan"
+            case .storyGraph: "story-graph"
             }
         }
     }
@@ -90,11 +91,12 @@ struct AdminAIAgentConversationView: View {
                     Section {
                         Button(model.pendingMemoryCount > 0 ? "作品记忆 · \(model.pendingMemoryCount) 条待确认" : "作品记忆",
                                systemImage: "bookmark") { panel = .memory }
+                        Button("故事星图", systemImage: "point.3.connected.trianglepath.dotted") { panel = .storyGraph }
                         Button("会话设置", systemImage: "slider.horizontal.3") { panel = .settings }
                     }
                 }
                 .labelStyle(.iconOnly)
-                .accessibilityHint("查看作品、续写起点、作品记忆和会话设置")
+                .accessibilityHint("查看作品、续写起点、故事星图、作品记忆和会话设置")
                 .disabled(!model.hasLoaded)
             }
         }
@@ -105,6 +107,12 @@ struct AdminAIAgentConversationView: View {
             case .settings: AgentSettingsSheet(model: model)
             case .memory: AgentMemoryView(model: model)
             case .chapterPlan: AgentChapterPlanSheet(model: model)
+            case .storyGraph:
+                NavigationStack {
+                    AdminStoryGraphView(novelID: model.session.novelId, novelTitle: model.session.novelTitle,
+                                        afterChapterID: model.session.afterChapterId.isEmpty ? nil : model.session.afterChapterId)
+                        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { self.panel = nil } } }
+                }
             }
         }
         .sheet(item: Binding(get: { panel == nil ? model.selectedAction : nil },

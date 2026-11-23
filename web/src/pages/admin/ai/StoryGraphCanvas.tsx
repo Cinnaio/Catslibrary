@@ -1,153 +1,168 @@
-import { useEffect, useId, useMemo, useRef, useState, type PointerEvent } from 'react'
-import { Focus, Minus, Plus, RotateCcw } from 'lucide-react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
+import { Maximize2, Minus, Plus, RotateCcw } from 'lucide-react'
 import type { StoryGraph } from '@shared/story-graph'
 import { fitStoryGraph, graphNeighborhood, storyGraphEdges, storyGraphLayout, type GraphPoint } from '@/lib/story-graph-layout'
 import { Button } from '@/components/ui/button'
+import styles from './StoryGraph.module.css'
 
-export default function StoryGraphCanvas({
-  graph,
-  selected,
-  onSelect,
-  showThreads,
-  focusOnly,
-}: {
+type Props = {
   graph: StoryGraph
   selected: string
   onSelect: (id: string) => void
   showThreads: boolean
   focusOnly: boolean
-}) {
+  searchIds?: string[]
+}
+
+export default function StoryGraphCanvas({ graph, selected, onSelect, showThreads, focusOnly, searchIds }: Props) {
   const marker = useId().replace(/:/g, '')
-  const [size, setSize] = useState({ width: 900, height: 600 })
+  const [size, setSize] = useState({ width: 900, height: 560 })
   const compact = size.width < 500
-  const original = useMemo(() => storyGraphLayout(graph, compact), [graph, compact])
+  const person = graph.people.find((p) => p.id === selected)
+  const relation = graph.relationships.find((r) => r.id === selected)
+  const thread = graph.threads.find((t) => t.id === selected)
+  const involved = new Set(person ? [person.id] : relation ? [relation.from, relation.to] : thread?.people || [])
+  const contextIds = person ? graphNeighborhood(graph, person.id) : involved
+  const searchContext = searchIds === undefined ? null : new Set(searchIds.flatMap((id) => [...graphNeighborhood(graph, id)]))
+  const visiblePeople = graph.people.filter((p) => (searchContext ? searchContext.has(p.id) : !focusOnly || !involved.size || contextIds.has(p.id)))
+  const ids = new Set(visiblePeople.map((p) => p.id))
+  const relationships = graph.relationships.filter((r) => ids.has(r.from) && ids.has(r.to))
+  const threads = showThreads
+    ? graph.threads.filter((t) => t.people.some((id) => ids.has(id)) && (!focusOnly || !involved.size || t.people.some((id) => involved.has(id))))
+    : []
+  // Layout identity changes only when the actual visible set or focal person changes.
+  const personKey = JSON.stringify(visiblePeople.map((p) => p.id))
+  const centerId = focusOnly ? person?.id : undefined
+  const original = storyGraphLayout({ ...graph, people: visiblePeople }, compact, centerId)
   const [moved, setMoved] = useState<Record<string, GraphPoint>>({})
-  const positions = { ...original, ...moved }
+  const positions = Object.fromEntries(Object.entries(original).map(([id, point]) => [id, moved[id] || point]))
   const [manualView, setManualView] = useState<{ key: string; x: number; y: number; scale: number } | null>(null)
   const svg = useRef<SVGSVGElement>(null)
+  const gesture = useRef<{ pointerId: number; id?: string; x: number; y: number; start: GraphPoint; dragged: boolean } | null>(null)
+  const suppressClick = useRef(false)
 
-  // 计算人物星等 (Magnitude / Degree Centrality)
-  const degrees = useMemo(() => {
-    const counts: Record<string, number> = {}
-    for (const p of graph.people) counts[p.id] = 0
-    for (const r of graph.relationships) {
-      counts[r.from] = (counts[r.from] || 0) + 1
-      counts[r.to] = (counts[r.to] || 0) + 1
-    }
-    return counts
-  }, [graph])
-  const maxDegree = useMemo(() => Math.max(1, ...Object.values(degrees)), [degrees])
   useEffect(() => {
     const element = svg.current
     if (!element || typeof ResizeObserver === 'undefined') return
     const observer = new ResizeObserver(([entry]) => {
-      if (entry && entry.contentRect.width > 0) setSize({ width: entry.contentRect.width, height: entry.contentRect.height })
+      if (entry && entry.contentRect.width > 0 && entry.contentRect.height > 0) setSize({ width: entry.contentRect.width, height: entry.contentRect.height })
     })
     observer.observe(element)
     return () => observer.disconnect()
   }, [])
-  const gesture = useRef<{ pointerId: number; id?: string; x: number; y: number; start: GraphPoint; dragged: boolean } | null>(null)
-  const neighborhood = graph.people.some((p) => p.id === selected) ? graphNeighborhood(graph, selected) : null
-  const visiblePeople = focusOnly && neighborhood ? graph.people.filter((p) => neighborhood.has(p.id)) : graph.people
-  const ids = new Set(visiblePeople.map((p) => p.id))
-  const threads = showThreads ? graph.threads.filter((t) => t.people.some((id) => ids.has(id)) && (!neighborhood || t.people.includes(selected))) : []
-  const threadPositions: Record<string, GraphPoint> = {}
+
   const columns = compact ? 1 : 3
-  const threadTop = Math.max(...visiblePeople.map((p) => original[p.id]?.y || 410)) + 120
-  threads.forEach((t, i) => {
-    threadPositions[t.id] = { x: 600 + ((i % columns) - (Math.min(columns, threads.length) - 1) / 2) * 220, y: threadTop + Math.floor(i / columns) * 90 }
-  })
-  const visibleGraph = { ...graph, relationships: graph.relationships.filter((r) => ids.has(r.from) && ids.has(r.to)) }
-  const geometry = storyGraphEdges(visibleGraph, positions, compact ? 1.6 : 1)
-  const baseGeometry = storyGraphEdges(visibleGraph, original, compact ? 1.6 : 1)
+  const threadTop = Math.max(410, ...visiblePeople.map((p) => positions[p.id]?.y || 410)) + 140
+  const threadPositions = Object.fromEntries(
+    threads.map((t, index) => [
+      t.id,
+      {
+        x: 600 + ((index % columns) - (Math.min(columns, threads.length) - 1) / 2) * 240,
+        y: threadTop + Math.floor(index / columns) * 88,
+      },
+    ]),
+  )
+  const geometry = storyGraphEdges({ ...graph, relationships }, positions, compact ? 1.4 : 1)
+  const geometryById = new Map(geometry.map((edge) => [edge.id, edge]))
   const fitted = fitStoryGraph(
     [
-      ...visiblePeople.map((p) => original[p.id]!).filter(Boolean),
-      ...Object.values(threadPositions).map((p) => ({ ...p, width: 190, height: 64 })),
-      ...baseGeometry.flatMap((e) => [{ ...e.label, width: e.width, height: 36 }, e.control]),
+      ...visiblePeople.map((p) => ({ ...positions[p.id]!, width: 150, height: 110 })),
+      ...Object.values(threadPositions).map((p) => ({ ...p, width: 220, height: 64 })),
+      ...geometry.flatMap((edge) => [{ ...edge.label, width: edge.width, height: 36 }, edge.control]),
     ],
     size,
   )
-  const layoutKey = `${size.width}:${size.height}:${visiblePeople.map((p) => p.id)}:${threads.map((t) => t.id)}`
+  const layoutKey = `${size.width}:${size.height}:${personKey}:${centerId || ''}:${threads.map((t) => t.id).join(':')}`
   const view = manualView?.key === layoutKey ? manualView : fitted
 
-  // 原生 wheel 监听，支持以光标位置为锚点的无级平滑缩放
   useEffect(() => {
-    const el = svg.current
-    if (!el) return
-    const handleWheel = (e: WheelEvent) => {
-      e.preventDefault()
-      const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89
-      const nextScale = Math.max(0.15, Math.min(3, view.scale * zoomFactor))
-      if (Math.abs(nextScale - view.scale) < 0.002) return
-
-      const rect = el.getBoundingClientRect()
-      const mouseX = e.clientX - rect.left - size.width / 2
-      const mouseY = e.clientY - rect.top - size.height / 2
-      const ratio = nextScale / view.scale
-      const nextX = mouseX - (mouseX - view.x) * ratio
-      const nextY = mouseY - (mouseY - view.y) * ratio
-      setManualView({ key: layoutKey, scale: nextScale, x: nextX, y: nextY })
+    const element = svg.current
+    if (!element) return
+    const wheel = (event: WheelEvent) => {
+      // Ordinary scrolling continues to move the page; zoom is an intentional gesture.
+      if (!event.ctrlKey && !event.metaKey) return
+      event.preventDefault()
+      const scale = Math.max(Math.min(0.1, fitted.scale), Math.min(3, view.scale * (event.deltaY < 0 ? 1.12 : 1 / 1.12)))
+      const rect = element.getBoundingClientRect()
+      const x = event.clientX - rect.left - size.width / 2
+      const y = event.clientY - rect.top - size.height / 2
+      const ratio = scale / view.scale
+      setManualView({ key: layoutKey, scale, x: x - (x - view.x) * ratio, y: y - (y - view.y) * ratio })
     }
-    el.addEventListener('wheel', handleWheel, { passive: false })
-    return () => el.removeEventListener('wheel', handleWheel)
-  }, [view, size, layoutKey])
+    element.addEventListener('wheel', wheel, { passive: false })
+    return () => element.removeEventListener('wheel', wheel)
+  }, [view, size, layoutKey, fitted.scale])
 
-  function start(e: PointerEvent<SVGSVGElement>) {
-    if (e.button !== 0 || !e.isPrimary) return
-    const target = (e.target as Element).closest('[data-person]')
-    const id = target?.getAttribute('data-person') || undefined
-    if ((e.target as Element).closest('[data-edge], [data-thread]')) return
+  function start(event: PointerEvent<SVGSVGElement>) {
+    if (event.button !== 0 || !event.isPrimary) return
+    if ((event.target as Element).closest('[data-edge], [data-thread]')) return
+    const id = (event.target as Element).closest('[data-person]')?.getAttribute('data-person') || undefined
+    suppressClick.current = false
+    // Freeze the camera before moving a node, so auto-fit never follows the pointer.
+    setManualView({ ...view, key: layoutKey })
     gesture.current = {
-      pointerId: e.pointerId,
+      pointerId: event.pointerId,
       id,
-      x: e.clientX,
-      y: e.clientY,
+      x: event.clientX,
+      y: event.clientY,
       start: id ? positions[id] || { x: 600, y: 410 } : { x: view.x, y: view.y },
       dragged: false,
     }
-    e.currentTarget.setPointerCapture(e.pointerId)
+    event.currentTarget.setPointerCapture(event.pointerId)
   }
-  function move(e: PointerEvent<SVGSVGElement>) {
-    const g = gesture.current
-    if (!g || g.pointerId !== e.pointerId) return
-    const rect = e.currentTarget.getBoundingClientRect()
+  function move(event: PointerEvent<SVGSVGElement>) {
+    const current = gesture.current
+    if (!current || current.pointerId !== event.pointerId) return
+    const rect = event.currentTarget.getBoundingClientRect()
+    if (!rect.width) return
     const unit = size.width / rect.width
-    const dx = (e.clientX - g.x) * unit,
-      dy = (e.clientY - g.y) * unit
-    if (Math.abs(dx) + Math.abs(dy) > 4) g.dragged = true
-    if (g.id) setMoved((old) => ({ ...old, [g.id!]: { x: g.start.x + dx / view.scale, y: g.start.y + dy / view.scale } }))
-    else setManualView({ key: layoutKey, scale: view.scale, x: g.start.x + dx, y: g.start.y + dy })
+    const dx = (event.clientX - current.x) * unit,
+      dy = (event.clientY - current.y) * unit
+    if (Math.abs(dx) + Math.abs(dy) > 4) current.dragged = true
+    if (!current.dragged) return
+    if (current.id) setMoved((old) => ({ ...old, [current.id!]: { x: current.start.x + dx / view.scale, y: current.start.y + dy / view.scale } }))
+    else setManualView({ key: layoutKey, scale: view.scale, x: current.start.x + dx, y: current.start.y + dy })
   }
-  function end(e: PointerEvent<SVGSVGElement>) {
-    const g = gesture.current
-    if (g?.pointerId !== e.pointerId) return
-    if (g.id && !g.dragged) onSelect(g.id)
+  function end(event: PointerEvent<SVGSVGElement>) {
+    const current = gesture.current
+    if (current?.pointerId !== event.pointerId) return
+    suppressClick.current = current.dragged
+    if (current.id && !current.dragged) onSelect(current.id)
     gesture.current = null
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
   }
-  function zoom(delta: number) {
-    const scale = Math.max(0.1, Math.min(3, view.scale + delta))
+  function zoom(factor: number) {
+    const scale = Math.max(Math.min(0.1, fitted.scale), Math.min(3, view.scale * factor))
     setManualView({ key: layoutKey, scale, x: (view.x * scale) / view.scale, y: (view.y * scale) / view.scale })
   }
-  const selectKey = (event: React.KeyboardEvent, id: string) => {
+  function selectKey(event: KeyboardEvent, id: string) {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
       onSelect(id)
     }
   }
+  function panKey(event: KeyboardEvent<SVGSVGElement>) {
+    if (event.target !== event.currentTarget) return
+    const steps: Record<string, [number, number]> = { ArrowLeft: [48, 0], ArrowRight: [-48, 0], ArrowUp: [0, 48], ArrowDown: [0, -48] }
+    const step = steps[event.key]
+    if (step) {
+      event.preventDefault()
+      setManualView({ ...view, key: layoutKey, x: view.x + step[0], y: view.y + step[1] })
+    }
+  }
 
   return (
-    <div className="story-graph-canvas">
-      <div className="story-graph-canvas__tools" aria-label="图谱画布工具">
-        <Button variant="ghost" size="icon" aria-label="放大图谱" onClick={() => zoom(0.2)}>
-          <Plus className="size-4" />
+    <div className={styles.canvas}>
+      <div className={styles.canvasTools} role="group" aria-label="图谱画布工具">
+        <Button variant="ghost" size="icon" aria-label="放大图谱" onClick={() => zoom(1.25)}>
+          <Plus size={16} />
         </Button>
-        <span className="story-graph-canvas__scale" aria-live="polite">
-          {Math.round(view.scale * 100)}%
-        </span>
-        <Button variant="ghost" size="icon" aria-label="缩小图谱" onClick={() => zoom(-0.2)}>
-          <Minus className="size-4" />
+        <span className={styles.scale}>{Math.round(view.scale * 100)}%</span>
+        <Button variant="ghost" size="icon" aria-label="缩小图谱" onClick={() => zoom(0.8)}>
+          <Minus size={16} />
+        </Button>
+        <Button variant="ghost" size="icon" aria-label="适应当前图谱" onClick={() => setManualView(null)}>
+          <Maximize2 size={16} />
         </Button>
         <Button
           variant="ghost"
@@ -158,19 +173,29 @@ export default function StoryGraphCanvas({
             setManualView(null)
           }}
         >
-          <RotateCcw className="size-4" />
+          <RotateCcw size={16} />
         </Button>
       </div>
+      {!visiblePeople.length && (
+        <div className={styles.canvasEmpty}>
+          <p>星图里还没有这个名字</p>
+          <small>试试别名，或清除搜索看看全景。</small>
+        </div>
+      )}
       <svg
         ref={svg}
         viewBox={`0 0 ${size.width} ${size.height}`}
         role="group"
-        aria-label="可交互故事图谱；可用下方人物列表选择节点"
+        tabIndex={0}
+        aria-label="可交互故事图谱；方向键平移，也可从人物索引选择节点"
+        onKeyDown={panKey}
         onPointerDown={start}
         onPointerMove={move}
         onPointerUp={end}
-        onPointerCancel={() => {
+        onPointerCancel={(event) => {
           gesture.current = null
+          suppressClick.current = true
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
         }}
       >
         <defs>
@@ -179,95 +204,74 @@ export default function StoryGraphCanvas({
           </marker>
         </defs>
         <g transform={`translate(${size.width / 2 + view.x} ${size.height / 2 + view.y}) scale(${view.scale}) translate(-600 -410)`}>
-          {/* 星图天象经纬底网与同心星轨 */}
-          <g className="story-graph-celestial" aria-hidden="true">
-            <circle cx="600" cy="410" r="180" className="story-graph-celestial__ring" />
-            <circle cx="600" cy="410" r="320" className="story-graph-celestial__ring" />
-            <circle cx="600" cy="410" r="460" className="story-graph-celestial__ring story-graph-celestial__ring--outer" />
-            <line x1="600" y1="120" x2="600" y2="700" className="story-graph-celestial__axis" />
-            <line x1="310" y1="410" x2="890" y2="410" className="story-graph-celestial__axis" />
+          <g className={styles.orbits} aria-hidden="true">
+            <circle cx="600" cy="410" r="210" />
+            <circle cx="600" cy="410" r="420" />
           </g>
-
-          {graph.relationships
-            .filter((r) => ids.has(r.from) && ids.has(r.to))
-            .map((r, index) => {
-              const a = positions[r.from],
-                b = positions[r.to]
-              if (!a || !b) return null
-              const edge = geometry.find((e) => e.id === r.id)
-              if (!edge) return null
-              const dim = neighborhood && !neighborhood.has(r.from) && !neighborhood.has(r.to)
-              const labelFontSize = Math.max(12, Math.round(9.5 / view.scale))
-              const badgeW = Math.max(36, r.label.length * (labelFontSize * 0.98) + 14)
-              const badgeH = labelFontSize + 8
-              return (
-                <g
-                  key={r.id}
-                  data-edge=""
-                  className={`story-graph-edge ${selected === r.id ? 'is-selected' : ''} ${dim ? 'is-dimmed' : ''}`}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`${graph.people.find((p) => p.id === r.from)?.name}${r.directed ? '到' : '与'}${graph.people.find((p) => p.id === r.to)?.name}：${r.label}`}
-                  onClick={() => onSelect(r.id)}
-                  onKeyDown={(e) => selectKey(e, r.id)}
-                >
-                  <path className="story-graph-edge__hit" d={edge.path} />
-                  <path
-                    className="story-graph-edge__line"
-                    d={edge.path}
-                    markerEnd={r.directed ? `url(#${marker})` : undefined}
-                    strokeDasharray={r.certainty === 'inference' || r.certainty === 'possibility' ? '5 5' : undefined}
-                  />
-                  <line className="story-graph-edge__leader" x1={edge.anchor.x} y1={edge.anchor.y} x2={edge.label.x} y2={edge.label.y} />
-                  <g className="story-graph-edge__badge-group">
-                    <rect
-                      className="story-graph-edge__badge"
-                      x={edge.label.x - badgeW / 2}
-                      y={edge.label.y - badgeH / 2}
-                      width={badgeW}
-                      height={badgeH}
-                      rx={badgeH / 2}
-                    />
-                    <text
-                      x={edge.label.x}
-                      y={edge.label.y + Math.round(labelFontSize * 0.35)}
-                      style={{ fontSize: labelFontSize }}
-                      className="story-graph-edge__label"
-                    >
-                      {r.label}
-                    </text>
-                  </g>
-                  <title>
-                    {r.summary} · 关系 {index + 1}
-                  </title>
+          {relationships.map((r) => {
+            const edge = geometryById.get(r.id)
+            if (!edge) return null
+            const active = selected === r.id || involved.has(r.from) || involved.has(r.to)
+            const dimmed = involved.size > 0 && !active
+            const labelVisible = active || relationships.length <= 12
+            const labelFont = 12 / Math.min(1, Math.max(0.65, view.scale))
+            const badgeWidth = Math.max(44, Array.from(r.label).length * labelFont + 20)
+            return (
+              <g
+                key={r.id}
+                data-edge=""
+                className={styles.edge}
+                data-active={active || undefined}
+                data-dimmed={dimmed || undefined}
+                data-label-visible={labelVisible || undefined}
+                role="button"
+                tabIndex={0}
+                aria-pressed={selected === r.id}
+                aria-label={`${graph.people.find((p) => p.id === r.from)?.name}${r.directed ? '到' : '与'}${graph.people.find((p) => p.id === r.to)?.name}：${r.label}`}
+                onClick={() => onSelect(r.id)}
+                onKeyDown={(event) => selectKey(event, r.id)}
+              >
+                <path className={styles.edgeHit} d={edge.path} />
+                <path
+                  className={styles.edgeLine}
+                  d={edge.path}
+                  markerEnd={r.directed ? `url(#${marker})` : undefined}
+                  strokeDasharray={r.certainty === 'inference' || r.certainty === 'possibility' ? '6 5' : undefined}
+                />
+                <g className={styles.edgeBadge}>
+                  <line x1={edge.anchor.x} y1={edge.anchor.y} x2={edge.label.x} y2={edge.label.y} />
+                  <rect x={edge.label.x - badgeWidth / 2} y={edge.label.y - (labelFont + 12) / 2} width={badgeWidth} height={labelFont + 12} rx="5" />
+                  <text x={edge.label.x} y={edge.label.y} dominantBaseline="central" textAnchor="middle" style={{ fontSize: labelFont }}>
+                    {r.label}
+                  </text>
                 </g>
-              )
-            })}
+                <title>{r.summary}</title>
+              </g>
+            )
+          })}
           {threads.map((t) => {
-            const point = moved[t.id] || threadPositions[t.id]
-            if (!point) return null
-            const maxChars = Math.max(4, Math.floor((170 * view.scale - 16) / Math.max(10, 13 * view.scale)))
+            const point = threadPositions[t.id]!
             return (
               <g key={t.id}>
                 {t.people
                   .filter((id) => ids.has(id))
-                  .map((id) => {
-                    const p = positions[id]
-                    return p ? <line key={id} className="story-graph-thread-link" x1={p.x} y1={p.y} x2={point.x} y2={point.y} /> : null
-                  })}
+                  .map((id) => (
+                    <line className={styles.threadLink} key={id} x1={positions[id]!.x} y1={positions[id]!.y} x2={point.x} y2={point.y} />
+                  ))}
                 <g
                   data-thread=""
                   role="button"
                   tabIndex={0}
                   aria-label={`情节：${t.title}`}
-                  className={`story-graph-thread ${selected === t.id ? 'is-selected' : ''}`}
+                  aria-pressed={selected === t.id}
+                  className={styles.thread}
                   transform={`translate(${point.x},${point.y})`}
                   onClick={() => onSelect(t.id)}
-                  onKeyDown={(e) => selectKey(e, t.id)}
+                  onKeyDown={(event) => selectKey(event, t.id)}
                 >
-                  <rect x="-85" y="-23" width="170" height="46" rx="10" />
-                  <text textAnchor="middle" y="5" style={{ fontSize: Math.max(13, 10 / view.scale) }}>
-                    {t.title.length > maxChars ? `${t.title.slice(0, maxChars - 1)}…` : t.title}
+                  <rect x="-105" y="-24" width="210" height="48" rx="10" />
+                  <text textAnchor="middle" dominantBaseline="central">
+                    {Array.from(t.title).length > 13 ? `${Array.from(t.title).slice(0, 12).join('')}…` : t.title}
                   </text>
                   <title>{t.title}</title>
                 </g>
@@ -275,18 +279,10 @@ export default function StoryGraphCanvas({
             )
           })}
           {visiblePeople.map((p) => {
-            const pos = positions[p.id]
-            if (!pos) return null
-            const deg = degrees[p.id] || 0
-            const isPrime = deg >= 3 && deg >= maxDegree * 0.7
-            const isSub = deg <= 1 && graph.people.length > 3
-            const tierClass = isPrime ? 'story-graph-person--prime' : isSub ? 'story-graph-person--sub' : ''
-            const baseR = isPrime ? 42 : isSub ? 28 : 34
-            const r = Math.max(baseR, Math.round((baseR * 0.68) / view.scale))
-            const orbitR = r + (isPrime ? 10 : isSub ? 5 : 7)
-            const fontSize = Math.max(isPrime ? 16 : isSub ? 13 : 15, Math.round((isPrime ? 11.5 : isSub ? 9 : 10.5) / view.scale))
-            const isSelected = selected === p.id
-
+            const point = positions[p.id]!
+            const active = involved.has(p.id)
+            const dimmed = involved.size > 0 && !contextIds.has(p.id)
+            const match = searchIds?.includes(p.id)
             return (
               <g
                 key={p.id}
@@ -295,27 +291,24 @@ export default function StoryGraphCanvas({
                 tabIndex={0}
                 aria-label={`人物：${p.name}`}
                 aria-pressed={selected === p.id}
-                className={`story-graph-person ${tierClass} ${isSelected ? 'is-selected' : ''} ${neighborhood && !neighborhood.has(p.id) ? 'is-dimmed' : ''}`}
-                transform={`translate(${pos.x},${pos.y})`}
-                onKeyDown={(e) => selectKey(e, p.id)}
+                className={styles.person}
+                data-active={active || undefined}
+                data-dimmed={dimmed || undefined}
+                data-match={match || undefined}
+                transform={`translate(${point.x},${point.y})`}
+                onKeyDown={(event) => selectKey(event, p.id)}
+                onClick={(event) => {
+                  if (event.detail === 0 && !suppressClick.current) onSelect(p.id)
+                  suppressClick.current = false
+                }}
               >
-                {/* 主曜专属柔和星晕与内环刻度 */}
-                {isPrime && <circle className="story-graph-person__halo" r={r + 18} />}
-                {isPrime && <circle className="story-graph-person__inner-ring" r={r - 4} />}
-                {/* 轨道与本体 */}
-                <circle className="story-graph-person__orbit" r={orbitR} />
-                <circle className="story-graph-person__body" r={r} />
-                {/* 选中态：星盘四向游标 */}
-                {isSelected && (
-                  <g className="story-graph-person__reticle" aria-hidden="true">
-                    <line x1={-r - 9} y1="0" x2={-r - 3} y2="0" />
-                    <line x1={r + 3} y1="0" x2={r + 9} y2="0" />
-                    <line x1="0" y1={-r - 9} x2="0" y2={-r - 3} />
-                    <line x1="0" y1={r + 3} x2="0" y2={r + 9} />
-                  </g>
-                )}
-                <text textAnchor="middle" y={Math.round(fontSize * 0.35)} style={{ fontSize }}>
-                  {p.name.length <= 4 ? p.name : p.name.slice(0, 3) + '…'}
+                <circle className={styles.personHalo} r="39" />
+                <circle className={styles.personBody} r="28" />
+                <text className={styles.personGlyph} textAnchor="middle" dominantBaseline="central" aria-hidden="true">
+                  {Array.from(p.name)[0]}
+                </text>
+                <text className={styles.personName} textAnchor="middle" y="53">
+                  {Array.from(p.name).length > 10 ? `${Array.from(p.name).slice(0, 9).join('')}…` : p.name}
                 </text>
                 <title>
                   {p.name}：{p.summary}
@@ -325,10 +318,7 @@ export default function StoryGraphCanvas({
           })}
         </g>
       </svg>
-      <p className="story-graph-canvas__hint">
-        <Focus className="size-3.5" />
-        拖动人物调整位置 · 拖动画布平移 · 点击连线查看关系
-      </p>
+      <p className={styles.canvasHint}>拖动人物或空白处 · Ctrl / ⌘ + 滚轮缩放</p>
     </div>
   )
 }

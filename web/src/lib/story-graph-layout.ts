@@ -5,19 +5,26 @@ export interface GraphPoint {
   y: number
 }
 /** Stable placement keeps the same archive from rearranging on every render. */
-export function storyGraphLayout(graph: StoryGraph, compact = false): Record<string, GraphPoint> {
+export function storyGraphLayout(graph: StoryGraph, compact = false, centerId?: string): Record<string, GraphPoint> {
   const degree = new Map<string, number>()
   for (const r of graph.relationships) for (const id of [r.from, r.to]) degree.set(id, (degree.get(id) || 0) + 1)
-  const people = [...graph.people].sort((a, b) => (degree.get(b.id) || 0) - (degree.get(a.id) || 0) || a.id.localeCompare(b.id))
+  const people = [...graph.people].sort(
+    (a, b) => Number(b.id === centerId) - Number(a.id === centerId) || (degree.get(b.id) || 0) - (degree.get(a.id) || 0) || a.id.localeCompare(b.id),
+  )
   const positions: Record<string, GraphPoint> = {}
   people.forEach((p, i) => {
     if (i === 0) {
       positions[p.id] = { x: 600, y: 410 }
       return
     }
-    const ring = i <= 10 ? 1 : i <= 30 ? 2 : 3
-    const start = ring === 1 ? 1 : ring === 2 ? 11 : 31
-    const count = Math.min(ring === 1 ? 10 : ring === 2 ? 20 : 30, people.length - start)
+    // Grow rings without a fixed outer capacity: automatic archives may exceed 60 people.
+    let ring = 1,
+      start = 1
+    while (i >= start + ring * 10) {
+      start += ring * 10
+      ring++
+    }
+    const count = Math.min(ring * 10, people.length - start)
     const angle = ((i - start) / Math.max(1, count)) * Math.PI * 2 - Math.PI / 2
     positions[p.id] = { x: 600 + Math.cos(angle) * ring * (compact ? 200 : 290), y: 410 + Math.sin(angle) * ring * 210 }
   })

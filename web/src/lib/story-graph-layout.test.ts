@@ -17,6 +17,20 @@ const graph: StoryGraph = {
   ].map(([from, to], i) => ({ id: `r${i}`, from: from!, to: to!, label: '合作与试探', summary: '', directed: true, certainty: 'inference', evidence: [] })),
 }
 describe('story graph diagram geometry', () => {
+  it('keeps every person distinct when an automatic archive exceeds sixty people', () => {
+    const large = { ...graph, people: Array.from({ length: 160 }, (_, i) => ({ id: `p${i}`, name: `人物${i}`, aliases: [], summary: '', evidence: [] })) }
+    const positions = Object.values(storyGraphLayout(large))
+    expect(positions).toHaveLength(160)
+    for (const [index, point] of positions.entries()) {
+      for (const next of positions.slice(index + 1)) expect(Math.hypot(point.x - next.x, point.y - next.y)).toBeGreaterThan(90)
+    }
+  })
+  it('places the chosen person at the center of a local exploration', () => {
+    const positions = storyGraphLayout(graph, false, 'f')
+    expect(positions.f).toEqual({ x: 600, y: 410 })
+    expect(positions.a).not.toEqual(positions.f)
+  })
+
   it('keeps neighboring labels distinct in a six-person network', () => {
     const edges = storyGraphEdges(graph, storyGraphLayout(graph))
     for (const [index, a] of edges.entries())
