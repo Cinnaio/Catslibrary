@@ -167,6 +167,18 @@ struct AdminAgentAPI {
         return value.report
     }
 
+    func continuation(_ id: String, actionID: String) async throws -> AIAgentContinuationPreview {
+        try await AdminAPI.parityRequest("GET", Self.path(id) + "/actions/" + ReaderMediaAPI.pathSegment(actionID) + "/continuation",
+                                         token: token)
+    }
+
+    func continueChapter(_ id: String, actionID: String, revision: String, selectedIDs: [String], note: String) async throws -> AIAgentSession {
+        let path = Self.path(id) + "/actions/" + ReaderMediaAPI.pathSegment(actionID) + "/continuation"
+        let value: AIAgentSessionResponse = try await AdminAPI.parityRequest("POST", path,
+            body: ["expectedRevision": revision, "selectedIds": selectedIDs, "note": note], token: token)
+        return value.session
+    }
+
     func confirm(_ id: String, actionID: String) async throws -> AIAgentAction {
         let value: AIAgentActionResponse = try await AdminAPI.parityRequest("POST",
             Self.path(id) + "/actions/" + ReaderMediaAPI.pathSegment(actionID) + "/confirm", body: [:], token: token, timeout: 120)

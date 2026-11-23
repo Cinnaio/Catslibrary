@@ -28,9 +28,50 @@ public struct AIAgentSession: Codable, Identifiable, Equatable, Sendable {
     public let brief: String
     public let contentPreferences: AIAgentPreferences
     public let bookSettingsRevision: Int?
+    public let continuationNotes: [AIAgentContinuationNote]?
     public let activeTaskId: String
     public let createdAt: Int64
     public let updatedAt: Int64
+}
+
+public enum AIAgentContinuationNoteKind: String, Codable, Sendable {
+    case question, note
+    case nextStep = "next_step"
+    case authorMessage = "author_message"
+
+    public var title: String {
+        switch self {
+        case .question: "摘要里的待讨论问题"
+        case .nextStep: "摘要里的后续安排"
+        case .authorMessage: "作者原话"
+        case .note: "补充给下一章"
+        }
+    }
+}
+
+public struct AIAgentContinuationNote: Codable, Equatable, Sendable {
+    public let kind: AIAgentContinuationNoteKind
+    public let text: String
+}
+
+public struct AIAgentContinuationPreview: Decodable, Sendable {
+    public struct Chapter: Decodable, Sendable {
+        public let id: String
+        public let title: String
+    }
+
+    public struct Candidate: Decodable, Identifiable, Sendable {
+        public let id: String
+        public let kind: AIAgentContinuationNoteKind
+        public let text: String
+    }
+
+    public static let selectionLimit = 6
+    public static let noteLimit = 1_200
+    public let chapter: Chapter
+    public let candidates: [Candidate]
+    public let revision: String
+    public let existingSession: AIAgentSession?
 }
 
 public struct AIAgentTask: Codable, Identifiable, Equatable, Sendable {
@@ -170,6 +211,7 @@ public struct AIAgentAction: Codable, Identifiable, Equatable, Sendable {
     public let createdAt: Int64
     public let canResume: Bool?
     public let chapterImpactAvailable: Bool?
+    public let continuationAvailable: Bool?
     public var canConfirm: Bool { status == "pending" || (status == "executing" && canResume == true) }
 }
 

@@ -7,6 +7,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowDown, BookOpen, History, Image as ImageIcon, Lightbulb, MessageSquare, PanelRight, PenLine, Plus, SlidersHorizontal } from 'lucide-react'
 import type { AdminNovelIndexItem, ChapterMeta } from '@shared/types'
 import {
+  AGENT_CONTINUATION_LABELS,
   agentTaskRunning,
   type AgentAction,
   type AgentActionKind,
@@ -246,6 +247,15 @@ function AiAgentWorkspace() {
     setSessions(update)
     setRecent(update)
   }
+  function openContinuation(session: AgentSession) {
+    if (!mounted.current || latestParams.current.get('session') !== sessionId || session.novelId !== novelId) return
+    const include = (list: AgentSession[]) => [session, ...list.filter(item => item.id !== session.id)]
+    setOpenedSession(session)
+    setSessions(include)
+    setRecent(include)
+    refreshHistory()
+    navigateSession(session.id)
+  }
   async function remove() {
     if (!deleteTarget || deleting) return
     setDeleting(true)
@@ -352,7 +362,8 @@ function AiAgentWorkspace() {
             {!novelId && <p className={styles.muted}>先在上方选择一本小说。</p>}
           </section>
         ) : (
-          <AgentConversation key={`${novelId}:${sessionId}`} sessionId={sessionId} novelId={novelId} onSession={updateSession} />
+          <AgentConversation key={`${novelId}:${sessionId}`} sessionId={sessionId} novelId={novelId}
+            onSession={updateSession} onOpenContinuation={openContinuation} />
         )}
         <AiAgentHistory
           open={historyOpen}
@@ -414,7 +425,9 @@ function AiAgentWorkspace() {
   )
 }
 
-function AgentConversation({ sessionId, novelId, onSession }: { sessionId: string; novelId: string; onSession: (s: AgentSession) => void }) {
+function AgentConversation({ sessionId, novelId, onSession, onOpenContinuation }: {
+  sessionId: string; novelId: string; onSession: (s: AgentSession) => void; onOpenContinuation: (s: AgentSession) => void
+}) {
   const [pendingKey] = useState(() => pendingAgentKey(novelId, sessionId))
   const [pending, setPending] = useState(() => readPendingAgentMessage(pendingKey))
   const pendingRequest = useRef<PendingAgentMessage | null>(pending)
@@ -793,6 +806,12 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
                   读取更早的对话
                 </Button>
               )}
+              {!!data.session.continuationNotes?.length && <MotionDetails className={styles.continuationNotes}>
+                <summary>承接的创作事项</summary>
+                <ul>{data.session.continuationNotes.map((note, index) => <li key={index}>
+                  <small>{AGENT_CONTINUATION_LABELS[note.kind]}</small>{note.text}
+                </li>)}</ul>
+              </MotionDetails>}
               {!allEvents.length && (
                 <div className={styles.empty}>
                   <span className={styles.emptyEyebrow}>写作，从对话开始</span>
@@ -896,6 +915,7 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
         </aside>
       </div>
       <AiAgentActionDialog key={action?.id || 'no-action'} action={action} novelTitle={data.session.novelTitle} busy={busy} error={error}
+        continuation={{ sessionId, onOpenSession: onOpenContinuation }}
         impact={{ novelId,
           onCheck: async (saved, count) => (await agentApi.chapterImpact(sessionId, saved.id, count)).report,
           onDiscuss: (saved, finding) => {

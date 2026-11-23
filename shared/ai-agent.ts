@@ -80,6 +80,21 @@ export const AGENT_PLAN_BRANCH_NAME_LIMIT = 60
 
 export const AGENT_CHAPTER_PLAN_LIMITS = { title: 200, goal: 1200, beats: 4000, characters: 1200, ending: 1200, constraints: 1200 } as const
 
+export type AgentContinuationNoteKind = 'question' | 'next_step' | 'author_message' | 'note'
+export interface AgentContinuationNote { kind: AgentContinuationNoteKind; text: string }
+export interface AgentContinuationPreview {
+  chapter: { id: string; title: string }
+  candidates: Array<AgentContinuationNote & { id: string }>
+  revision: string
+  existingSession?: AgentSession
+}
+export interface AgentContinuationInput { expectedRevision: string; selectedIds: string[]; note: string }
+export const AGENT_CONTINUATION_LIMIT = 6
+export const AGENT_CONTINUATION_NOTE_LIMIT = 1200
+export const AGENT_CONTINUATION_LABELS: Record<AgentContinuationNoteKind, string> = {
+  question: '摘要里的待讨论问题', next_step: '摘要里的后续安排', author_message: '作者原话', note: '补充给下一章',
+}
+
 export interface AgentSession {
   id: string
   novelId: string
@@ -91,6 +106,7 @@ export interface AgentSession {
   contentPreferences: AgentContentPreferences
   writingReferenceIds?: string[]
   bookSettingsRevision?: number
+  continuationNotes?: AgentContinuationNote[]
   activeTaskId: string
   createdAt: number
   updatedAt: number
@@ -249,6 +265,7 @@ export interface AgentAction {
   status: 'pending' | 'executing' | 'completed' | 'rejected' | 'failed'
   preview: { description: string; before?: string; after?: string; candidateId?: string; draftId?: string; chapterId?: string; chapterTitle?: string; sourceTaskId?: string; selection?: AgentRewriteSelection }
   chapterImpactAvailable?: true
+  continuationAvailable?: true
   error: string
   createdAt: number
   canResume?: boolean

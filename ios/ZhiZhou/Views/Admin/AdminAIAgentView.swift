@@ -218,7 +218,10 @@ struct AdminAIAgentView: View {
     @ViewBuilder private func mainWorkspace(historyPresented: Bool, showsCreationPortrait: Bool = false) -> some View {
         if let activeSession, let user = appState.user, let token = APIClient.shared.token {
             AdminAIAgentConversationView(session: activeSession, userID: user.id, token: token,
-                                         historyPresented: historyPresented, usesWorkspaceSurface: true)
+                                         historyPresented: historyPresented, usesWorkspaceSurface: true) { next in
+                openSession(next)
+                Task { await loadSessions() }
+            }
                 .id(activeSession.id)
         } else {
             ScrollView {

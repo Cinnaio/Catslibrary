@@ -73,7 +73,10 @@ struct AdminBookImportView: View {
         }
         .navigationDestination(isPresented: $showConversation) {
             if let openedConversation, let user = appState.user, let token = discoveryToken, token == APIClient.shared.token {
-                AdminAIAgentConversationView(session: openedConversation, userID: user.id, token: token)
+                AdminAIAgentConversationView(session: openedConversation, userID: user.id, token: token) { next in
+                    self.openedConversation = next
+                }
+                .id(openedConversation.id)
             }
         }
         .adminDangerousOperationConfirmation($pendingOperation, onConfirm: { operation in

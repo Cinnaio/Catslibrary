@@ -294,7 +294,7 @@ export async function confirmAgentAction(db: Db, session: AgentSession, id: stri
       await query("UPDATE ai_agent_actions SET status='completed',result=$1,error='',updated_at=$2 WHERE id=$3", [JSON.stringify(result), Date.now(), id])
       await appendAgentEvent({ query }, session.id, 'activity', `已完成：${action.title}`, '', { actionId: id })
     })
-    return { ...publicAgentAction(action), status: 'completed' as const, error: '' }
+    return publicAgentAction({ ...action, status: 'completed', result, error: '' })
   } catch (error) {
     const message = error instanceof AiError ? error.message : '操作失败，请核对当前内容后重新预览'
     await run(db, "UPDATE ai_agent_actions SET status='failed',error=$1,updated_at=$2 WHERE id=$3", [message, Date.now(), id])

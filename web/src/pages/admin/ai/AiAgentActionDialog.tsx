@@ -1,10 +1,12 @@
 import { Check } from 'lucide-react'
-import type { AgentAction, AgentChapterImpactFinding, AgentChapterImpactReport } from '@shared/ai-agent'
+import { useState } from 'react'
+import type { AgentAction, AgentChapterImpactFinding, AgentChapterImpactReport, AgentSession } from '@shared/ai-agent'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { ReadingDialog } from '@/components/shared/ReadingDialog'
 import AiAgentTextComparison, { AiAgentTextComparisonToolbar } from './AiAgentTextComparison'
 import AiAgentChapterImpact from './AiAgentChapterImpact'
+import AiAgentContinuationDialog from './AiAgentContinuationDialog'
 import { useAgentTextComparisonControls } from './useAgentTextComparison'
 import styles from './agent-action-dialog.module.css'
 
@@ -18,7 +20,7 @@ const LABELS: Record<AgentAction['kind'], { title: string; confirm: string; targ
   adopt_cover: { title: '封面替换', confirm: '确认设为封面', target: '封面操作' },
 }
 
-export default function AiAgentActionDialog({ action, novelTitle, coverUrl, busy, error, impact, onClose, onReject, onConfirm }: {
+export default function AiAgentActionDialog({ action, novelTitle, coverUrl, busy, error, impact, continuation, onClose, onReject, onConfirm }: {
   action: AgentAction | null
   novelTitle: string
   coverUrl?: string
@@ -29,12 +31,17 @@ export default function AiAgentActionDialog({ action, novelTitle, coverUrl, busy
     onCheck: (action: AgentAction, count: number) => Promise<AgentChapterImpactReport>
     onDiscuss: (action: AgentAction, finding: AgentChapterImpactFinding) => void
   }
+  continuation?: { sessionId: string; onOpenSession: (session: AgentSession) => void }
   onClose: () => void
   onReject: (action: AgentAction) => void
   onConfirm: (action: AgentAction) => void
 }) {
   const comparison = useAgentTextComparisonControls()
+  const [continuing, setContinuing] = useState(false)
   if (!action) return null
+  if (continuing && continuation && action.continuationAvailable)
+    return <AiAgentContinuationDialog sessionId={continuation.sessionId} actionId={action.id}
+      onBack={() => setContinuing(false)} onOpenSession={continuation.onOpenSession} />
   const labels = LABELS[action.kind]
   const canConfirm = action.status === 'pending' || (action.status === 'executing' && action.canResume)
   const hasText = action.preview.before !== undefined || action.preview.after !== undefined
@@ -54,6 +61,7 @@ export default function AiAgentActionDialog({ action, novelTitle, coverUrl, busy
           {action.status === 'pending' && <Button variant="ghost" disabled={busy} onClick={() => onReject(action)}>暂不采纳</Button>}
           <Button disabled={busy} onClick={() => onConfirm(action)}><Check size={15} aria-hidden="true" />{busy ? '正在处理…' : action.status === 'executing' ? '核对并继续采纳' : labels.confirm}</Button>
         </div>}
+        {action.continuationAvailable && continuation && <Button disabled={busy} onClick={() => setContinuing(true)}>继续下一章</Button>}
       </div>}>
       <section className={styles.context} aria-label="本次操作影响">
         <div className={styles.target}>

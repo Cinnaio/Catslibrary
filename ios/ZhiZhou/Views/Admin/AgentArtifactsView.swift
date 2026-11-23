@@ -9,6 +9,7 @@ private enum AgentOutputRoute: Hashable {
 struct AgentOutputSheet: View {
     let model: AdminAIAgentConversationModel
     var artifactID: String? = nil
+    let onOpenContinuation: (AIAgentSession) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var path: [AgentOutputRoute] = []
 
@@ -35,7 +36,8 @@ struct AgentOutputSheet: View {
                         .navigationBarBackButtonHidden(model.working)
                 case .action:
                     if let action = model.selectedAction {
-                        AgentActionPreview(model: model, initialAction: action, returnToConversation: { dismiss() })
+                        AgentActionPreview(model: model, initialAction: action, returnToConversation: { dismiss() },
+                                           onOpenContinuation: onOpenContinuation)
                             .navigationBarBackButtonHidden(model.working)
                     }
                 }
@@ -574,11 +576,13 @@ struct AgentCoverPreview: View {
 struct AgentActionSheet: View {
     let model: AdminAIAgentConversationModel
     let initialAction: AIAgentAction
+    let onOpenContinuation: (AIAgentSession) -> Void
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
-            AgentActionPreview(model: model, initialAction: initialAction, returnToConversation: { dismiss() })
+            AgentActionPreview(model: model, initialAction: initialAction, returnToConversation: { dismiss() },
+                               onOpenContinuation: onOpenContinuation)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("关闭") { dismiss() }.disabled(model.working) }
                 }
@@ -591,6 +595,7 @@ private struct AgentActionPreview: View {
     let model: AdminAIAgentConversationModel
     let initialAction: AIAgentAction
     let returnToConversation: () -> Void
+    let onOpenContinuation: (AIAgentSession) -> Void
     private var action: AIAgentAction { model.selectedAction ?? initialAction }
 
     private var draftTitle: String? {
@@ -619,6 +624,14 @@ private struct AgentActionPreview: View {
             }
             Label(AgentDisplay.status(action.status), systemImage: action.status == "completed" ? "checkmark.circle" : "doc.text")
                 .font(.subheadline).foregroundStyle(action.status == "completed" ? AppTheme.success : ReadingSpace.profileMuted)
+            if action.continuationAvailable == true {
+                NavigationLink {
+                    AgentContinuationView(model: model, action: action, onOpenSession: onOpenContinuation)
+                } label: {
+                    Label("继续下一章", systemImage: "arrow.right")
+                }
+                .buttonStyle(AgentPanelButtonStyle(prominent: true)).disabled(model.working)
+            }
             if action.status == "pending", action.chapterImpactAvailable == true {
                 AgentChapterImpactView(model: model, action: action, returnToConversation: returnToConversation)
                     .id(action.id)
@@ -662,6 +675,105 @@ private struct AgentActionPreview: View {
             }
             Button("刷新操作状态", systemImage: "arrow.clockwise") { Task { await model.openAction(action.id) } }
                 .font(.subheadline).frame(maxWidth: .infinity, minHeight: 44).disabled(model.working)
+        }
+    }
+}
+
+private struct AgentContinuationView: View {
+    let model: AdminAIAgentConversationModel
+    let action: AIAgentAction
+    let onOpenSession: (AIAgentSession) -> Void
+    @State private var preview: AIAgentContinuationPreview?
+    @State private var selected: Set<String> = []
+    @State private var note = ""
+    @State private var loading = true
+    @State private var error: String?
+    @FocusState private var noteFocused: Bool
+
+    var body: some View {
+        AgentPanelPage {
+            AgentPanelHeading("继续下一章")
+            if loading { ProgressView("正在读取续写起点和承接事项…") }
+            if let error {
+                AgentPanelNotice(error, isError: true)
+                Button("重新读取") { Task { await load() } }
+                    .buttonStyle(AgentPanelButtonStyle()).disabled(loading || model.working)
+            }
+            if let preview {
+                AgentPanelFact(title: "续写起点", value: preview.chapter.title)
+                if preview.existingSession != nil {
+                    AgentPanelNotice("这次发布已开启下一章对话。")
+                } else {
+                    options(preview)
+                }
+                Button(preview.existingSession == nil ? "开启下一章对话" : "打开下一章对话") {
+                    Task { await open(preview) }
+                }
+                .buttonStyle(AgentPanelButtonStyle(prominent: true))
+                .disabled(loading || model.working || note.utf16.count > AIAgentContinuationPreview.noteLimit)
+            }
+        }
+        .navigationBarBackButtonHidden(model.working)
+        .task { await load() }
+    }
+
+    private func options(_ preview: AIAgentContinuationPreview) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            if !preview.candidates.isEmpty {
+                AgentPanelSection("要带进新对话的事项（选填）") {
+                    ForEach(Array(preview.candidates.enumerated()), id: \.element.id) { index, item in
+                        Toggle(isOn: Binding(get: { selected.contains(item.id) }, set: { enabled in
+                            if enabled { selected.insert(item.id) } else { selected.remove(item.id) }
+                        })) {
+                            AgentPanelFact(title: item.kind.title, value: item.text)
+                        }
+                        .frame(minHeight: 44)
+                        .disabled(!selected.contains(item.id) && selected.count >= AIAgentContinuationPreview.selectionLimit)
+                        .readingSpaceEntrance(index)
+                    }
+                    Text("已选 \(selected.count) / \(AIAgentContinuationPreview.selectionLimit)")
+                        .font(.footnote).foregroundStyle(ReadingSpace.profileMuted)
+                }
+            }
+            AgentPanelField("补充给下一章（选填）", isFocused: noteFocused) {
+                TextField("补充给下一章", text: $note, axis: .vertical)
+                    .lineLimit(3...7).focused($noteFocused)
+            }
+            if note.utf16.count > AIAgentContinuationPreview.noteLimit {
+                AgentPanelNotice("补充内容最多 \(AIAgentContinuationPreview.noteLimit) 字。", isError: true)
+            }
+        }
+        .disabled(model.working)
+    }
+
+    private func load() async {
+        guard model.isCurrentAccount else { return }
+        preview = nil
+        selected = []
+        error = nil
+        loading = true
+        defer { loading = false }
+        do {
+            let value = try await model.api.continuation(model.sessionID, actionID: action.id)
+            if model.isCurrentAccount, !Task.isCancelled { preview = value }
+        } catch {
+            if model.isCurrentAccount, !Task.isCancelled { self.error = AppCopy.friendlyError(error) }
+        }
+    }
+
+    private func open(_ preview: AIAgentContinuationPreview) async {
+        guard model.isCurrentAccount, !model.working else { return }
+        if let existing = preview.existingSession {
+            onOpenSession(existing)
+            return
+        }
+        error = nil
+        do {
+            let next = try await model.continueChapter(action, revision: preview.revision,
+                                                       selectedIDs: preview.candidates.map(\.id).filter { selected.contains($0) }, note: note)
+            onOpenSession(next)
+        } catch {
+            if model.isCurrentAccount { self.error = AppCopy.friendlyError(error) }
         }
     }
 }

@@ -33,12 +33,20 @@
 .impactFindings dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; margin: 8px 0; }
 .impactFindings dt { color: var(--text-muted); }
 .impactFindings dd { margin: 0; white-space: pre-wrap; }
+.continuationForm, .continuationChoices { display: grid; gap: 12px; min-width: 0; font-size: 14px; }
+.continuationChoices { margin: 0; padding: 0; border: 0; }
+.continuationChoices legend { margin-block-end: 8px; }
+.continuationChoice { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: start; animation: chapter-impact-enter 180ms ease both; }
+.continuationChoice > button { margin-block-start: 5px; }
+.continuationChoice > label { display: grid; gap: 3px; white-space: pre-wrap; overflow-wrap: anywhere; cursor: pointer; }
+.continuationChoice small { color: var(--text-muted); }
 @keyframes chapter-impact-enter { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-@media (prefers-reduced-motion: reduce) { .impactFindings li { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .impactFindings li, .continuationChoice { animation: none; } }
 @media (max-width: 800px) {
   .target { grid-template-columns: minmax(0, 1fr); }
   .footer button { min-height: 48px; }
   .impact button, .impact select { min-height: 44px; }
+  .continuationChoice > label { min-height: 44px; }
 }
 @media (max-width: 480px) {
   .footer { align-items: stretch; }

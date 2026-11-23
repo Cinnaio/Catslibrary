@@ -28,6 +28,7 @@ interface SessionRow {
   anchor_title: string
   writing_reference_ids: string[]
   book_settings_revision: number
+  continuation_notes: NonNullable<AgentSession['continuationNotes']>
 }
 const SESSION_SELECT = `SELECT s.*, n.title AS novel_title, COALESCE(c.title,'') AS anchor_title,
   COALESCE(b.revision,0) AS book_settings_revision
@@ -47,16 +48,22 @@ function mapSession(r: SessionRow): AgentSession {
     contentPreferences: r.content_preferences,
     writingReferenceIds: r.writing_reference_ids || [],
     bookSettingsRevision: r.book_settings_revision,
+    ...(r.continuation_notes?.length ? { continuationNotes: r.continuation_notes } : {}),
     activeTaskId: r.active_task_id,
     createdAt: Number(r.created_at),
     updatedAt: Number(r.updated_at),
   }
 }
 
-export async function getAgentSession(db: DbClient, userId: string, id: string): Promise<AgentSession> {
+export async function findAgentSession(db: DbClient, userId: string, id: string) {
   const r = await first<SessionRow>(db, `${SESSION_SELECT} WHERE s.id=$1 AND s.user_id=$2`, [id, userId])
-  if (!r) throw new AiError('invalid', '创作对话不存在', 404)
-  return mapSession(r)
+  return r && mapSession(r)
+}
+
+export async function getAgentSession(db: DbClient, userId: string, id: string): Promise<AgentSession> {
+  const session = await findAgentSession(db, userId, id)
+  if (!session) throw new AiError('invalid', '创作对话不存在', 404)
+  return session
 }
 
 export async function listAgentSessions(db: DbClient, userId: string, novelId = '', offset = 0) {
@@ -86,9 +93,9 @@ export async function deleteAgentSession(db: Db, userId: string, id: string) {
 }
 
 export async function createAgentSession(
-  db: Db,
+  db: DbClient,
   userId: string,
-  input: { novelId: string; afterChapterId?: string; brief?: string; contentPreferences?: unknown },
+  input: { novelId: string; afterChapterId?: string; brief?: string; contentPreferences?: unknown; continuationNotes?: AgentSession['continuationNotes'] },
 ) {
   const suppliedPreferences = validateWritingContentPreferences(input.contentPreferences)
   if (suppliedPreferences.error) throw new AiError('invalid', suppliedPreferences.error, 422)
@@ -108,7 +115,7 @@ export async function createAgentSession(
   const id = newId('agent')
   await run(
     db,
-    `INSERT INTO ai_agent_sessions(id,user_id,novel_id,after_chapter_id,brief,content_preferences,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$7)`,
+    `INSERT INTO ai_agent_sessions(id,user_id,novel_id,after_chapter_id,brief,content_preferences,continuation_notes,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$8)`,
     [
       id,
       userId,
@@ -116,6 +123,7 @@ export async function createAgentSession(
       anchor?.id || '',
       (input.brief ?? defaults?.brief ?? '').slice(0, 4000),
       JSON.stringify(preferences.preferences || DEFAULT_WRITING_CONTENT_PREFERENCES),
+      JSON.stringify(input.continuationNotes || []),
       Date.now(),
     ],
   )
@@ -312,6 +320,12 @@ export interface AgentActionRow {
   created_at: number
   updated_at: number
 }
+export function agentPublishedChapterId(action: AgentActionRow) {
+  if (action.kind !== 'publish_draft' || action.status !== 'completed') return undefined
+  const id = action.result.chapterId ?? (action.result.chapter as { id?: unknown } | undefined)?.id
+  return typeof id === 'string' && id ? id : undefined
+}
+
 export const publicAgentAction = (r: AgentActionRow): AgentAction => ({
   id: r.id,
   kind: r.kind,
@@ -321,6 +335,7 @@ export const publicAgentAction = (r: AgentActionRow): AgentAction => ({
   error: r.error,
   createdAt: Number(r.created_at),
   ...(r.kind === 'apply_chapter_edit' ? { chapterImpactAvailable: true } : {}),
+  ...(agentPublishedChapterId(r) ? { continuationAvailable: true } : {}),
   ...(r.status === 'executing' ? { canResume: Number(r.lease_until) < Date.now() } : {}),
 })
 export async function listAgentActions(db: DbClient, sessionId: string) {

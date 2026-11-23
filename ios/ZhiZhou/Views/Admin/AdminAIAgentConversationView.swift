@@ -8,6 +8,8 @@ struct AdminAIAgentConversationView: View {
     @State private var model: AdminAIAgentConversationModel
     @State private var panel: Panel?
     @State private var chapterLink: ReaderChapterLink?
+    @State private var nextSession: AIAgentSession?
+    let onOpenContinuation: (AIAgentSession) -> Void
 
     private enum Panel: Identifiable {
         case outputs, artifact(String), settings, memory, chapterPlan
@@ -23,9 +25,11 @@ struct AdminAIAgentConversationView: View {
     }
 
     init(session: AIAgentSession, userID: String, token: String,
-         historyPresented: Bool = false, usesWorkspaceSurface: Bool = false) {
+         historyPresented: Bool = false, usesWorkspaceSurface: Bool = false,
+         onOpenContinuation: @escaping (AIAgentSession) -> Void) {
         self.historyPresented = historyPresented
         self.usesWorkspaceSurface = usesWorkspaceSurface
+        self.onOpenContinuation = onOpenContinuation
         _model = State(initialValue: AdminAIAgentConversationModel(session: session, userID: userID, token: token))
     }
 
@@ -94,24 +98,37 @@ struct AdminAIAgentConversationView: View {
                 .disabled(!model.hasLoaded)
             }
         }
-        .sheet(item: $panel) { panel in
+        .sheet(item: $panel, onDismiss: openContinuation) { panel in
             switch panel {
-            case .outputs: AgentOutputSheet(model: model)
-            case .artifact(let id): AgentOutputSheet(model: model, artifactID: id)
+            case .outputs: AgentOutputSheet(model: model, onOpenContinuation: finishContinuation)
+            case .artifact(let id): AgentOutputSheet(model: model, artifactID: id, onOpenContinuation: finishContinuation)
             case .settings: AgentSettingsSheet(model: model)
             case .memory: AgentMemoryView(model: model)
             case .chapterPlan: AgentChapterPlanSheet(model: model)
             }
         }
         .sheet(item: Binding(get: { panel == nil ? model.selectedAction : nil },
-                             set: { if panel == nil { model.selectedAction = $0 } })) { action in
-            AgentActionSheet(model: model, initialAction: action)
+                             set: { if panel == nil { model.selectedAction = $0 } }), onDismiss: openContinuation) { action in
+            AgentActionSheet(model: model, initialAction: action, onOpenContinuation: finishContinuation)
         }
         .task(id: scenePhase) {
             guard scenePhase == .active else { model.pause(); return }
             await model.monitor()
         }
         .onDisappear { model.pause() }
+    }
+
+    private func finishContinuation(_ session: AIAgentSession) {
+        guard model.isCurrentAccount else { return }
+        nextSession = session
+        model.selectedAction = nil
+        panel = nil
+    }
+
+    private func openContinuation() {
+        guard let session = nextSession else { return }
+        nextSession = nil
+        if model.isCurrentAccount { onOpenContinuation(session) }
     }
 
     private var contextSummary: String {
@@ -194,6 +211,16 @@ private struct AgentMessagesView: View {
                     HStack { Text("查看更早的消息"); if model.loadingEarlier { ProgressView() } }
                         .frame(maxWidth: .infinity, minHeight: 44)
                 }.disabled(model.loadingEarlier)
+            }
+            if let notes = model.session.continuationNotes, !notes.isEmpty {
+                DisclosureGroup("承接的创作事项") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(notes.indices, id: \.self) { index in
+                            AgentPanelFact(title: notes[index].kind.title, value: notes[index].text)
+                        }
+                    }.padding(.top, 10)
+                }
+                .font(.subheadline).foregroundStyle(ReadingSpace.ink)
             }
             if model.events.isEmpty {
                 ContentUnavailableView("一起把故事往下写", systemImage: "sparkles",

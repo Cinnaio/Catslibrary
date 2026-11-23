@@ -2,6 +2,8 @@ import type { AgentChapterEditSource, AgentChapterHistory } from '@shared/ai-age
 import type {
   AgentChapterPlan,
   AgentChapterImpactReport,
+  AgentContinuationInput,
+  AgentContinuationPreview,
   AgentChapterPlanInput,
   AgentChapterPlanBranchState,
   AgentWritingReference,
@@ -65,6 +67,10 @@ export const agentApi = {
   action: (id: string, actionId: string) => request<{ action: AgentAction }>('GET', `${path(id)}/actions/${encodeURIComponent(actionId)}`, null, true),
   chapterImpact: (id: string, actionId: string, chapterCount: number) =>
     request<{ report: AgentChapterImpactReport }>('POST', `${path(id)}/actions/${encodeURIComponent(actionId)}/impact`, { chapterCount }, true, {}, 150_000),
+  continuation: (id: string, actionId: string) =>
+    request<AgentContinuationPreview>('GET', `${path(id)}/actions/${encodeURIComponent(actionId)}/continuation`, null, true),
+  continueChapter: (id: string, actionId: string, input: AgentContinuationInput) =>
+    request<{ session: AgentSession }>('POST', `${path(id)}/actions/${encodeURIComponent(actionId)}/continuation`, input, true),
   confirm: (id: string, actionId: string) => request<{ action: AgentAction }>('POST', `${path(id)}/actions/${encodeURIComponent(actionId)}/confirm`, {}, true),
   reject: (id: string, actionId: string) => request('POST', `${path(id)}/actions/${encodeURIComponent(actionId)}/reject`, {}, true),
 }

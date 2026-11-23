@@ -16,7 +16,7 @@ import { setAgentPhase } from '../services/ai/agent-recovery'
 import { generationContentRevision } from '../services/ai/generations'
 import { replaceCoverForAdmin } from '../services/covers'
 import { AiError, type AiToolCall } from '../services/ai/client'
-import type { AgentAction, AgentChapterImpactReport, AgentSession, AgentSessionDetail } from '@shared/ai-agent'
+import type { AgentAction, AgentChapterImpactReport, AgentContinuationPreview, AgentSession, AgentSessionDetail } from '@shared/ai-agent'
 import { subscribeAiTask } from '../services/ai/task-events'
 import { buildChapterEditParams, chapterRevision } from '../services/ai/chapter-edit'
 import { activeAgentMemories, changeAgentMemory, createAgentMemory, getAgentSummary, listAgentMemories, saveAgentSummary } from '../services/ai/agent-memory'
@@ -249,6 +249,61 @@ function request(path: string, method = 'GET', body?: unknown, token = adminToke
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   })
 }
+
+it('starts one follow-up from the saved publication and carries only the selected notes', async () => {
+  const novelId = 'continuation-novel'
+  await t.db.query('INSERT INTO novels(id,title,created_at,updated_at) VALUES($1,$1,1,1)', [novelId])
+  await draft('continuation-draft', novelId, '她把信放回抽屉，走出了门。')
+  const source = await createAgentSession(t.db, 'admin', { novelId })
+  await appendAgentEvent(t.db, source.id, 'user', '下一章保留钥匙。')
+  const author = (await readAgentEvents(t.db, source.id)).events[0]!
+  await saveAgentSummary(t.db, source, author.id, {
+    goal: '试写下一章', decisions: [], rejected: [`#${author.id} 直接揭开身份`],
+    openQuestions: [`#${author.id} 门后是谁？`], nextSteps: [`#${author.id} 先让她去码头。`], references: [`#${author.id}`],
+  })
+  const action = await prepareAgentAction(t.db, source, 'publish_draft', 'continuation-draft', '信')
+  const root = `/api/ai/agent/sessions/${source.id}/actions/${action.id}`
+  const endpoint = `${root}/continuation`
+  expect((await request(endpoint)).status).toBe(404)
+  const confirmation = await request(`${root}/confirm`, 'POST', {})
+  expect(confirmation.status).toBe(200)
+  expect(await confirmation.json()).toMatchObject({ action: { status: 'completed', continuationAvailable: true } })
+  const published = await first<{ chapter_id: string }>(t.db, "SELECT chapter_id FROM ai_generations WHERE id='continuation-draft'")
+  await t.db.query("INSERT INTO chapters(id,novel_id,title,content,sort_order,created_at) VALUES ('newer-after-publish',$1,'更新的一章','后来又发生了别的事。',2,1)", [novelId])
+  expect((await request(endpoint, 'GET', undefined, otherToken)).status).toBe(404)
+  const preview = await (await request(endpoint)).json() as AgentContinuationPreview
+  expect(preview.chapter).toEqual({ id: published!.chapter_id, title: '信' })
+  expect(preview.candidates).toMatchObject([
+    { id: 'question-0', kind: 'question', text: '门后是谁？' },
+    { id: 'next-0', kind: 'next_step', text: '先让她去码头。' },
+    { id: `author-${author.id}`, kind: 'author_message', text: '下一章保留钥匙。' },
+  ])
+  const input = { expectedRevision: preview.revision, selectedIds: ['question-0', `author-${author.id}`], note: '先问清楚走哪条线。' }
+  expect((await request(endpoint, 'POST', { ...input, selectedIds: ['other-session'] })).status).toBe(422)
+  await appendAgentEvent(t.db, source.id, 'user', '仍需讨论谁发现了信。')
+  expect((await request(endpoint, 'POST', input)).status).toBe(409)
+  const fresh = await (await request(endpoint)).json() as AgentContinuationPreview
+  const responses = await Promise.all([request(endpoint, 'POST', { ...input, expectedRevision: fresh.revision }),
+    request(endpoint, 'POST', { ...input, expectedRevision: fresh.revision })])
+  expect(responses.map(response => response.status)).toEqual([200, 200])
+  const [left, right] = await Promise.all(responses.map(response => response.json() as Promise<{ session: AgentSession }>))
+  expect(left!.session.id).toBe(right!.session.id)
+  expect(left!.session).toMatchObject({ afterChapterId: published!.chapter_id, anchorTitle: '信', activeTaskId: '', continuationNotes: [
+    { kind: 'question', text: '门后是谁？' }, { kind: 'author_message', text: '下一章保留钥匙。' }, { kind: 'note', text: input.note },
+  ] })
+  expect(await (await request(endpoint)).json()).toMatchObject({ existingSession: { id: left!.session.id } })
+  expect(fetchMock).not.toHaveBeenCalled()
+  expect((await readAgentEvents(t.db, left!.session.id)).events).toEqual([])
+
+  const next = left!.session
+  const turn = await beginAgentTurn(t.db, 'admin', next.id, '我们先讨论。', 'continuation-first-turn')
+  await runAgentTurn(t.db, next, turn.taskId, 'admin', internalApi())
+  const payload = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body))
+  const context = JSON.parse(payload.messages[1].content.slice(payload.messages[1].content.indexOf('{')))
+  expect(context.continuationNotes).toEqual(next.continuationNotes)
+  expect(context.afterChapterId).toBe(published!.chapter_id)
+  expect(JSON.stringify(context)).not.toContain('先让她去码头。')
+})
 
 it('checks only the changes saved for write-back and verifies later chapter evidence', async () => {
   const novel = 'impact-novel'

@@ -233,6 +233,11 @@
   padding-block: 8px;
   color: var(--text-secondary);
 }
+.continuationNotes { min-width: 0; color: var(--text-primary); font-size: 14px; }
+.continuationNotes summary { cursor: pointer; width: fit-content; padding-block: 8px; }
+.continuationNotes ul { display: grid; gap: 10px; margin-block: 8px 14px; padding-inline-start: 20px; }
+.continuationNotes li { white-space: pre-wrap; overflow-wrap: anywhere; }
+.continuationNotes small { display: block; color: var(--text-muted); }
 .usageHistory > summary::-webkit-details-marker {
   display: none;
 }

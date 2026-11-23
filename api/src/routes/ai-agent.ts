@@ -1,5 +1,6 @@
 import { chapterEditSource, chapterEditHistory } from '../services/ai/chapter-edit'
 import { reviewChapterImpact } from '../services/ai/chapter-impact'
+import { continuePublishedChapter, readAgentContinuation } from '../services/ai/agent-continuation'
 import { Hono } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import type { AgentActionKind } from '@shared/ai-agent'
@@ -293,6 +294,14 @@ export function createAgentRoutes(dispatch: Dispatch) {
     return c.json({ report: await reviewChapterImpact(db, session, c.req.param('actionId'), body?.chapterCount, {
       userId, ipAddress: clientIpFromContext(c), userAgent: c.req.header('User-Agent'),
     }) })
+  })
+  routes.get('/sessions/:id/actions/:actionId/continuation', async c => c.json(
+    await readAgentContinuation(getDb(), c.get('user').id, c.req.param('id'), c.req.param('actionId')),
+  ))
+  routes.post('/sessions/:id/actions/:actionId/continuation', async c => {
+    const body = await c.req.json().catch(() => null)
+    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AiError('invalid', '续写请求无效', 422)
+    return c.json({ session: await continuePublishedChapter(getDb(), c.get('user').id, c.req.param('id'), c.req.param('actionId'), body) })
   })
   routes.post('/sessions/:id/actions/:actionId/confirm', async (c) => {
     const session = await getAgentSession(getDb(), c.get('user').id, c.req.param('id'))

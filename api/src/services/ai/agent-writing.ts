@@ -1,4 +1,4 @@
-import type { AgentEvidence, AgentMemory, AgentWritingReferenceSnapshot } from '@shared/ai-agent'
+import type { AgentContinuationNote, AgentEvidence, AgentMemory, AgentWritingReferenceSnapshot } from '@shared/ai-agent'
 import type { Db } from '../../db/pool'
 import { all, first } from '../../db/query'
 import { quotedAgentText } from './agent-conversation'
@@ -20,6 +20,7 @@ export interface AgentWritingLength {
 export interface AgentWritingContext {
   chapterPlan?: import('@shared/ai-agent').AgentChapterPlan
   writingReferences?: AgentWritingReferenceSnapshot[]
+  continuationNotes?: AgentContinuationNote[]
   sessionId: string
   sources: AgentEvidence[]
   authorMessages: Array<{ id: number; content: string }>
@@ -184,6 +185,7 @@ export async function resolveAgentWritingContext(
     .map(({ id, revision, title, content }) => ({ id, revision, title, content }))
   return {
     ...(chapterPlan ? { chapterPlan } : {}),
+    ...(!scope.rewrite && session.continuationNotes?.length ? { continuationNotes: session.continuationNotes } : {}),
     sessionId: session.id, afterChapterId: session.afterChapterId, sources: passages, authorMessages, agreements, writingReferences,
     brief: session.brief, ...(priorDraft ? { priorDraft } : {}), ...(length ? { length } : {}),
   }
@@ -213,6 +215,11 @@ export function agentWritingMaterials(context: AgentWritingContext) {
       text: `作品长期约定（本次明确要求优先）：${agreement.title}\n${agreement.content}`,
     })),
     createMaterialBlock({ id: 'agent-brief', kind: 'author_request', text: context.brief }),
+    ...(context.continuationNotes?.length ? [createMaterialBlock({
+      id: 'agent-continuation-notes', kind: 'author_request', required: true,
+      text: '作者选入的后续创作材料。question 是待讨论事项，所有条目都属于创作取材；已发生的事实按正式正文核对。本轮明确要求和已确认的本章计划优先。\n'
+        + JSON.stringify(context.continuationNotes),
+    })] : []),
     ...context.authorMessages.map(message => createMaterialBlock({
       id: `author-message-${message.id}`,
       kind: 'author_request',

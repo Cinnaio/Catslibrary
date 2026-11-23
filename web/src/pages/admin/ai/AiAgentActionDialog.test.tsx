@@ -1,7 +1,8 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
-import type { AgentAction } from '@shared/ai-agent'
+import type { AgentAction, AgentSession } from '@shared/ai-agent'
+import { agentApi } from '@/lib/ai-agent-api'
 import AiAgentActionDialog from './AiAgentActionDialog'
 
 const source = (): AgentAction => ({ id: 'saved-preview', kind: 'apply_chapter_edit', title: '保存改写到原章节', status: 'pending', createdAt: 1, error: '',
@@ -91,6 +92,34 @@ it('preserves publication position text and renders a new chapter without a fabr
   expect(screen.getByText('待发布的完整章节。')).toBeInTheDocument()
   expect(screen.queryByRole('checkbox', { name: '只看改动' })).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: '确认按此位置发布' })).toBeInTheDocument()
+})
+
+it('opens the next conversation with only the checked items from the publication', async () => {
+  const action: AgentAction = { ...source(), kind: 'publish_draft', status: 'completed', continuationAvailable: true }
+  const next: AgentSession = { id: 'next', novelId: 'book', novelTitle: '雨夜来信', title: '新的创作对话',
+    afterChapterId: 'published', anchorTitle: '第十二章 雨夜', brief: '', contentPreferences: {
+      version: 1, adultContentMode: 'off', intimacyWeight: 'none', adultCharactersConfirmed: false,
+    }, activeTaskId: '', createdAt: 1, updatedAt: 1 }
+  const read = vi.spyOn(agentApi, 'continuation').mockResolvedValue({ revision: 'preview-revision', chapter: { id: 'published', title: next.anchorTitle },
+    candidates: [{ id: 'question-0', kind: 'question', text: '门后是谁？' }, { id: 'next-0', kind: 'next_step', text: '去码头。' }] })
+  const start = vi.spyOn(agentApi, 'continueChapter').mockResolvedValue({ session: next })
+  const onOpenSession = vi.fn()
+  try {
+    render(<AiAgentActionDialog action={action} novelTitle={next.novelTitle} busy={false}
+      continuation={{ sessionId: 'source', onOpenSession }} onClose={vi.fn()} onReject={vi.fn()} onConfirm={vi.fn()} />)
+    await userEvent.click(screen.getByRole('button', { name: '继续下一章' }))
+    const question = await screen.findByRole('checkbox', { name: /门后是谁/ })
+    expect(question).not.toBeChecked()
+    await userEvent.click(question)
+    await userEvent.type(screen.getByLabelText('补充给下一章（选填）'), '保留钥匙')
+    await userEvent.click(screen.getByRole('button', { name: '开启下一章对话' }))
+    expect(read).toHaveBeenCalledWith('source', action.id)
+    expect(start).toHaveBeenCalledWith('source', action.id, { expectedRevision: 'preview-revision', selectedIds: ['question-0'], note: '保留钥匙' })
+    expect(onOpenSession).toHaveBeenCalledWith(next)
+  } finally {
+    read.mockRestore()
+    start.mockRestore()
+  }
 })
 
 it('requires explicit permission to resume an executing action and keeps completed records read-only', () => {

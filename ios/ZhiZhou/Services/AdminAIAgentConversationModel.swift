@@ -466,6 +466,14 @@ final class AdminAIAgentConversationModel {
         } catch { report(error) }
     }
 
+    func continueChapter(_ action: AIAgentAction, revision: String, selectedIDs: [String], note: String) async throws -> AIAgentSession {
+        guard beginWork() else { throw CancellationError() }
+        defer { working = false }
+        let next = try await api.continueChapter(sessionID, actionID: action.id, revision: revision, selectedIDs: selectedIDs, note: note)
+        guard isCurrentAccount else { throw CancellationError() }
+        return next
+    }
+
     func saveSettings(brief: String, preferences: AIAgentPreferences, updatedAt: Int64, bookSettingsRevision: Int?) async throws {
         guard isCurrentAccount, !replying, !sending, !working else { throw CancellationError() }
         working = true
