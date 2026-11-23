@@ -33,15 +33,15 @@ type ImportStep = 'source' | 'match' | 'diff' | 'result'
 type SourceMode = 'file' | 'url'
 
 
-const STEP_LABELS: Array<{ id: ImportStep; label: string }> = [
-  { id: 'source', label: '选择来源' },
-  { id: 'match', label: '确认作品' },
-  { id: 'diff', label: '查看差异' },
-  { id: 'result', label: '导入结果' },
+const STEP_LABELS: Array<{ id: ImportStep; label: string; hint: string }> = [
+  { id: 'source', label: '选择来源', hint: '上传文件或粘贴链接' },
+  { id: 'match', label: '确认作品', hint: '匹配书库中的作品' },
+  { id: 'diff', label: '查看差异', hint: '核对信息与章节' },
+  { id: 'result', label: '导入结果', hint: '确认写入，查看结果' },
 ]
 
 const STEP_DESCRIPTIONS: Record<ImportStep, string> = {
-  source: '把新的故事带进书库，核对内容后再确认导入。',
+  source: '把新的故事带进书库。每一处变更，都由你确认。',
   match: '确认导入到哪本作品，避免同名书籍混在一起。',
   diff: '核对作品信息与章节差异，只导入你选中的内容。',
   result: '查看本次导入结果，或撤回可安全恢复的变更。',
@@ -523,9 +523,12 @@ export default function BookImportDialog({
               return (
                 <li key={item.id} className={styles.step} data-active={active} data-complete={complete} aria-current={active ? 'step' : undefined}>
                   <span className={styles.stepNumber} aria-hidden="true">
-                    {complete ? <Check /> : `0${index + 1}`}
+                    {complete ? <Check /> : index + 1}
                   </span>
-                  <span>{item.label}</span>
+                  <span className={styles.stepCopy}>
+                    <span>{item.label}</span>
+                    <small>{item.hint}</small>
+                  </span>
                 </li>
               )
             })}
@@ -544,6 +547,7 @@ export default function BookImportDialog({
 
           {step === 'source' && (
             <div className={styles.source}>
+              <h3 className={styles.sourceTitle}>选择导入来源</h3>
               <Tabs
                 value={sourceMode}
                 onValueChange={(value) => {
@@ -574,14 +578,17 @@ export default function BookImportDialog({
                     }}
                   />
                   {file ? (
-                    <div className={styles.selectedFile}>
+                    <div className={styles.selectedFile} aria-busy={busy}>
                       <FileText aria-hidden="true" />
                       <div className={styles.fileCopy} role="status">
                         <strong>{file.name}</strong>
                         <span>
                           {file.name.split('.').at(-1)?.toUpperCase()} · {formatNumber(Math.ceil(file.size / 1024))} KB
                         </span>
-                        <span className={styles.fileState}><Check aria-hidden="true" />{archivePreviews.length > 0 ? '书籍清单已就绪' : '已准备好预览'}</span>
+                        <span className={styles.fileState} data-busy={busy}>
+                          {busy ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <Check aria-hidden="true" />}
+                          {busy ? '正在读取文件…' : archivePreviews.length > 0 ? '书籍清单已就绪' : '已选择，等待生成预览'}
+                        </span>
                       </div>
                       <div className={styles.fileActions}>
                         <Button variant="ghost" size="sm" disabled={operationBusy} onClick={() => fileInputRef.current?.click()}>
@@ -609,6 +616,7 @@ export default function BookImportDialog({
                       className={styles.dropzone}
                       data-drag-active={dragActive}
                       aria-disabled={operationBusy}
+                      aria-describedby="book-import-file-formats"
                       onDragEnter={(event) => {
                         event.preventDefault()
                         if (!operationBusy) setDragActive(true)
@@ -627,11 +635,13 @@ export default function BookImportDialog({
                         <BookOpen aria-hidden="true" />
                       </span>
                       <div className={styles.dropzoneCopy}>
-                        <strong>{dragActive ? '松开即可选择文件' : '拖入一本书，开始整理'}</strong>
-                        <span>将文件拖到这里，或从设备中选择</span>
+                        <strong>{dragActive ? '松开即可选择文件' : '将书籍文件拖到这里'}</strong>
+                        <span>或从你的设备中选择</span>
                       </div>
                       <Button
                         className={styles.chooseFile}
+                        variant="secondary"
+                        aria-describedby="book-import-file-formats"
                         aria-label="选择或拖入书籍文件"
                         disabled={operationBusy}
                         onClick={() => fileInputRef.current?.click()}
@@ -639,12 +649,10 @@ export default function BookImportDialog({
                         <Upload aria-hidden="true" />
                         选择文件
                       </Button>
-                    </div>
-                  )}
-                  {!file && (
-                    <div className={styles.formats}>
-                      <span><strong>TXT · JSON · EPUB</strong><span>单个文件最大 25 MB</span></span>
-                      <span><strong>ZIP 压缩包</strong><span>最大 64 MB，可逐本确认</span></span>
+                      <div id="book-import-file-formats" className={styles.formats}>
+                        <span>TXT / JSON / EPUB <span>· 单文件最大 25 MB</span></span>
+                        <span>ZIP 压缩包 <span>· 最大 64 MB，逐本核对</span></span>
+                      </div>
                     </div>
                   )}
                   {archivePreviews.length > 0 && (
@@ -668,8 +676,9 @@ export default function BookImportDialog({
                   )}
                   {!file?.name.toLowerCase().endsWith('.zip') && <MotionDetails className={styles.optionalSource}>
                     <summary>
+                      <Globe2 aria-hidden="true" />
                       补充来源链接 <span>可选</span>
-                      <ChevronDown aria-hidden="true" />
+                      <ChevronDown className={styles.sourceChevron} aria-hidden="true" />
                     </summary>
                     <div className="book-import__field">
                       <Label htmlFor="book-import-source-url">原书来源 URL</Label>
@@ -697,7 +706,7 @@ export default function BookImportDialog({
                 <TabsContent value="url" className={`${styles.sourceContent} ${styles.urlContent}`}>
                   <div className={styles.urlIntro}>
                     <Globe2 aria-hidden="true" />
-                    <div><strong>从网页带入一本书</strong><p>粘贴作品详情页链接，读取书籍信息与章节。</p></div>
+                    <div><strong>从作品详情页导入</strong><p>读取书籍信息与章节，再由你核对。</p></div>
                   </div>
                   <div className={`book-import__field ${styles.urlField}`}>
                     <Label htmlFor="book-import-url">书籍详情页 URL</Label>
