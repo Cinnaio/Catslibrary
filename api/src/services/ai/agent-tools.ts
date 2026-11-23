@@ -1,12 +1,12 @@
-import { chapterEditHistory, chapterRevision, parseChapterEdit, scopedEditableChapter } from './chapter-edit'
+import { chapterEditHistory, chapterRevision, parseChapterEdit } from './chapter-edit'
 import type { AgentActionKind, AgentDraftRead, AgentSession } from '@shared/ai-agent'
 import type { Db } from '../../db/pool'
 import { all, first } from '../../db/query'
 import { AiError, type AiFunctionTool, type AiToolCall } from './client'
 import { generationContentRevision } from './generations'
-import { agentAnchor, findAgentChapter, listAgentAnalyses, readAgentChapter, readAgentAnalysis, searchAgentStory } from './agent-retrieval'
+import { agentAnchor, findAgentChapter, listAgentAnalyses, readAgentChapter, readAgentAnalysis, scopedEditableChapter, searchAgentStory } from './agent-retrieval'
 import { getAnalysisReferences, parseAnalysisReferenceSelections } from './analysis-reference'
-import { agentDraftTitle, prepareAgentAction, readAgentArtifact, scopedAgentDraft, type AgentApi } from './agent-actions'
+import { agentDraftTitle, prepareAgentAction, publishedAgentDraftChapter, readAgentArtifact, scopedAgentDraft, type AgentApi } from './agent-actions'
 import { readAgentEvents, requireAgentArtifact, trackAgentArtifact } from './agent-store'
 import { createAgentMemory } from './agent-memory'
 import { isAuthorQuote, readConversationSources } from './agent-conversation'
@@ -22,6 +22,7 @@ function tool(name: string, description: string, properties: Record<string, Prop
   return { type: 'function', function: { name, description, parameters: { type: 'object', properties, required, additionalProperties: false } } }
 }
 const id: Property = { type: 'string', maxLength: 160 }
+const editScope: Property = { type: 'string', enum: ['edit'], description: '明确查阅或改写正式章节时使用。包含本会话在起点之后发布的章节；省略时截至续写起点。' }
 const instruction: Property = { type: 'string', maxLength: 4000 }
 const writingReferences = {
   sourceIds: { type: 'array', items: { type: 'string' }, maxItems: 6, description: '相关正式原文片段 sources[].id 的数组，最多六段。选择实际覆盖人物对白或行为的片段。' },
@@ -45,9 +46,11 @@ export const AGENT_TOOLS: AiFunctionTool[] = [
     expectedRevision: { type: 'integer', minimum: 0, maximum: Number.MAX_SAFE_INTEGER },
   }),
   tool('read_overview', '读取当前小说、冻结的续写起点和最近章节目录。需要了解作品或定位章节时使用；核对聊天中的作者决定无需先读目录。'),
-  tool('find_chapter', '按目录序号或章名定位正式章节，查找范围截至本会话起点，支持比最近目录更早的章节。两项只填一项。章名优先核对完整匹配；有歧义时请进一步定位。', {
-    ordinal: { type: 'integer', minimum: 1, maximum: 1000000, description: '按目录从 1 开始的正序位置，不是存储排序值。' },
+  tool('find_chapter', '按页面显示章号、目录位置或章名定位正式章节，三项只填一项。结果同时返回 order（页面章号）、ordinal（第几项）和原始章名；同名或同号时进一步核对。', {
+    order: { type: 'integer', minimum: -1000000, maximum: 1000000, description: '作品目录或阅读器显示的章号。例如页面的“第161章”用 order=161。' },
+    ordinal: { type: 'integer', minimum: 1, maximum: 1000000, description: '目录从 1 开始的正序位置。例如目录第161项用 ordinal=161。' },
     title: { type: 'string', maxLength: 200, description: '章名或章名中明确的文字。' },
+    scope: editScope,
   }, []),
   tool('search_chapters', '在起点之前的正式章节中搜索原文或标题，返回命中片段和章节 ID。只做字面检索，不代表没有其他相关内容。', {
     query: { type: 'string', maxLength: 100 },
@@ -60,7 +63,7 @@ export const AGENT_TOOLS: AiFunctionTool[] = [
   tool(
     'read_chapter',
     '按章节 ID 分段读取原文。quote 可定位逐字引文，返回 UTF-16 的 quoteOffset 和是否重复。重复时用更长的逐字选段核对所指位置。nextOffset 非空表示还有正文。',
-    { chapterId: id, offset: { type: 'integer', minimum: 0, maximum: 1000000 }, expectedRevision: id, quote: { type: 'string', maxLength: 240 } },
+    { chapterId: id, offset: { type: 'integer', minimum: 0, maximum: 1000000 }, expectedRevision: id, quote: { type: 'string', maxLength: 240 }, scope: editScope },
     ['chapterId'],
   ),
   tool('list_novel_analyses', '分页查看本书小说分析报告及其可用状态。只列目录，不代表已读报告。没有报告仍可直接查阅正文，不自动发起分析。', {
@@ -74,7 +77,7 @@ export const AGENT_TOOLS: AiFunctionTool[] = [
   tool('find_draft_version', '按作者引用的逐字短句查找本书草稿和本会话已有的改写建议。命中后按返回的 draftId 或 taskId 阅读指定版本；有多个不同版本时先核对。', {
     quote: { type: 'string', maxLength: 240 },
   }),
-  tool('read_draft', '读取指定草稿的当前正文和 revision，改写前必须调用。', { draftId: id }),
+  tool('read_draft', '读取指定草稿的正文和 revision。已发布稿是发布时的快照，publishedChapter 指向正式章节；用 read_chapter（scope=edit）核对当前正文。', { draftId: id }),
   tool('list_covers', '列出本书封面候选的描述词与 ID。只提供文本材料，不代表你看到了图像。'),
   tool('read_task', '读取本对话生成任务的真实进度和产出。改写任务的 version 是应用建议后拼接的整章，按 nextOffset 继续读取；rewrite 和 chapterEdit 描述改动段，章改前后对照省略时可从 chapterEdit.startUTF16 读取建议正文。任务未完成时不反复轮询。', {
     taskId: id, offset: { type: 'integer', minimum: 0, maximum: 1000000 },
@@ -100,7 +103,7 @@ export const AGENT_TOOLS: AiFunctionTool[] = [
   ),
   tool(
     'rewrite_draft',
-    '生成选段改写建议。selectedText 必须逐字来自 read_draft；空字符串表示整章（最多6000字）。baseRevision 必须来自该次读取。不会自动覆盖草稿。',
+    '为未发布稿生成选段改写建议。selectedText 必须逐字来自 read_draft；空字符串表示整章（最多6000字）。baseRevision 必须来自该次读取。已发布稿优先用 rewrite_chapter。不会自动覆盖草稿。',
     { draftId: id, baseRevision: id, selectedText: { type: 'string', maxLength: 12000 }, instruction: { ...instruction, maxLength: 2000 },
       ...writingReferences, ...rewriteLength },
     ['draftId', 'baseRevision', 'selectedText', 'instruction'],
@@ -258,7 +261,8 @@ export async function executeAgentTool(
       scope: '目录只覆盖最近 25 章，附起点章开头片段。不能据此断言全部正文事实；具体人物或情节先用 search_story 定位，再按需要 read_chapter。草稿另行读取。',
     }
   }
-  if (name === 'find_chapter') return findAgentChapter(db, session, a.ordinal as number | undefined, String(a.title || ''))
+  if (name === 'find_chapter')
+    return findAgentChapter(db, session, a.ordinal as number | undefined, String(a.title || ''), a.order as number | undefined, a.scope === 'edit')
   if (name === 'search_chapters') {
     const result = await searchAgentStory(db, session, String(a.query), 'chapter', 0, true)
     return {
@@ -268,7 +272,8 @@ export async function executeAgentTool(
     }
   }
   if (name === 'search_story') return searchAgentStory(db, session, String(a.query), a.kind as 'all' | 'chapter' | 'analysis' | undefined, Number(a.chapterOffset || 0))
-  if (name === 'read_chapter') return readAgentChapter(db, session, String(a.chapterId), Number(a.offset || 0), String(a.expectedRevision || ''), String(a.quote || '').trim())
+  if (name === 'read_chapter')
+    return readAgentChapter(db, session, String(a.chapterId), Number(a.offset || 0), String(a.expectedRevision || ''), String(a.quote || '').trim(), a.scope === 'edit')
   if (name === 'list_novel_analyses') return listAgentAnalyses(db, session, Number(a.offset || 0))
   if (name === 'read_novel_analysis') return readAgentAnalysis(db, session, String(a.reportId), Number(a.offset || 0), String(a.expectedRevision || ''))
   if (name === 'list_drafts')
@@ -284,7 +289,8 @@ export async function executeAgentTool(
     const title = agentDraftTitle(draft)
     const revision = generationContentRevision(draft.result)
     const draftReads: AgentDraftRead[] = [{ kind: 'draft', title, draftId: draft.id, revision }]
-    return { id: draft.id, title, status: draft.status, content: draft.result, revision, draftReads }
+    return { id: draft.id, title, status: draft.status, content: draft.result, revision, draftReads,
+      publishedChapter: await publishedAgentDraftChapter(db, draft) }
   }
   if (name === 'find_draft_version') return {
     versions: (await findAgentDraftVersions(db, session, String(a.quote))).map(({ read, excerpt }) => ({ ...read, excerpt })),
@@ -370,11 +376,13 @@ export async function executeAgentTool(
     targetWords: a.targetWords,
     minimumWords: a.minimumWords,
   }
+  const draftForRewrite = name === 'rewrite_draft' ? await scopedAgentDraft(db, session, String(a.draftId)) : undefined
+  const publishedDraft = draftForRewrite?.status === 'published' ? draftForRewrite : undefined
   const focusedRewriteTask = name === 'rewrite_draft' && focus?.read.kind === 'rewrite' && a.draftId === focus.read.draftId
     ? focus.read.taskId : undefined
   let receipt: Record<string, unknown>
-  if (name === 'rewrite_chapter' || name === 'refine_chapter_edit') {
-    let chapterId = String(a.chapterId || '')
+  if (name === 'rewrite_chapter' || name === 'refine_chapter_edit' || publishedDraft) {
+    let chapterId = publishedDraft?.chapter_id || String(a.chapterId || '')
     let revision = String(a.baseRevision || '')
     let selectedText = String(a.selectedText || '')
     let start = a.startUTF16 === undefined ? undefined : Number(a.startUTF16)
@@ -390,7 +398,14 @@ export async function executeAgentTool(
       previousTaskId = previous.id
     }
     const chapter = await scopedEditableChapter(db, session, chapterId)
-    if (chapterRevision(session, chapter) !== revision) throw new AiError('conflict', '章节已变化，请重新读取', 409)
+    const currentRevision = chapterRevision(session, chapter)
+    if (publishedDraft) {
+      // Reuse a selection from the draft only when that exact version is still the live chapter.
+      if (focusedRewriteTask || generationContentRevision(publishedDraft.result) !== revision || chapter.content !== publishedDraft.result)
+        throw new AiError('conflict', `「${chapter.title}」已发布。请用 read_chapter（chapterId=${chapter.id}，scope=edit）读取正式正文，再用 rewrite_chapter 改写原章节。`, 409)
+      revision = currentRevision
+    }
+    if (currentRevision !== revision) throw new AiError('conflict', '章节已变化，请重新读取', 409)
     selectedText ||= chapter.content
     if (start === undefined) {
       start = chapter.content.indexOf(selectedText)
@@ -399,6 +414,7 @@ export async function executeAgentTool(
     receipt = await api('/api/ai/writing/chapter-edits', 'POST', { sessionId: session.id, chapterId, baseRevision: revision,
       startUTF16: start, endUTF16: start + selectedText.length, selectedText, instruction: a.instruction,
       previousTaskId, agentWriting, clientRequestId: operationId })
+    receipt = { ...receipt, chapterId }
   } else if (name === 'generate_draft') {
     const confirmedPlan = currentTurn?.chapterPlan
     if (!confirmedPlan && userId && await readChapterPlan(db, userId, session.id))
@@ -425,8 +441,8 @@ export async function executeAgentTool(
       agentWriting: { ...agentWriting, priorDraftId: a.priorDraftId, priorDraftRevision: a.priorDraftRevision },
       operationId: confirmedPlan ? currentTaskId + '_chapter_plan_' + confirmedPlan.revision : operationId,
     })
-  } else if (name === 'rewrite_draft' && !focusedRewriteTask) {
-    const draft = await scopedAgentDraft(db, session, String(a.draftId))
+  } else if (draftForRewrite && !focusedRewriteTask) {
+    const draft = draftForRewrite
     if (draft.status !== 'draft' || !['continue', 'write_chapter'].includes(draft.kind)) throw new AiError('conflict', '只能改写未发布的章节草稿', 409)
     if (generationContentRevision(draft.result) !== a.baseRevision) throw new AiError('conflict', '草稿已变化，请重新读取后改写', 409)
     const selectedText = String(a.selectedText) || draft.result
@@ -484,5 +500,7 @@ export async function executeAgentTool(
   const taskId = String(receipt.taskId || '')
   if (!taskId) throw new AiError('upstream', '生成接口未返回任务标识，请在任务中心检查后再继续', 502)
   await trackAgentArtifact(db, session.id, taskId)
-  return { taskId, ...(typeof receipt.reportId === 'string' ? { reportId: receipt.reportId } : {}), status: 'submitted', message: '任务已提交，尚未生成完成。可以在产出区查看进度；结果不会自动采纳。' }
+  return { taskId, ...(typeof receipt.reportId === 'string' ? { reportId: receipt.reportId } : {}),
+    ...(typeof receipt.chapterId === 'string' ? { chapterId: receipt.chapterId, actionKind: 'apply_chapter_edit' } : {}),
+    status: 'submitted', message: '任务已提交，尚未生成完成。可以在产出区查看进度；结果不会自动采纳。' }
 }

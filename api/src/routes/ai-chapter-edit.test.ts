@@ -5,13 +5,14 @@ import { setDbForTests, type Db } from '../db/pool'
 import { first } from '../db/query'
 import { createTestDb, type TestDb } from '../test/db'
 import { createSession } from '../services/sessions'
-import { beginAgentTurn, createAgentSession, trackAgentArtifact, deleteAgentSession, readAgentEvents } from '../services/ai/agent-store'
+import { appendAgentEvent, beginAgentTurn, createAgentSession, trackAgentArtifact, deleteAgentSession, readAgentEvents } from '../services/ai/agent-store'
 import { createAiTask, getAiTask, updateAiTask } from '../services/ai/tasks'
 import { confirmAgentAction, prepareAgentAction, readAgentArtifact } from '../services/ai/agent-actions'
-import { buildChapterEditParams, chapterEditHistory, chapterEditSource, scopedEditableChapter } from '../services/ai/chapter-edit'
-import { executeAgentTool } from '../services/ai/agent-tools'
+import { buildChapterEditParams, chapterEditHistory, chapterEditSource } from '../services/ai/chapter-edit'
+import { scopedEditableChapter } from '../services/ai/agent-retrieval'
+import { executeAgentTool, validateAgentCall } from '../services/ai/agent-tools'
 import { runAgentTurn } from '../services/ai/agent'
-import type { AgentAction, AgentSession } from '@shared/ai-agent'
+import type { AgentAction, AgentEvidence, AgentSession } from '@shared/ai-agent'
 
 vi.mock('../services/ai/provider-presets', () => ({ getProviderPreset: (id: string) => ({
   id, scope: 'text', baseUrl: 'https://chosen-model.test/v1', apiKey: 'chosen-key', model: 'chosen-model',
@@ -182,6 +183,74 @@ describe('published chapter editing', () => {
     const confirmation = await request(actionRoot + '/' + action.id + '/confirm', 'POST', { after: 'client-injected replacement' })
     expect(confirmation.status).toBe(200)
     expect(await content()).toBe(original.replace(selected, proposed))
+  })
+
+  it('writes a published conversation draft back to its exact chapter after the frozen anchor', async () => {
+    const novelId = 'publication-book'
+    await t.db.query('INSERT INTO novels(id,title,created_at,updated_at) VALUES($1,$1,1,1)', [novelId])
+    await t.db.query(`INSERT INTO chapters(id,novel_id,title,sort_order,created_at)
+      VALUES('publication-prologue',$1,'序章',0,1),('publication-anchor',$1,'第0001章',1,1)`, [novelId])
+    const publishingSession = await createAgentSession(t.db, 'admin', { novelId, afterChapterId: 'publication-anchor' })
+    const otherSession = await createAgentSession(t.db, 'admin', { novelId, afterChapterId: 'publication-anchor' })
+    async function publish(id: string) {
+      const task = await createAiTask(t.db, { userId: 'admin', novelId, kind: 'continue', params: '{}' })
+      await trackAgentArtifact(t.db, publishingSession.id, task.id)
+      await t.db.query(`INSERT INTO ai_generations(id,novel_id,kind,model,params_json,prompt,result,status,created_by,created_at)
+        VALUES($1,$2,'continue','mock',$3,'',$4,'draft','admin',1)`, [id, novelId, JSON.stringify({ taskId: task.id }), original])
+      const response = await request(`/api/ai/writing/drafts/${id}/publish`, 'POST', { title: '归来' })
+      expect(response.status).toBe(200)
+      const { chapter: { id: chapterId, title, order } } = await response.json() as { chapter: { id: string; title: string; order: number } }
+      return { chapter: { id: chapterId, title, order }, task }
+    }
+    const firstVersion = await publish('publication-first')
+    const secondVersion = await publish('publication-second')
+    const chapterId = firstVersion.chapter.id
+    const lookup = (name: string, args: Record<string, string | number>, current = publishingSession) =>
+      executeAgentTool(t.db, current, name, args, 'lookup', neverCall)
+    expect(await lookup('find_chapter', { order: 2 })).toMatchObject({ matches: [] })
+    expect(await lookup('find_chapter', { order: 2, scope: 'edit' })).toMatchObject({
+      matches: [{ id: chapterId, order: 2, ordinal: 3 }],
+    })
+    expect(await lookup('find_chapter', { title: '归来', scope: 'edit' })).toMatchObject({
+      matches: [{ id: chapterId }, { id: secondVersion.chapter.id }],
+    })
+    await expect(lookup('read_chapter', { chapterId })).rejects.toMatchObject({ status: 404 })
+    await expect(lookup('read_chapter', { chapterId, scope: 'edit' }, otherSession)).rejects.toMatchObject({ status: 404 })
+    const source = await lookup('read_chapter', { chapterId, scope: 'edit' })
+    const draft = await lookup('read_draft', { draftId: 'publication-first' })
+    expect(draft).toMatchObject({ status: 'published', publishedChapter: firstVersion.chapter })
+    expect(await lookup('read_task', { taskId: firstVersion.task.id })).toMatchObject({
+      drafts: [{ id: 'publication-first', publishedChapter: firstVersion.chapter }],
+    })
+    await appendAgentEvent(t.db, publishingSession.id, 'activity', '读取原章', '', { sources: source.sources as AgentEvidence[] })
+    const dispatch = vi.fn(async (path: string, method = 'POST', body?: unknown) => {
+      const response = await request(path, method, body)
+      const receipt = await response.json() as Record<string, unknown>
+      expect(response.status, JSON.stringify(receipt)).toBe(202)
+      return receipt
+    })
+    const args = {
+      draftId: 'publication-first', baseRevision: String(draft.revision), selectedText: selected,
+      instruction: '给开门前加一点停顿', sourceIds: (source.sources as AgentEvidence[]).map(item => item.id),
+    }
+    const rewrite = validateAgentCall({ id: 'rewrite', type: 'function',
+      function: { name: 'rewrite_draft', arguments: JSON.stringify(args) } })
+    const result = await executeAgentTool(t.db, publishingSession, 'rewrite_draft', rewrite, 'rewrite-after-publication', dispatch, 'admin')
+    expect(dispatch).toHaveBeenCalledWith(root, 'POST', expect.objectContaining({ chapterId }))
+    expect(result).toMatchObject({ chapterId, actionKind: 'apply_chapter_edit' })
+    expect(await waitTask(String(result.taskId))).toMatchObject({ status: 'completed' })
+    const preview = await prepareAgentAction(t.db, publishingSession, 'apply_chapter_edit', String(result.taskId))
+    expect(preview.preview).toMatchObject({ chapterId, before: selected, after: proposed })
+    await confirmAgentAction(t.db, publishingSession, preview.id, neverCall)
+    const rows = await t.db.query('SELECT id,content FROM chapters WHERE novel_id=$1 ORDER BY sort_order,id', [novelId])
+    expect(rows.rows).toHaveLength(4)
+    expect(rows.rows.slice(-2)).toEqual([
+      { id: chapterId, content: original.replace(selected, proposed) },
+      { id: secondVersion.chapter.id, content: original },
+    ])
+    await expect(executeAgentTool(t.db, publishingSession, 'rewrite_draft', rewrite, 'stale-publication', dispatch, 'admin'))
+      .rejects.toThrow('读取正式正文')
+    expect(dispatch).toHaveBeenCalledTimes(1)
   })
   it('uses the explicitly selected model and refines the previous suggestion without changing its base', async () => {
     const previousTaskId = await finished()

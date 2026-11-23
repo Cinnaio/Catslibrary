@@ -113,7 +113,7 @@ async function citedAgentPassages(db: Db, session: Awaited<ReturnType<typeof get
 
 export async function resolveAgentWritingContext(
   db: Db,
-  scope: { userId: string; novelId: string; afterChapterId?: string; rewrite?: boolean; wholeDraft?: boolean },
+  scope: { userId: string; novelId: string; afterChapterId?: string; rewrite?: boolean; wholeDraft?: boolean; chapterEditId?: string },
   value: unknown,
   previous?: AgentWritingContext,
 ): Promise<AgentWritingContext | undefined> {
@@ -142,7 +142,7 @@ export async function resolveAgentWritingContext(
   const sources = await Promise.all(selected.map(async item => {
     if (!item?.chapterId || item.novelId !== session.novelId)
       throw new AiError('invalid', '原文依据须来自当前会话的正式章节查阅记录', 422)
-    const { sources: [current] } = await readAgentChapter(db, session, item.chapterId, item.offset, item.revision)
+    const { sources: [current] } = await readAgentChapter(db, session, item.chapterId, item.offset, item.revision, '', item.chapterId === scope.chapterEditId)
     if (!current || current.id !== item.id) throw new AiError('conflict', '原文片段已变化，请重新查阅', 409)
     return current
   }))

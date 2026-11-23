@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import type { AgentEvidence, AgentSession } from '@shared/ai-agent'
 import { ANALYSIS_KINDS, type WritingAnalysisReference } from '@shared/novel-analysis'
-import type { Db } from '../../db/pool'
+import type { Db, DbClient } from '../../db/pool'
 import { all, first } from '../../db/query'
 import { escapeLike } from '../text'
 import { AiError } from './client'
@@ -12,6 +12,23 @@ const MAX_SOURCES = 10
 const EXCERPT_LENGTH = 900
 type Chapter = { id: string; title: string; content: string; sort_order: number }
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex')
+const sessionPublication = `EXISTS (SELECT 1 FROM ai_agent_artifacts a WHERE a.session_id=$2 AND a.task_id=c.ai_task_id)`
+
+// A session may edit chapters it published after its anchor without advancing its continuation context.
+const editableInSession = `(
+  EXISTS (SELECT 1 FROM chapters anchor WHERE anchor.id=$3 AND anchor.novel_id=c.novel_id
+    AND (c.sort_order,c.id)<=(anchor.sort_order,anchor.id))
+  OR ${sessionPublication}
+)`
+
+export async function scopedEditableChapter(db: DbClient, session: AgentSession, chapterId: string, lock = false) {
+  const row = await first<Chapter>(db,
+    `SELECT c.id,c.title,c.content,c.sort_order FROM chapters c
+     WHERE c.novel_id=$1 AND c.id=$4 AND ${editableInSession}${lock ? ' FOR UPDATE OF c' : ''}`,
+    [session.novelId, session.id, session.afterChapterId, chapterId])
+  if (!row) throw new AiError('invalid', '章节不存在或不在当前对话的可编辑范围内', 404)
+  return row
+}
 
 /** Directory ordering uses the id tie-breaker too. An empty anchor stays empty. */
 export async function agentAnchor(db: Db, session: AgentSession) {
@@ -71,26 +88,29 @@ function analysisEvidence(session: AgentSession, report: WritingAnalysisReferenc
 export const chapterEvidenceUrl = (source: AgentEvidence) =>
   source.kind === 'chapter' && source.chapterId ? `/read/${encodeURIComponent(source.novelId)}/${encodeURIComponent(source.chapterId)}` : undefined
 
-export async function findAgentChapter(db: Db, session: AgentSession, ordinal?: number, title = '') {
+export async function findAgentChapter(db: Db, session: AgentSession, ordinal?: number, title = '', order?: number, forEdit = false) {
   const name = title.trim()
-  if ((ordinal !== undefined) === !!name) throw new AiError('invalid', '请只提供目录序号或章名中的一项', 422)
-  const anchor = await agentAnchor(db, session)
-  if (!anchor) return { matches: [], hasMore: false }
-  const matches = await all<{ id: string; title: string; ordinal: number; exactTitle: boolean }>(db,
+  if ([ordinal !== undefined, !!name, order !== undefined].filter(Boolean).length !== 1)
+    throw new AiError('invalid', '请只提供目录位置、页面显示章号或章名中的一项', 422)
+  const anchor = forEdit ? null : await agentAnchor(db, session)
+  if (!forEdit && !anchor) return { matches: [], hasMore: false }
+  const matches = await all<{ id: string; title: string; ordinal: number; order: number; exactTitle: boolean }>(db,
     `WITH directory AS (
-       SELECT id,title,ROW_NUMBER() OVER (ORDER BY sort_order,id)::int AS ordinal
-       FROM chapters WHERE novel_id=$1 AND (sort_order,id)<=($2,$3)
+       SELECT c.id,c.novel_id,c.title,c.sort_order,c.ai_task_id,ROW_NUMBER() OVER (ORDER BY sort_order,id)::int AS ordinal
+       FROM chapters c WHERE novel_id=$1
      )
-     SELECT id,title,ordinal,LOWER(TRIM(title))=LOWER($5) AS "exactTitle" FROM directory
-     WHERE ordinal=$4 OR ($4 IS NULL AND title ILIKE $6 ESCAPE '\\')
+     SELECT id,title,ordinal,sort_order AS "order",LOWER(TRIM(title))=LOWER($6) AS "exactTitle" FROM directory c
+     WHERE ${forEdit ? editableInSession : '(c.sort_order,c.id)<=($2::int,$3)'}
+       AND (ordinal=$4 OR sort_order=$5 OR ($4 IS NULL AND $5 IS NULL AND title ILIKE $7 ESCAPE '\\'))
      ORDER BY "exactTitle" DESC,ordinal LIMIT 11`,
-    [session.novelId, anchor.order, anchor.id, ordinal ?? null, name, `%${escapeLike(name)}%`])
+    [session.novelId, forEdit ? session.id : anchor?.order, forEdit ? session.afterChapterId : anchor?.id,
+      ordinal ?? null, order ?? null, name, `%${escapeLike(name)}%`])
   return { matches: matches.slice(0, 10), hasMore: matches.length > 10 }
 }
 
-export async function readAgentChapter(db: Db, session: AgentSession, chapterId: string, offset = 0, expectedRevision = '', quote = '') {
-  const anchor = await agentAnchor(db, session)
-  const row = anchor
+export async function readAgentChapter(db: Db, session: AgentSession, chapterId: string, offset = 0, expectedRevision = '', quote = '', forEdit = false) {
+  const anchor = forEdit ? null : await agentAnchor(db, session)
+  const row = forEdit ? await scopedEditableChapter(db, session, chapterId) : anchor
     ? await first<Chapter>(db, 'SELECT id,title,content,sort_order FROM chapters WHERE id=$1 AND novel_id=$2 AND (sort_order,id)<=($3,$4)', [
         chapterId,
         session.novelId,

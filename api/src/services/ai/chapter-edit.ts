@@ -4,22 +4,13 @@ import type { Db, DbClient } from '../../db/pool'
 import { all, first, withTx } from '../../db/query'
 import { newId } from '../auth'
 import { AiError } from './client'
-import { chapterEvidence } from './agent-retrieval'
+import { chapterEvidence, scopedEditableChapter } from './agent-retrieval'
 import { appendAgentEvent, requireAgentArtifact, type AgentActionRow } from './agent-store'
 import { buildTextRewriteTaskParams, validateRewriteSelection, type TextRewriteTaskParams } from './rewrite'
 
 export interface EditableChapter { id: string; title: string; content: string; sort_order: number }
 export interface ChapterEditParams extends TextRewriteTaskParams { chapterId: string; chapterTitle: string }
 
-/** Re-check the frozen conversation boundary for both reads and writes. */
-export async function scopedEditableChapter(db: DbClient, session: AgentSession, chapterId: string, lock = false) {
-  const row = await first<EditableChapter>(db,
-    'SELECT c.id,c.title,c.content,c.sort_order FROM chapters c JOIN chapters anchor ON anchor.id=$3 AND anchor.novel_id=c.novel_id ' +
-    'WHERE c.id=$1 AND c.novel_id=$2 AND (c.sort_order,c.id)<=(anchor.sort_order,anchor.id)' + (lock ? ' FOR UPDATE OF c' : ''),
-    [chapterId, session.novelId, session.afterChapterId])
-  if (!row) throw new AiError('invalid', '章节不存在或不在当前对话的可编辑范围内', 404)
-  return row
-}
 export const chapterRevision = (session: AgentSession, chapter: EditableChapter) => chapterEvidence(session, chapter).revision
 export async function chapterEditSource(db: DbClient, session: AgentSession, chapterId: string): Promise<AgentChapterEditSource> {
   const row = await scopedEditableChapter(db, session, chapterId)

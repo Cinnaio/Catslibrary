@@ -261,6 +261,7 @@ export interface AgentArtifact {
     content: string
     status: string
     revision: string
+    publishedChapter?: { id: string; title: string; order: number; url: string }
     minimumLengthWarning?: string
     lengthCheck?: { actualWords: number; minimumWords?: number; targetWords?: number }
   }>

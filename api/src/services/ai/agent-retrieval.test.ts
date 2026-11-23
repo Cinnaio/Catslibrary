@@ -49,7 +49,7 @@ describe('Agent evidence retrieval', () => {
     for (let i = 0; i < 26; i++) await chapter(`middle-${i}`, '正文', -1, 'book', `插章 ${i}`)
     const overview = await executeAgentTool(t.db, session, 'read_overview', {}, 'overview', async () => ({}))
     expect(overview.chapters).not.toContainEqual(expect.objectContaining({ id: 'prologue' }))
-    expect((await findAgentChapter(t.db, session, 1)).matches).toEqual([{ id: 'prologue', title: '序幕', ordinal: 1, exactTitle: false }])
+    expect((await findAgentChapter(t.db, session, 1)).matches).toEqual([{ id: 'prologue', title: '序幕', ordinal: 1, order: -9, exactTitle: false }])
     expect((await findAgentChapter(t.db, session, undefined, '序幕')).matches[0]).toMatchObject({ id: 'prologue', ordinal: 1, exactTitle: true })
     expect(await findAgentChapter(t.db, session, undefined, '插章')).toMatchObject({ hasMore: true, matches: expect.any(Array) })
     expect((await findAgentChapter(t.db, session, 30)).matches).toEqual([])

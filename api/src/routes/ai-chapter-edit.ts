@@ -11,7 +11,8 @@ import { getAiSettings } from '../services/ai/settings'
 import { countActiveWritingTasks, createAiTask, updateAiTask } from '../services/ai/tasks'
 import { getAgentSession, appendAgentEvent, requireAgentArtifact, trackAgentArtifact } from '../services/ai/agent-store'
 import { resolveAgentWritingContext } from '../services/ai/agent-writing'
-import { buildChapterEditParams, parseChapterEdit, scopedEditableChapter } from '../services/ai/chapter-edit'
+import { buildChapterEditParams, parseChapterEdit } from '../services/ai/chapter-edit'
+import { scopedEditableChapter } from '../services/ai/agent-retrieval'
 import { runRewriteTask } from '../services/ai/rewrite'
 import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
 
@@ -54,6 +55,7 @@ chapterEditRoutes.post('/', async c => {
       ? body.agentWriting as Record<string, unknown> : {}
     params.agentContext = await resolveAgentWritingContext(db, {
       userId, novelId: session.novelId, afterChapterId: session.afterChapterId, rewrite: true,
+      chapterEditId: chapter.id,
       wholeDraft: params.startUTF16 === 0 && params.endUTF16 === chapter.content.length,
     }, { ...rawWriting, sessionId: session.id }, previousContext)
     if (!isTextAiConfigured()) throw new AiError('disabled', 'AI 文本服务未配置', 503)

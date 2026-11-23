@@ -32,6 +32,13 @@ export function agentDraftTitle(draft: Pick<GenerationRow, 'params_json' | 'resu
   return draft.result.match(/^标题[：:]\s*(.+)/)?.[1]?.trim() || '未命名章节'
 }
 
+export async function publishedAgentDraftChapter(db: Db, draft: GenerationRow) {
+  if (draft.status !== 'published' || !draft.chapter_id) return undefined
+  const chapter = await first<{ id: string; title: string; order: number }>(db,
+    'SELECT id,title,sort_order AS "order" FROM chapters WHERE id=$1 AND novel_id=$2', [draft.chapter_id, draft.novel_id])
+  return chapter && { ...chapter, url: `/read/${encodeURIComponent(draft.novel_id)}/${encodeURIComponent(chapter.id)}` }
+}
+
 async function publishPosition(db: Db, draft: GenerationRow) {
   const latest = await latestPublishedChapter(db, draft.novel_id)
   let params: {
@@ -82,6 +89,7 @@ export async function readAgentArtifact(db: Db, session: AgentSession, taskId: s
           content: draft.result,
           status: draft.status,
           revision: generationContentRevision(draft.result),
+          publishedChapter: await publishedAgentDraftChapter(db, draft),
           ...(minimumLengthWarning ? { minimumLengthWarning } : {}),
           ...(quality && (quality.minimumWords || quality.targetWords) ? {
             lengthCheck: { actualWords: quality.bodyCharacters, minimumWords: quality.minimumWords, targetWords: quality.targetWords || undefined },
