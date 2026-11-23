@@ -1,9 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import NovelFollowupDialog from './NovelFollowupDialog'
 vi.mock('./NovelRelatedSources', () => ({ default: () => <div>附加文件更新 · 章节名与顺序</div> }))
 vi.mock('@/lib/api', () => ({ authFetch: (value: string, init: RequestInit) => fetch(value, init) }))
-vi.mock("@/components/shared/SearchSelect", () => ({
+vi.mock('@/components/shared/SearchSelect', () => ({
   default: ({ options, value, onChange, ...props }: any) => (
     <select aria-labelledby={props['aria-labelledby']} value={value} onChange={(event) => onChange(event.target.value)}>
       {options.map((option: any) => (
@@ -17,7 +19,15 @@ vi.mock("@/components/shared/SearchSelect", () => ({
 const state = { enabled: false, intervalHours: 6, nextCheckAt: 0, checkedAt: 0, result: 'idle', message: '', addedCount: 0, hasConfig: true, ongoing: true }
 
 it('会话失效保留追更开关并明确等待重新登录', async () => {
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ...state, enabled: true, result: 'failed', blockedReason: '请重新登录 PO18', message: '请重新登录 PO18' }) }))
+  vi.stubGlobal(
+    'fetch',
+    vi
+      .fn()
+      .mockResolvedValue({
+        ok: true,
+        json: async () => ({ ...state, enabled: true, result: 'failed', blockedReason: '请重新登录 PO18', message: '请重新登录 PO18' }),
+      }),
+  )
   render(<NovelFollowupDialog novel={{ id: 'n', title: '测试书' }} onClose={() => {}} />)
   expect(await screen.findByText('等待书源恢复')).toBeVisible()
   expect(screen.getByRole('checkbox', { name: '自动追更' })).toBeChecked()
@@ -112,4 +122,55 @@ it('网页配置失效后仍可明确暂停，保留已有频率', async () => {
   fireEvent.click(screen.getByRole('button', { name: '保存网页追更设置' }))
   await screen.findByText('追更设置已保存')
   expect(JSON.parse(fetch.mock.calls[1]![1].body)).toEqual({ novelId: 'stale', action: 'followup-save', enabled: false, intervalHours: 12 })
+})
+
+it('切换来源页签保留未保存的追更设置，文件页不显示网页动作', async () => {
+  const user = userEvent.setup()
+  const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => state })
+  vi.stubGlobal('fetch', fetch)
+  render(<NovelFollowupDialog novel={{ id: 'n', title: '测试书' }} onClose={() => {}} />)
+  await user.click(await screen.findByRole('checkbox', { name: '自动追更' }))
+  await user.selectOptions(screen.getByRole('combobox', { name: '检查频率' }), '3')
+  await user.click(screen.getByRole('tab', { name: '附加文件' }))
+  expect(screen.queryByRole('checkbox', { name: '自动追更' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '保存网页追更设置' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '检查网页更新' })).not.toBeInTheDocument()
+  expect(screen.getByText('先预览章节差异，再确认入库。')).toBeVisible()
+  await user.click(screen.getByRole('tab', { name: /网页追更/ }))
+  expect(screen.getByRole('checkbox', { name: '自动追更' })).toBeChecked()
+  expect(screen.getByRole('combobox', { name: '检查频率' })).toHaveValue('3')
+  await user.click(screen.getByRole('button', { name: '保存网页追更设置' }))
+  await screen.findByText('追更设置已保存')
+  expect(JSON.parse(fetch.mock.calls[1]![1].body)).toEqual({ novelId: 'n', action: 'followup-save', enabled: true, intervalHours: 3 })
+})
+
+it('切换页签保留网页来源输入，不因导航请求保存', async () => {
+  const user = userEvent.setup()
+  const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ...state, hasConfig: false }) })
+  vi.stubGlobal('fetch', fetch)
+  render(<NovelFollowupDialog novel={{ id: 'n', title: '测试书' }} onClose={() => {}} />)
+  await user.click(await screen.findByRole('button', { name: '绑定网页来源' }))
+  await user.type(screen.getByLabelText('作品目录链接'), 'https://example.com/book')
+  await user.click(screen.getByRole('tab', { name: '章节目录' }))
+  await user.click(screen.getByRole('tab', { name: /网页追更/ }))
+  expect(screen.getByLabelText('作品目录链接')).toHaveValue('https://example.com/book')
+  expect(fetch).toHaveBeenCalledTimes(1)
+})
+
+it('事件详情保持直接查看和取消设置调整的流程', async () => {
+  const user = userEvent.setup()
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => state }))
+  render(
+    <MemoryRouter>
+      <NovelFollowupDialog novel={{ id: 'n', title: '测试书' }} variant="event" onClose={() => {}} />
+    </MemoryRouter>,
+  )
+  await screen.findByText('最新检查结果')
+  expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+  expect(screen.queryByRole('tabpanel')).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: '调整追更设置' }))
+  await user.click(screen.getByRole('checkbox', { name: '自动追更' }))
+  await user.click(screen.getByRole('button', { name: '取消调整' }))
+  await user.click(screen.getByRole('button', { name: '调整追更设置' }))
+  expect(screen.getByRole('checkbox', { name: '自动追更' })).not.toBeChecked()
 })

@@ -1,3 +1,4 @@
+import { Tabs } from '@/components/ui/tabs'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ overview: vi.fn(), sourceBindings: vi.fn(), updated: vi.fn() }))
@@ -64,4 +65,26 @@ it('附加源读取失败仍可使用参考目录，支持单独重试', async (
   expect(screen.getByText('https://source.example/books/123')).toBeVisible()
   fireEvent.click(screen.getByRole('button', { name: '重新读取附加源' }))
   expect(await screen.findByText('共享书单')).toBeVisible()
+})
+
+it('文件与目录页签隔离可见内容，切换保留已读结果和候选入口', async () => {
+  const { rerender } = render(
+    <Tabs value="files">
+      <NovelRelatedSources novel={novel} onUpdated={mocks.updated} activeTab="files" />
+    </Tabs>,
+  )
+  expect(await screen.findByText('共享书单')).toBeVisible()
+  expect(screen.getByRole('button', { name: '查看候选版本' })).toBeVisible()
+  expect(screen.queryByRole('button', { name: '读取参考目录并预览' })).not.toBeInTheDocument()
+  rerender(
+    <Tabs value="reference">
+      <NovelRelatedSources novel={novel} onUpdated={mocks.updated} activeTab="reference" />
+    </Tabs>,
+  )
+  expect(screen.getByText('https://source.example/books/123')).toBeVisible()
+  expect(screen.queryByRole('button', { name: '查看候选版本' })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: '读取参考目录并预览' }))
+  expect(await screen.findByRole('dialog', { name: '目录融合' })).toHaveTextContent('txt · 52')
+  expect(mocks.overview).toHaveBeenCalledTimes(1)
+  expect(mocks.sourceBindings).toHaveBeenCalledTimes(1)
 })
