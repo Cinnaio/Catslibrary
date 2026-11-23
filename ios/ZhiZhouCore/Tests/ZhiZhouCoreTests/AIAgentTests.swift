@@ -30,12 +30,38 @@ final class AIAgentTests: XCTestCase {
         XCTAssertNil(value.memories)
         XCTAssertNil(value.summary)
         XCTAssertNil(value.recovery)
+        XCTAssertFalse(value.supportsChapterPlan)
+        XCTAssertNil(value.chapterPlan)
         XCTAssertFalse(value.confirmsDelivery(of: "ios_agent_unconfirmed"))
         XCTAssertNil(value.events.first?.metadata.sources)
         XCTAssertNil(value.artifacts.first?.task.result)
         XCTAssertEqual(value.artifacts.first?.drafts.first?.content, "正文 **原文**")
         XCTAssertNil(value.session.contentPreferences.consentRuleTier)
         XCTAssertTrue(value.actions[0].canConfirm)
+
+        var payload = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+        payload["chapterPlan"] = NSNull()
+        let emptyPlan = try JSONDecoder().decode(AIAgentDetail.self, from: JSONSerialization.data(withJSONObject: payload))
+        XCTAssertTrue(emptyPlan.supportsChapterPlan)
+        XCTAssertNil(emptyPlan.chapterPlan)
+        XCTAssertNil(emptyPlan.chapterPlanBranchesAvailable)
+    }
+
+    func testChapterPlanBranchDecodesFlatPlanAndEncodesOnlyEditableFields() throws {
+        let json = #"""
+        {"plan":null,"branches":[{"id":"b1","name":"独自赴约","createdAt":2,"source":"switch","plan":{
+          "version":1,"title":"旧书店","goal":"找到信","beats":"赴约","characters":"","ending":"","constraints":"",
+          "targetWords":2300,"revision":3,"updatedAt":1,"sourceBranch":{"id":"b0","name":"赴约"}
+        }}]}
+        """#
+        let branches = try JSONDecoder().decode(AIAgentPlanBranches.self, from: Data(json.utf8))
+        let plan = try XCTUnwrap(branches.branches.first?.plan)
+        XCTAssertEqual(plan.revision, 3)
+        XCTAssertEqual(plan.sourceBranch?.name, "赴约")
+        XCTAssertEqual(plan.input.title, "旧书店")
+        XCTAssertEqual(plan.input.targetWords, 2300)
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(plan.input)) as? [String: Any])
+        XCTAssertEqual(Set(payload.keys), ["title", "goal", "beats", "characters", "ending", "constraints", "targetWords"])
     }
 
     func testDeliveryReceiptCanConfirmAnOlderMessageOutsideTheEventWindow() throws {
@@ -164,6 +190,19 @@ final class AIAgentTests: XCTestCase {
         XCTAssertEqual(store.read(site: "site_A", userID: "user_B", sessionID: "session_A"), .init())
         XCTAssertEqual(store.read(site: "site_A", userID: "user_A", sessionID: "session_B"), .init())
         XCTAssertEqual(store.read(site: "site_A", userID: "", sessionID: "session_A"), .init())
+    }
+
+    func testPendingChapterPlanTurnRetainsRequestModeAndConfirmedRevision() throws {
+        let decoder = JSONDecoder()
+        let old = #"{"requestId":"ios_agent_legacy","content":"调整开头","providerPresetId":"preset_A"}"#
+        XCTAssertNil(try decoder.decode(AIAgentPendingMessage.self, from: Data(old.utf8)).chapterPlanIntent)
+
+        let intents: [AIAgentPendingMessage.ChapterPlanIntent] = [.planning, .writing(revision: 3)]
+        for intent in intents {
+            let message = AIAgentPendingMessage(content: "处理本章计划", providerPresetId: "preset_A", chapterPlanIntent: intent)
+            let restored = try decoder.decode(AIAgentPendingMessage.self, from: JSONEncoder().encode(message))
+            XCTAssertEqual(restored, message)
+        }
     }
 
     func testAdultPreferenceNormalizationMatchesExistingContract() {

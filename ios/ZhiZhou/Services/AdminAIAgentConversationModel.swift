@@ -13,6 +13,9 @@ final class AdminAIAgentConversationModel {
     var artifacts: [AIAgentArtifact] = []
     var actions: [AIAgentAction] = []
     var pendingMemoryCount = 0
+    private(set) var chapterPlan: AIAgentChapterPlan?
+    private(set) var supportsChapterPlan = false
+    private(set) var supportsPlanBranches = false
     var tasks: [String: AIAgentTask] = [:]
     var presets: [AIAgentPreset] = []
     var localDraft: AIAgentLocalDraft { didSet { persist() } }
@@ -64,6 +67,9 @@ final class AdminAIAgentConversationModel {
         hasLoaded && isCurrentAccount && !sending && !working && !replying && localDraft.pending == nil
             && !localDraft.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && localDraft.input.utf16.count <= 8_000
+    }
+    var canChangeChapterPlan: Bool {
+        supportsChapterPlan && isCurrentAccount && !sending && !working && !replying && localDraft.pending == nil
     }
     var liveReply: AIAgentTask? {
         guard let task = activeTask, task.status != "completed", task.progress != nil,
@@ -146,6 +152,13 @@ final class AdminAIAgentConversationModel {
             let latestIDs = Set(value.artifacts.map(\.id))
             artifacts = value.artifacts + artifacts.filter { !latestIDs.contains($0.id) }
             actions = value.actions
+            supportsChapterPlan = value.supportsChapterPlan
+            supportsPlanBranches = value.chapterPlanBranchesAvailable == true
+            if !value.supportsChapterPlan {
+                chapterPlan = nil
+            } else if let plan = value.chapterPlan, plan.revision >= (chapterPlan?.revision ?? 0) {
+                chapterPlan = plan
+            }
             pendingMemoryCount = value.memories?.filter { $0.status == "pending" }.count ?? 0
             if let selected = selectedAction, let latest = actions.first(where: { $0.id == selected.id }) {
                 selectedAction = latest
@@ -251,6 +264,34 @@ final class AdminAIAgentConversationModel {
             localDraft.input = ""
         }
         guard let pending = localDraft.pending else { return }
+        await deliver(pending)
+    }
+
+    func sendChapterPlan(confirmed plan: AIAgentChapterPlan? = nil) async -> Bool {
+        guard canChangeChapterPlan else { return false }
+        let content: String
+        let intent: AIAgentPendingMessage.ChapterPlanIntent
+        if let plan {
+            guard plan.revision == chapterPlan?.revision else {
+                messageError = "章节计划已变化，请重新查看并确认。"
+                return false
+            }
+            content = "我已确认章节计划第 \(plan.revision) 版《\(plan.input.title)》，请按这版计划生成一章草稿，暂不发布。"
+            intent = .writing(revision: plan.revision)
+        } else {
+            content = chapterPlan == nil
+                ? "请结合当前作品和我们的讨论，整理一张章节计划卡，包含章节目标、情节步骤、人物变化、结尾悬念和约束。先规划，暂不生成正文。"
+                : "请查阅当前章节计划，结合已有讨论进一步完善，保存新的计划卡，暂不生成正文。"
+            intent = .planning
+        }
+        let pending = AIAgentPendingMessage(content: content, providerPresetId: localDraft.providerPresetId,
+                                            chapterPlanIntent: intent)
+        localDraft.pending = pending
+        return await deliver(pending, newChapterPlanRequest: true)
+    }
+
+    @discardableResult
+    private func deliver(_ pending: AIAgentPendingMessage, newChapterPlanRequest: Bool = false) async -> Bool {
         sending = true
         checkedRequestID = nil
         dataRevision &+= 1
@@ -258,25 +299,65 @@ final class AdminAIAgentConversationModel {
         defer { sending = false }
         do {
             let result = try await api.message(sessionID, pending: pending)
-            guard isCurrentAccount else { return }
+            guard isCurrentAccount else { return false }
             dataRevision &+= 1
             awaitingTaskID = result.taskId
             localDraft.pending = nil
             await refresh()
+            return true
         } catch {
-            guard isCurrentAccount else { return }
+            guard isCurrentAccount else { return false }
             if !(error is CancellationError) { messageError = AppCopy.friendlyError(error) }
+            // A rejected first request can be corrected. An uncertain delivery keeps its original ID and intent.
+            let rejected: Bool
+            if newChapterPlanRequest, case APIError.http(let status, _) = error,
+               (400..<500).contains(status), status != 408, status != 429 {
+                localDraft.pending = nil
+                rejected = true
+            } else {
+                rejected = false
+            }
             sending = false
             await refresh()
+            return !rejected
         }
     }
 
     func discardPending() {
         guard !sending, let pending = localDraft.pending else { return }
-        localDraft.input = localDraft.input.isEmpty ? pending.content : pending.content + "\n\n" + localDraft.input
+        if pending.chapterPlanIntent == nil {
+            localDraft.input = localDraft.input.isEmpty ? pending.content : pending.content + "\n\n" + localDraft.input
+        }
         localDraft.pending = nil
         checkedRequestID = nil
         messageError = nil
+    }
+
+    func receiveChapterPlan(_ plan: AIAgentChapterPlan?) {
+        guard isCurrentAccount, let plan, plan.revision > (chapterPlan?.revision ?? 0) else { return }
+        dataRevision &+= 1
+        chapterPlan = plan
+    }
+
+    func saveChapterPlan(_ input: AIAgentChapterPlanInput, expectedRevision: Int) async throws {
+        guard canChangeChapterPlan, beginWork() else { throw CancellationError() }
+        defer { working = false }
+        let plan = try await api.saveChapterPlan(sessionID, input: input, expectedRevision: expectedRevision)
+        guard isCurrentAccount else { throw CancellationError() }
+        receiveChapterPlan(plan)
+        await refresh()
+        guard isCurrentAccount else { throw CancellationError() }
+    }
+
+    func changePlanBranch(_ change: AdminAgentAPI.PlanBranchChange) async throws -> AIAgentPlanBranches {
+        guard supportsPlanBranches, canChangeChapterPlan, beginWork() else { throw CancellationError() }
+        defer { working = false }
+        let state = try await api.changePlanBranch(sessionID, change: change)
+        guard isCurrentAccount else { throw CancellationError() }
+        receiveChapterPlan(state.plan)
+        await refresh()
+        guard isCurrentAccount else { throw CancellationError() }
+        return state
     }
 
     func resume(_ offer: AIAgentRecovery) async {

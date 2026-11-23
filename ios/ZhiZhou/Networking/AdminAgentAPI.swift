@@ -46,9 +46,47 @@ struct AdminAgentAPI {
     }
 
     func message(_ id: String, pending: AIAgentPendingMessage) async throws -> AIAgentTurn {
-        try await AdminAPI.parityRequest("POST", Self.path(id) + "/messages", body: [
+        var body: [String: Any] = [
             "content": pending.content, "requestId": pending.requestId, "providerPresetId": pending.providerPresetId,
-        ], token: token)
+        ]
+        switch pending.chapterPlanIntent {
+        case .planning?: body["planningOnly"] = true
+        case .writing(let revision)?: body["chapterPlanRevision"] = revision
+        case nil: break
+        }
+        return try await AdminAPI.parityRequest("POST", Self.path(id) + "/messages", body: body, token: token)
+    }
+
+    func saveChapterPlan(_ id: String, input: AIAgentChapterPlanInput, expectedRevision: Int) async throws -> AIAgentChapterPlan {
+        struct Response: Decodable { let plan: AIAgentChapterPlan }
+        let fields = try JSONSerialization.jsonObject(with: JSONEncoder().encode(input))
+        let value: Response = try await AdminAPI.parityRequest("PATCH", Self.path(id) + "/chapter-plan",
+            body: ["plan": fields, "expectedRevision": expectedRevision], token: token)
+        return value.plan
+    }
+
+    func planBranches(_ id: String) async throws -> AIAgentPlanBranches {
+        try await AdminAPI.parityRequest("GET", Self.path(id) + "/chapter-plan/branches", token: token)
+    }
+
+    enum PlanBranchChange {
+        case save(name: String, revision: Int, operationID: String)
+        case select(branchID: String, revision: Int, operationID: String)
+        case remove(branchID: String)
+    }
+
+    func changePlanBranch(_ id: String, change: PlanBranchChange) async throws -> AIAgentPlanBranches {
+        let path = Self.path(id) + "/chapter-plan/branches"
+        switch change {
+        case let .save(name, revision, operationID):
+            return try await AdminAPI.parityRequest("POST", path,
+                body: ["name": name, "expectedRevision": revision, "operationId": operationID], token: token)
+        case let .select(branchID, revision, operationID):
+            return try await AdminAPI.parityRequest("POST", path + "/" + ReaderMediaAPI.pathSegment(branchID) + "/select",
+                body: ["expectedRevision": revision, "operationId": operationID], token: token)
+        case .remove(let branchID):
+            return try await AdminAPI.parityRequest("DELETE", path + "/" + ReaderMediaAPI.pathSegment(branchID), token: token)
+        }
     }
 
     func resume(_ id: String, taskID: String) async throws -> AIAgentTurn {

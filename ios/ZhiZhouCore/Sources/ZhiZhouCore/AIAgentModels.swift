@@ -227,7 +227,7 @@ public struct AIAgentRecovery: Codable, Equatable, Sendable {
     public let message: String
 }
 
-public struct AIAgentDetail: Codable, Sendable {
+public struct AIAgentDetail: Decodable, Sendable {
     public struct MessageReceipt: Codable, Sendable {
         public let requestId: String
         public let taskId: String
@@ -243,6 +243,31 @@ public struct AIAgentDetail: Codable, Sendable {
     public let summary: AIAgentSummary?
     public let messageReceipt: MessageReceipt?
     public let recovery: AIAgentRecovery?
+    public let chapterPlan: AIAgentChapterPlan?
+    public let supportsChapterPlan: Bool
+    public let chapterPlanBranchesAvailable: Bool?
+
+    private enum CodingKeys: String, CodingKey {
+        case session, events, hasEarlier, activeTask, artifacts, actions, memories, summary, messageReceipt, recovery
+        case chapterPlan, chapterPlanBranchesAvailable
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        session = try values.decode(AIAgentSession.self, forKey: .session)
+        events = try values.decode([AIAgentEvent].self, forKey: .events)
+        hasEarlier = try values.decode(Bool.self, forKey: .hasEarlier)
+        activeTask = try values.decodeIfPresent(AIAgentTask.self, forKey: .activeTask)
+        artifacts = try values.decode([AIAgentArtifact].self, forKey: .artifacts)
+        actions = try values.decode([AIAgentAction].self, forKey: .actions)
+        memories = try values.decodeIfPresent([AIAgentMemory].self, forKey: .memories)
+        summary = try values.decodeIfPresent(AIAgentSummary.self, forKey: .summary)
+        messageReceipt = try values.decodeIfPresent(MessageReceipt.self, forKey: .messageReceipt)
+        recovery = try values.decodeIfPresent(AIAgentRecovery.self, forKey: .recovery)
+        chapterPlan = try values.decodeIfPresent(AIAgentChapterPlan.self, forKey: .chapterPlan)
+        supportsChapterPlan = values.contains(.chapterPlan)
+        chapterPlanBranchesAvailable = try values.decodeIfPresent(Bool.self, forKey: .chapterPlanBranchesAvailable)
+    }
 
     public func confirmsDelivery(of requestID: String) -> Bool {
         messageReceipt?.requestId == requestID || events.contains { $0.role == "user" && $0.requestId == requestID }
@@ -272,13 +297,21 @@ public struct AIAgentPresets: Decodable, Sendable { public let presets: [AIAgent
 
 /// The pending request survives navigation/relaunch and is resent only by an explicit user action.
 public struct AIAgentPendingMessage: Codable, Equatable, Sendable {
+    public enum ChapterPlanIntent: Codable, Equatable, Sendable {
+        case planning
+        case writing(revision: Int)
+    }
+
     public let requestId: String
     public let content: String
     public let providerPresetId: String
-    public init(content: String, providerPresetId: String) {
+    public let chapterPlanIntent: ChapterPlanIntent?
+
+    public init(content: String, providerPresetId: String, chapterPlanIntent: ChapterPlanIntent? = nil) {
         requestId = "ios_agent_" + UUID().uuidString
         self.content = content
         self.providerPresetId = providerPresetId
+        self.chapterPlanIntent = chapterPlanIntent
     }
 }
 

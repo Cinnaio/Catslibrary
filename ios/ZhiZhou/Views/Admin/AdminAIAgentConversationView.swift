@@ -9,13 +9,14 @@ struct AdminAIAgentConversationView: View {
     @State private var panel: Panel?
 
     private enum Panel: Identifiable {
-        case outputs, artifact(String), settings, memory
+        case outputs, artifact(String), settings, memory, chapterPlan
         var id: String {
             switch self {
             case .outputs: "outputs"
             case .artifact(let id): "artifact:\(id)"
             case .settings: "settings"
             case .memory: "memory"
+            case .chapterPlan: "chapter-plan"
             }
         }
     }
@@ -32,7 +33,7 @@ struct AdminAIAgentConversationView: View {
             if model.hasLoaded {
                 AgentMessagesView(model: model, readingOverlay: historyPresented || panel != nil || model.selectedAction != nil,
                                   showArtifact: { panel = .artifact($0) }, showOutputs: { panel = .outputs },
-                                  showMemory: { panel = .memory })
+                                  showMemory: { panel = .memory }, showChapterPlan: { panel = .chapterPlan })
             } else if let error = model.loadError {
                 ContentUnavailableView {
                     Label("暂时无法读取对话", systemImage: "bubble.left.and.exclamationmark.bubble.right")
@@ -87,6 +88,7 @@ struct AdminAIAgentConversationView: View {
             case .artifact(let id): AgentOutputSheet(model: model, artifactID: id)
             case .settings: AgentSettingsSheet(model: model)
             case .memory: AgentMemoryView(model: model)
+            case .chapterPlan: AgentChapterPlanSheet(model: model)
             }
         }
         .sheet(item: Binding(get: { panel == nil ? model.selectedAction : nil },
@@ -115,6 +117,7 @@ private struct AgentMessagesView: View {
     let showArtifact: (String) -> Void
     let showOutputs: () -> Void
     let showMemory: () -> Void
+    let showChapterPlan: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
@@ -273,7 +276,7 @@ private struct AgentMessagesView: View {
                 .accessibilityIdentifier("agent.scrollToLatest")
                 .transition(reduceMotion ? .identity : .offset(y: 8).combined(with: .opacity))
             }
-            AgentComposerView(model: model, showMemory: showMemory)
+            AgentComposerView(model: model, showMemory: showMemory, showChapterPlan: showChapterPlan)
         }
         .padding(.top, 4)
         .frame(maxWidth: .infinity)
@@ -664,6 +667,7 @@ private struct AgentEvidenceRow: View {
 private struct AgentComposerView: View {
     @Bindable var model: AdminAIAgentConversationModel
     let showMemory: () -> Void
+    let showChapterPlan: () -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showDiscard = false
 
@@ -691,12 +695,14 @@ private struct AgentComposerView: View {
                     modelMenu
                     HStack(spacing: 12) {
                         memoryButton
+                        chapterPlanButton
                         Spacer(minLength: 0)
                         messageAction
                     }
                 } else {
                     HStack(spacing: 12) {
                         memoryButton
+                        chapterPlanButton
                         modelMenu
                         Spacer(minLength: 0)
                         messageAction
@@ -713,7 +719,9 @@ private struct AgentComposerView: View {
         .padding(.horizontal, 16).padding(.bottom, 12)
         .frame(maxWidth: 760).frame(maxWidth: .infinity)
         .confirmationDialog("先核对消息是否已发送", isPresented: $showDiscard, titleVisibility: .visible) {
-            Button("取回文字，结束本次重试") { model.discardPending() }
+            Button(model.localDraft.pending?.chapterPlanIntent == nil ? "取回文字，结束本次重试" : "结束本次重试") {
+                model.discardPending()
+            }
             Button("取消", role: .cancel) {}
         } message: { Text("服务器可能已接收此消息。结束重试不会停止任务，再次发送会创建新的一轮。") }
     }
@@ -778,6 +786,7 @@ private struct AgentComposerView: View {
     private var memoryButton: some View {
         Button(action: showMemory) {
             Label("记忆", systemImage: "bookmark")
+                .labelStyle(AgentComposerToolLabelStyle())
                 .font(.caption).foregroundStyle(AppTheme.primary)
                 .frame(minWidth: 44, minHeight: AppLayout.minimumTouchTarget)
                 .fixedSize(horizontal: true, vertical: false)
@@ -786,6 +795,23 @@ private struct AgentComposerView: View {
         .buttonStyle(.plain)
         .accessibilityLabel("作品记忆")
         .accessibilityValue(model.pendingMemoryCount > 0 ? "\(model.pendingMemoryCount) 条待确认" : "无待确认提议")
+    }
+
+    @ViewBuilder private var chapterPlanButton: some View {
+        if model.supportsChapterPlan {
+            Button(action: showChapterPlan) {
+                Label("章节计划", systemImage: "list.bullet.rectangle")
+                    .labelStyle(AgentComposerToolLabelStyle())
+                    .font(.caption).foregroundStyle(AppTheme.primary)
+                    .frame(minWidth: 44, minHeight: AppLayout.minimumTouchTarget)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("章节计划")
+            .accessibilityValue(model.chapterPlan.map { "第 \($0.revision) 版" } ?? "尚未保存")
+            .accessibilityIdentifier("agent.chapterPlan")
+        }
     }
 
     private func pendingMessage(_ pending: AIAgentPendingMessage) -> some View {
@@ -808,7 +834,19 @@ private struct AgentComposerView: View {
             Button("重试原消息") { Task { await model.send(retry: true) } }
                 .font(.caption).frame(minHeight: 44).disabled(model.working || model.replying || model.isRefreshing)
         }
-        Button("取回文字") { showDiscard = true }.font(.caption).frame(minHeight: 44)
+        Button(model.localDraft.pending?.chapterPlanIntent == nil ? "取回文字" : "结束重试") { showDiscard = true }
+            .font(.caption).frame(minHeight: 44)
+    }
+}
+
+private struct AgentComposerToolLabelStyle: LabelStyle {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 4) {
+            configuration.icon
+            if !dynamicTypeSize.isAccessibilitySize { configuration.title }
+        }
     }
 }
 
