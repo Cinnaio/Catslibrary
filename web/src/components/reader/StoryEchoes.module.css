@@ -1,0 +1,14 @@
+.anchor { padding: 18px 20px; background: var(--bg-secondary); border-radius: 16px; }
+.eyebrow, .note { color: var(--text-secondary); font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
+.note { margin: 0; }
+.anchor blockquote, .results blockquote { margin: 12px 0 0; padding-left: 16px; border-left: 2px solid var(--border); color: var(--text-primary); font-family: var(--font-serif); font-size: 16px; line-height: 1.95; white-space: pre-wrap; overflow-wrap: anywhere; }
+.action { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.error { color: var(--color-danger); font-size: 13px; line-height: 1.8; }
+.empty { padding: 4px 0 24px; }
+.results { list-style: none; padding: 0; margin: 0 0 24px; }
+.results li { padding: 24px 0; border-top: 1px solid var(--border); animation: echo-enter 200ms both; }
+.results li:first-child { padding-top: 0; border-top: 0; }
+.label { margin: 22px 0 6px; color: var(--accent); font-size: 12px; }
+.explanation { margin: 0 0 12px; color: var(--text-primary); font-size: 14px; line-height: 1.9; white-space: pre-wrap; overflow-wrap: anywhere; }
+@keyframes echo-enter { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .results li { animation: none; } }

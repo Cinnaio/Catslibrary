@@ -83,6 +83,7 @@ struct ReaderView: View {
     @State private var searchQuery: String
     @State private var requestedChapterID: String
     @State private var searchNeedsJump: Bool
+    @State private var echoNavigationRevision = 0
     @State private var pendingSearchCharacter: Int?
     @State private var searchLocationMissing = false
     @State private var showSettings = false
@@ -137,6 +138,11 @@ struct ReaderView: View {
     @State private var isSelectingBodyText = false
     @State private var showBookmark = false
     @State private var showRecap = false
+    @State private var echoEnabled = false
+    @State private var echoInput: StoryEchoInput?
+    @State private var echoTarget: StoryEchoSource?
+    @State private var echoReturnSource: StoryEchoSource?
+    @State private var echoSelectionError = false
     @State private var showAdminWorkspace = false
     @State private var recapEnabled = false
     @State private var autoScrollPaused = true
@@ -153,13 +159,13 @@ struct ReaderView: View {
         !isLoading && chapter != nil && pendingScrollRestore == nil
             && (!novel.isRestricted || (!offlineOnly && ContentAccessStore.shared.mode == "adult"))
             && !showTOC && !showBodySearch && !showSettings && !showEdge && !showThoughtPanel && !showBookmark
-            && !showRecap && !showIllustrationsNotice && scenePhase == .active
+            && !showRecap && echoInput == nil && !showIllustrationsNotice && scenePhase == .active
     }
 
     private var autoScrollActive: Bool {
         !autoScrollPaused && settings.pageMode == "scroll" && !isLoading && chapter != nil
             && pendingScrollRestore == nil && !showTOC && !showBodySearch && !showSettings && !showEdge && !showThoughtPanel
-            && !showBookmark && !showRecap && !showIllustrationsNotice && !isSelectingBodyText && scenePhase == .active
+            && !showBookmark && !showRecap && echoInput == nil && !showIllustrationsNotice && !isSelectingBodyText && scenePhase == .active
     }
 
     private var edgeContext: ReaderEdgeContext? {
@@ -323,6 +329,21 @@ struct ReaderView: View {
         .sheet(isPresented: $showAdminWorkspace) {
             AdminNovelWorkspaceSheet(novel: novel, afterChapterID: chapter?.id)
         }
+        .sheet(item: $echoInput) { input in
+            ReaderStoryEchoesView(input: input, chapterTitle: chapter?.title ?? "当前章节") { source in
+                if let chapter {
+                    echoReturnSource = StoryEchoSource(chapterId: chapter.id, chapterTitle: chapter.title,
+                        chapterOrder: chapter.order, paragraphIndex: input.paragraphIndex,
+                        paragraphHash: input.paragraphHash, quote: input.selectedText)
+                }
+                echoInput = nil
+                navigateToEcho(source)
+            }
+            .preferredColorScheme(scheme)
+        }
+        .alert("请重新选择正文", isPresented: $echoSelectionError) {
+            Button("知道了", role: .cancel) { }
+        } message: { Text("请在同一段落中选择至少 4 字，回声会使用选段的前 200 字。") }
         .sheet(isPresented: $showRecap) {
             if let previousChapter {
                 ReaderRecapView(source: .chapter(id: previousChapter.id, title: previousChapter.title))
@@ -345,6 +366,7 @@ struct ReaderView: View {
             BookSearchView(novel: novel, state: $bodySearchSnapshot, initialQuery: searchQuery) { hit, query in
                 autoScrollPaused = true
                 saveProgressNow()
+                echoTarget = nil
                 searchQuery = query
                 searchNeedsJump = true
                 if chapter?.id == hit.chapterId {
@@ -431,14 +453,19 @@ struct ReaderView: View {
         .modifier(ReaderStatisticsModifier(owner: statsOwner, novelID: novel.id,
             chapterID: chapter?.id, mode: offlineOnly ? "safe" : ContentAccessStore.shared.mode,
             visible: statisticsVisible))
-        .task(id: "\(novel.id)-\(chapterOrder)-\(requestedChapterID)-\(ContentAccessStore.shared.mode)") { await load() }
+        .task(id: "\(novel.id)-\(chapterOrder)-\(requestedChapterID)-\(ContentAccessStore.shared.mode)-\(echoNavigationRevision)") { await load() }
         .task(id: ContentAccessStore.shared.revision) {
             recapEnabled = false
+            echoEnabled = false
+            echoInput = nil
+            echoReturnSource = nil
+            if echoTarget != nil { echoTarget = nil; searchQuery = ""; searchNeedsJump = false }
             guard !offlineOnly, appState.user != nil else { return }
             let revision = ContentAccessStore.shared.revision
             let status: ReaderAIStatus? = try? await APIClient.shared.get("/api/ai/status", auth: true)
             guard !Task.isCancelled, revision == ContentAccessStore.shared.revision else { return }
             recapEnabled = status?.features.recap == true
+            echoEnabled = status?.features.storyEchoes == true
         }
         .task(id: "\(chapter?.id ?? "-"):\(ContentAccessStore.shared.revision):\(illustrationsAttempt)") {
             await loadIllustrations()
@@ -644,7 +671,10 @@ struct ReaderView: View {
             thoughtMarkerColor: UIColor(AppTheme.primary),
             onThoughtMarkerTap: { openThoughtPanel(for: index) },
             onBodyTap: { handleScrollTap(x: $0.x, width: width) },
-            onSelectionChange: { isSelectingBodyText = $0 }
+            onSelectionChange: { isSelectingBodyText = $0 },
+            onEcho: echoEnabled && !offlineOnly ? { selectedText, _ in
+                openEcho(for: index, selectedText: selectedText)
+            } : nil
         ) { selectedText, _ in
             openThoughtPanel(for: index, selectedText: selectedText)
         }
@@ -930,7 +960,17 @@ struct ReaderView: View {
                 SelectableTextView(
                     attributedText: text,
                     textColor: inkUIColor,
-                    isThoughtActionEnabled: !offlineOnly
+                    isThoughtActionEnabled: !offlineOnly,
+                    onEcho: echoEnabled && !offlineOnly ? { selectedText, selectedRange in
+                        guard pageRanges.indices.contains(pageIndex) else { return }
+                        let start = pageRanges[pageIndex].location + selectedRange.location
+                        guard let index = paragraphIndex(atCharacterLocation: start),
+                              paragraphIndex(atCharacterLocation: start + selectedRange.length - 1) == index else {
+                            echoSelectionError = true
+                            return
+                        }
+                        openEcho(for: index, selectedText: selectedText)
+                    } : nil
                 ) { selectedText, selectedRange in
                     guard pageRanges.indices.contains(pageIndex) else { return }
                     let location = pageRanges[pageIndex].location + selectedRange.location
@@ -1285,7 +1325,13 @@ struct ReaderView: View {
                        systemImage: "text.magnifyingglass") { autoScrollPaused = true; showBodySearch = true }
                 if !searchQuery.isEmpty {
                     Button("结束搜索定位", systemImage: "xmark.circle") {
-                        searchQuery = ""; pendingSearchCharacter = nil; searchNeedsJump = false
+                        searchQuery = ""; pendingSearchCharacter = nil; searchNeedsJump = false; echoTarget = nil
+                    }
+                }
+                if let origin = echoReturnSource {
+                    Button("返回回声选段", systemImage: "arrow.uturn.forward") {
+                        echoReturnSource = nil
+                        navigateToEcho(origin)
                     }
                 }
                 Button("当前段评", systemImage: "text.bubble") { openCurrentThoughtPanel() }
@@ -1502,6 +1548,7 @@ struct ReaderView: View {
         autoScrollPaused = true
         showBookmark = false
         showRecap = false
+        echoInput = nil
         isSelectingBodyText = false
         chapterSwipeProgress = 0
         saveTask?.cancel()
@@ -1681,8 +1728,17 @@ struct ReaderView: View {
     private func installSearchTarget() {
         guard searchNeedsJump, !searchQuery.isEmpty, let chapter else { return }
         searchNeedsJump = false
-        guard let index = paragraphs.firstIndex(where: { !BookTextSearch.ranges(in: $0, query: searchQuery).isEmpty }),
-              let range = BookTextSearch.ranges(in: paragraphs[index], query: searchQuery).first else {
+        let targetIndex: Int?
+        if let target = echoTarget, target.chapterId == chapter.id {
+            let matching = paragraphs.indices.filter { Self.paragraphHash(paragraphs[$0]) == target.paragraphHash }
+            targetIndex = matching.contains(target.paragraphIndex) ? target.paragraphIndex : matching.count == 1 ? matching.first : nil
+        } else {
+            targetIndex = paragraphs.firstIndex(where: { !BookTextSearch.ranges(in: $0, query: searchQuery).isEmpty })
+        }
+        guard let index = targetIndex else { searchLocationMissing = true; return }
+        let matches = echoTarget == nil ? BookTextSearch.ranges(in: paragraphs[index], query: searchQuery)
+            : ReaderTextHighlight.ranges(in: paragraphs[index], matching: [searchQuery])
+        guard let range = matches.first else {
             searchLocationMissing = true
             return
         }
@@ -1690,6 +1746,38 @@ struct ReaderView: View {
         let offsets = ChapterPaginator.paragraphOffsets(title: chapter.title, paragraphs: paragraphs)
         pendingSearchCharacter = offsets[index] + paragraphIndent.utf16.count + range.location
         if settings.pageMode != "page" { pendingSearchCharacter = nil }
+    }
+
+    private func openEcho(for index: Int, selectedText: String) {
+        guard echoEnabled, !offlineOnly, let chapter, paragraphs.indices.contains(index) else { return }
+        let normalized = selectedText.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        var quote = ""
+        for character in normalized {
+            guard quote.utf16.count + String(character).utf16.count <= 200 else { break }
+            quote.append(character)
+        }
+        guard quote.utf16.count >= 4 else { echoSelectionError = true; return }
+        autoScrollPaused = true
+        echoInput = StoryEchoInput(chapterId: chapter.id, paragraphIndex: index,
+            paragraphHash: Self.paragraphHash(paragraphs[index]), selectedText: quote)
+        interactionFeedback &+= 1
+    }
+
+    private func navigateToEcho(_ source: StoryEchoSource) {
+        autoScrollPaused = true
+        saveProgressNow()
+        echoTarget = source
+        searchQuery = source.quote
+        searchNeedsJump = true
+        if chapter?.id == source.chapterId {
+            // Reload even within the current chapter before checking the source fingerprint.
+            resetForNewChapter()
+            echoNavigationRevision &+= 1
+        } else {
+            requestedChapterID = source.chapterId
+            chapterOrder = source.chapterOrder
+        }
     }
 
     private func openThoughtPanel(for index: Int, selectedText: String = "") {
@@ -1918,6 +2006,7 @@ struct ReaderView: View {
         saveTask?.cancel()
         saveProgressNow()
         requestedChapterID = ""
+        echoTarget = nil
         searchQuery = ""
         pendingSearchCharacter = nil
         searchNeedsJump = false

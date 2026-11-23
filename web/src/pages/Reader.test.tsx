@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as matchers from '@testing-library/jest-dom/matchers'
 import type { UserRole } from '@shared/roles'
 import { readEdgeData } from '../lib/edge'
+import { hashParagraphText } from '@shared/thought-anchor'
+import type { StoryEchoSource } from '@shared/story-echoes'
 
 expect.extend(matchers)
 
@@ -12,9 +14,16 @@ const mocks = vi.hoisted(() => ({
   policy: { mode: 'adult', checking: false, policyError: '', adultContentEnabled: true, isAllowed: () => true, setMode: vi.fn(), refreshPolicy: vi.fn() },
   chapter: vi.fn(), novel: vi.fn(), chapters: vi.fn(), thoughts: vi.fn(),
   session: { user: null as null | { id: string; role: UserRole }, loading: false },
-  playing: false, dispose: vi.fn(), stats: vi.fn(),
+  playing: false, dispose: vi.fn(), stats: vi.fn(), echoEnabled: false, echoes: vi.fn(),
 }))
 vi.mock('../context/SessionContext', () => ({ useSession: () => mocks.session, useOptionalSession: () => mocks.session }))
+vi.mock('../hooks/useAiStatus', () => ({
+  useAiStatus: () => ({ features: { storyEchoes: mocks.echoEnabled } }),
+  loadAiStatus: () => Promise.resolve({ quota: { limit: 10, used: 0 } }),
+}))
+vi.mock('../lib/story-echoes', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../lib/story-echoes')>(), findStoryEchoes: mocks.echoes,
+}))
 vi.mock('../hooks/useReadingStats', () => ({ useReadingStats: mocks.stats }))
 vi.mock('../lib/edge-audio', () => ({ EdgeAudio: class {
   start() { mocks.playing = true; return Promise.resolve(true) }
@@ -45,7 +54,7 @@ vi.mock('../components/reader/ThoughtPanel', () => ({ default: () => null }))
 import Reader from './Reader'
 
 function readerTree() {
-  return <MemoryRouter initialEntries={['/read/book/chapter']}><Link to="/read/book/second">测试切章</Link><Routes><Route path="/read/:novelId/:chapterId" element={<Reader />} /></Routes></MemoryRouter>
+  return <MemoryRouter initialEntries={['/read/book/chapter']}><Link to="/read/book/second">测试切章</Link><Link to="/read/book/chapter">测试返回</Link><Routes><Route path="/read/:novelId/:chapterId" element={<Reader />} /></Routes></MemoryRouter>
 }
 
 function mount() { return render(readerTree()) }
@@ -55,6 +64,7 @@ beforeEach(() => {
   localStorage.clear()
   mocks.session = { user: null, loading: false }
   mocks.playing = false
+  mocks.echoEnabled = false
   mocks.thoughts.mockResolvedValue({ thoughts: [] })
   mocks.policy.mode = 'adult'
   mocks.policy.checking = false
@@ -323,5 +333,65 @@ describe('阅读器访问状态', () => {
     fireEvent.click(screen.getByRole('button', { name: '重试' }))
     expect(mocks.policy.refreshPolicy).toHaveBeenCalledOnce()
     expect(mocks.chapter).not.toHaveBeenCalled()
+  })
+})
+
+
+describe('回声原文导航刷新', () => {
+  it.each(['chapter', 'second'])('跳转 %s 重新读取正文，返回原选段也不使用旧缓存', async (targetID) => {
+    mocks.session = { user: { id: 'reader', role: 'admin' }, loading: false }
+    mocks.echoEnabled = true
+    mocks.novel.mockResolvedValue({ novel: { id: 'book', title: '测试小说' } })
+    const first = '她把银铃留在窗边。', selected = '他再次拿起那枚银铃。'
+    let currentContent = `${first}\n${selected}`, earlierContent = first
+    mocks.chapter.mockImplementation((id: string) => Promise.resolve({ chapter: {
+      id, novelId: 'book', title: id === 'chapter' ? '当前章' : '前文章',
+      content: id === 'chapter' ? currentContent : earlierContent, order: id === 'chapter' ? 2 : 1,
+    } }))
+    const originalRect = Object.getOwnPropertyDescriptor(Range.prototype, 'getBoundingClientRect')
+    Object.defineProperty(Range.prototype, 'getBoundingClientRect', { configurable: true, value: () => new DOMRect(40, 80, 120, 20) })
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    const view = mount()
+    try {
+      await screen.findByText(selected)
+      if (targetID === 'second') {
+        fireEvent.click(screen.getByRole('link', { name: '测试切章' }))
+        await screen.findByText(first)
+        fireEvent.click(screen.getByRole('link', { name: '测试返回' }))
+        await screen.findByText(selected)
+      }
+      const source: StoryEchoSource = { chapterId: targetID, chapterTitle: '前文', chapterOrder: targetID === 'chapter' ? 2 : 1,
+        paragraphIndex: 0, paragraphHash: hashParagraphText(first), quote: first }
+      mocks.echoes.mockResolvedValue({ anchor: source, items: [{ source, explanation: '银铃可能呼应前文。' }],
+        cached: false, generated: true, searchedChapters: 1, candidateCount: 1, limited: false, omitted: 0, model: 'test' })
+      const paragraph = screen.getByText(selected)
+      await waitFor(() => expect(paragraph).toHaveAttribute('data-paragraph-hash'))
+      const range = document.createRange()
+      range.setStart(paragraph.firstChild!, 0); range.setEnd(paragraph.firstChild!, selected.length)
+      window.getSelection()!.removeAllRanges(); window.getSelection()!.addRange(range)
+      fireEvent.mouseUp(paragraph)
+      fireEvent.click(await screen.findByRole('button', { name: '故事里的回声' }))
+      fireEvent.click(screen.getByRole('button', { name: '查找前文的回声' }))
+      const openSource = await screen.findByRole('button', { name: /回到原文/ })
+      const changed = `${first}这处正文已更新。`
+      if (targetID === 'chapter') currentContent = `${changed}\n${selected}`
+      else earlierContent = changed
+      const calls = mocks.chapter.mock.calls.filter(([id]) => id === targetID).length
+      fireEvent.click(openSource)
+      await screen.findByText(changed)
+      expect(mocks.chapter.mock.calls.filter(([id]) => id === targetID)).toHaveLength(calls + 1)
+      await waitFor(() => expect(screen.getByRole('region', { name: '本章搜索定位' })).toHaveTextContent('正文可能已更新'))
+      currentContent = `${first}\n${selected}原选段也已更新。`
+      const returnCalls = mocks.chapter.mock.calls.filter(([id]) => id === 'chapter').length
+      fireEvent.click(screen.getByRole('button', { name: '返回回声选段' }))
+      await screen.findByText(`${selected}原选段也已更新。`)
+      expect(mocks.chapter.mock.calls.filter(([id]) => id === 'chapter')).toHaveLength(returnCalls + 1)
+      expect(screen.queryByRole('button', { name: '返回回声选段' })).not.toBeInTheDocument()
+    } finally {
+      view.unmount()
+      window.getSelection()?.removeAllRanges()
+      if (originalRect) Object.defineProperty(Range.prototype, 'getBoundingClientRect', originalRect)
+      else Reflect.deleteProperty(Range.prototype, 'getBoundingClientRect')
+    }
   })
 })

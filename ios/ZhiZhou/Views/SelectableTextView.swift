@@ -13,6 +13,7 @@ struct SelectableTextView: UIViewRepresentable {
     var onThoughtMarkerTap: (() -> Void)? = nil
     var onBodyTap: ((CGPoint) -> Void)? = nil
     var onSelectionChange: ((Bool) -> Void)? = nil
+    var onEcho: ((String, NSRange) -> Void)? = nil
     let onThought: (String, NSRange) -> Void
 
     func makeUIView(context: Context) -> ThoughtSelectableTextView {
@@ -44,6 +45,7 @@ struct SelectableTextView: UIViewRepresentable {
         if view.textColor?.isEqual(textColor) != true {
             view.textColor = textColor
         }
+        view.onEcho = onEcho
         view.onThought = onThought
         view.onThoughtMarkerTap = onThoughtMarkerTap
         view.onBodyTap = onBodyTap
@@ -78,6 +80,7 @@ struct SelectableTextView: UIViewRepresentable {
 
 final class ThoughtSelectableTextView: UITextView, UITextViewDelegate {
     var isThoughtActionEnabled = true
+    var onEcho: ((String, NSRange) -> Void)?
     var onThought: ((String, NSRange) -> Void)?
     var onSelectionChange: ((Bool) -> Void)?
     var onThoughtMarkerTap: (() -> Void)?
@@ -279,7 +282,16 @@ final class ThoughtSelectableTextView: UITextView, UITextViewDelegate {
         let writeThought = UIAction(title: "写段评") { [weak self] _ in
             self?.addThought(from: selection)
         }
-        return UIMenu(children: [writeThought] + suggestedActions)
+        var actions: [UIMenuElement] = [writeThought]
+        if onEcho != nil {
+            actions.append(UIAction(title: "故事里的回声", image: UIImage(systemName: "quote.opening")) { [weak self] _ in
+                guard let self else { return }
+                let range = self.bodyRange(in: selection)
+                guard range.length > 0 else { return }
+                self.onEcho?((self.textStorage.string as NSString).substring(with: range), range)
+            })
+        }
+        return UIMenu(children: actions + suggestedActions)
     }
 
     func addThought(from selection: NSRange) {

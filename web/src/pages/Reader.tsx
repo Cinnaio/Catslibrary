@@ -1,3 +1,7 @@
+import type { StoryEchoInput, StoryEchoSource } from '@shared/story-echoes'
+import StoryEchoes from '../components/reader/StoryEchoes'
+import { storyEchoSourceURL } from '../lib/story-echoes'
+import { useAiStatus } from '../hooks/useAiStatus'
 import { MotionPresence } from '@/components/ui/motion'
 import { isAdministrator } from '@shared/roles'
 import { Spinner } from '@/components/ui/spinner'
@@ -107,6 +111,7 @@ function ReaderContent() {
   // demo 模式只需触发标记写入，无 UI 读取
   const [, setDemoMode] = useState(false)
   const cacheRef = useRef<Map<string, ChapterFull>>(new Map())
+  const freshEchoChapterRef = useRef<string | null>(null)
   const contextRef = useRef<ReaderContext | null>(null)
   const contentGenerationRef = useRef(0)
   useLayoutEffect(() => {
@@ -117,6 +122,8 @@ function ReaderContent() {
     setNovel(null)
     setAllChapters([])
     setChapterThoughts([])
+    setEchoSelection(null)
+    setEchoOrigin(null)
     setLoading(true)
     return () => {
       contentGenerationRef.current++
@@ -169,6 +176,10 @@ function ReaderContent() {
   const [pendingSelection, setPendingSelection] = useState<{ paragraphIndex: number; paragraphHash: string; selectedText: string } | null>(null)
   const [popoverPos, setPopoverPos] = useState<{ left: number; top: number } | null>(null)
   const [thoughtPanelOpen, setThoughtPanelOpen] = useState(false)
+  const [echoSelection, setEchoSelection] = useState<StoryEchoInput | null>(null)
+  const [echoOrigin, setEchoOrigin] = useState<StoryEchoSource | null>(null)
+  const readerAi = useAiStatus(!!user)
+  const echoEnabled = !!user && readerAi?.features.storyEchoes === true
   const onImageThoughtPublished = useCallback((thought: Thought) => {
     setChapterThoughts((prev) => prev.some((item) => item.id === thought.id) ? prev : [...prev, thought])
   }, [])
@@ -179,7 +190,7 @@ function ReaderContent() {
     userId: user?.id || '', novelId: chapter?.novelId || novelId, chapterId: chapter?.id || '',
     enabled: !loading && !notFound && !loadError && !blocked && !sessionLoading && !checking && !policyBlocked
       && chapter?.id === chapterId && !bodySearchOpen && !dropdownOpen && !bookmarkPanelOpen && !bookmarkNoteOpen
-      && !settingsPanelOpen && !mobileSettingsOpen && !mobileLibraryOpen && !thoughtPanelOpen && !tempoOpen,
+      && !settingsPanelOpen && !mobileSettingsOpen && !mobileLibraryOpen && !thoughtPanelOpen && !echoSelection && !tempoOpen,
     contentMode: mode, ready: statsReady,
   })
 
@@ -193,7 +204,7 @@ function ReaderContent() {
       cacheRef.current.clear()
       contextRef.current = null
       setChapter(null); setNovel(null); setAllChapters([]); setChapterThoughts([])
-      setPendingSelection(null); setPopoverPos(null); setThoughtPanelOpen(false)
+      setPendingSelection(null); setPopoverPos(null); setThoughtPanelOpen(false); setEchoSelection(null)
       setLoading(false); setLoadError('')
       setNotFound(status === 404); setBlocked(isRestrictedContentError(error))
     }
@@ -286,7 +297,8 @@ function ReaderContent() {
   const loadChapterData = useCallback(
     async (cid: string, useDemo: boolean): Promise<ChapterFull> => {
       const generation = contentGenerationRef.current
-      const cached = cacheRef.current.get(cid)
+      const freshEcho = freshEchoChapterRef.current === cid
+      const cached = freshEcho ? undefined : cacheRef.current.get(cid)
       if (cached) return cached
       if (useDemo) {
         const { getDemoChapter } = await import('../lib/demoReader')
@@ -296,10 +308,20 @@ function ReaderContent() {
       }
       const data = await chaptersApi.get(cid)
       if (generation !== contentGenerationRef.current) throw new Error('阅读身份或内容权限已变更')
+      if (freshEcho && freshEchoChapterRef.current === cid) freshEchoChapterRef.current = null
       return cacheChapter(data.chapter)
     },
     [cacheChapter],
   )
+
+  function navigateToEcho(source: StoryEchoSource) {
+    saveScrollPosition(); flushProgress()
+    // Revalidate source hashes against fresh text, including same-chapter jumps and returns.
+    freshEchoChapterRef.current = source.chapterId
+    cacheRef.current.delete(source.chapterId)
+    navigate(storyEchoSourceURL(novelId, source))
+    setRetry(value => value + 1)
+  }
 
   const loadContext = useCallback((id: string): ReaderContext => {
     if (contextRef.current?.id === id && contextRef.current.expiresAt > Date.now()) return contextRef.current
@@ -333,6 +355,7 @@ function ReaderContent() {
       setChapterThoughts([])
       setPopoverPos(null)
       setPendingSelection(null)
+      setEchoSelection(null)
       // 重置每章状态
       currentPageRef.current = 0
       totalPagesRef.current = 0
@@ -1085,7 +1108,7 @@ function ReaderContent() {
     function tick(ts: number) {
       const s = autoScrollRef.current
       if (!s.running) return
-      if (document.hidden || bodySearchOpen || dropdownOpen || bookmarkPanelOpen || bookmarkNoteOpen || settingsPanelOpen || mobileSettingsOpen || mobileLibraryOpen || thoughtPanelOpen || tempoOpen) {
+      if (document.hidden || bodySearchOpen || dropdownOpen || bookmarkPanelOpen || bookmarkNoteOpen || settingsPanelOpen || mobileSettingsOpen || mobileLibraryOpen || thoughtPanelOpen || echoSelection || tempoOpen) {
         s.frame = requestAnimationFrame(tick)
         return
       }
@@ -1138,7 +1161,7 @@ function ReaderContent() {
       stop()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [readerAutoScrollSpeed, bodySearchOpen, dropdownOpen, bookmarkPanelOpen, bookmarkNoteOpen, settingsPanelOpen, mobileSettingsOpen, mobileLibraryOpen, thoughtPanelOpen, tempoOpen, pageMode])
+  }, [readerAutoScrollSpeed, bodySearchOpen, dropdownOpen, bookmarkPanelOpen, bookmarkNoteOpen, settingsPanelOpen, mobileSettingsOpen, mobileLibraryOpen, thoughtPanelOpen, echoSelection, tempoOpen, pageMode])
 
   // ---------- Wake Lock ----------
   useEffect(() => {
@@ -1240,7 +1263,7 @@ function ReaderContent() {
         selectedText: parsed.text.length > 200 ? parsed.text.slice(0, 200) : parsed.text,
       })
       const rect = range.getBoundingClientRect()
-      const popoverWidth = canManageIllustrations ? 210 : 88
+      const popoverWidth = Math.min(window.innerWidth - 24, (canManageIllustrations ? 210 : 88) + (echoEnabled ? 112 : 0))
       setPopoverPos({
         left: Math.min(window.innerWidth - popoverWidth - 12, Math.max(12, rect.left + rect.width / 2 - popoverWidth / 2)),
         top: Math.max(12, rect.top - 44),
@@ -1262,7 +1285,7 @@ function ReaderContent() {
       contentEl?.removeEventListener('mouseup', handleSelection)
       if (selectionTimer) clearTimeout(selectionTimer)
     }
-  }, [chapter?.id, canManageIllustrations])
+  }, [chapter?.id, canManageIllustrations, echoEnabled])
 
   function openThoughtPanel(index: number) {
     setActiveThoughtParagraph(index)
@@ -1482,6 +1505,10 @@ function ReaderContent() {
           <span role="status">{bodySearch.total ? `${bodySearch.index + 1} / ${bodySearch.total}${bodySearch.total === 1000 ? '（最多显示 1000 处）' : ''}` : '本章没有可定位的命中，正文可能已更新'}</span>
           <Button size="sm" variant="ghost" disabled={!bodySearch.total} onClick={() => bodySearch.locate(bodySearch.index - 1)}>上一处</Button>
           <Button size="sm" variant="ghost" disabled={!bodySearch.total} onClick={() => bodySearch.locate(bodySearch.index + 1)}>下一处</Button>
+          {echoOrigin && <Button size="sm" variant="ghost" onClick={() => {
+            navigateToEcho(echoOrigin)
+            setEchoOrigin(null)
+          }}>返回回声选段</Button>}
           <Button size="sm" variant="ghost" onClick={bodySearch.close}>结束定位</Button>
         </div>}
         <article
@@ -1595,7 +1622,7 @@ function ReaderContent() {
 
       {/* Thought selection popover */}
       {popoverPos && (
-        <div className="thought-selection-popover" style={{ left: popoverPos.left, top: popoverPos.top }}>
+        <div className="thought-selection-popover" style={{ left: popoverPos.left, top: popoverPos.top, maxWidth: 'calc(100vw - 24px)', flexWrap: 'wrap' }}>
         <button
           type="button"
           onClick={(e) => {
@@ -1606,6 +1633,16 @@ function ReaderContent() {
         >
           写想法
         </button>
+        {echoEnabled && <button type="button" onClick={event => {
+          event.preventDefault(); event.stopPropagation()
+          if (!pendingSelection) return
+          if (pendingSelection.selectedText.trim().length < 4) { toast('请选择至少 4 字正文'); return }
+          const paragraph = contentRef.current?.querySelectorAll<HTMLParagraphElement>('p')[pendingSelection.paragraphIndex]
+          setEchoSelection({ ...pendingSelection, chapterId: chapter.id,
+            paragraphIndex: Number(paragraph?.dataset.sourceParagraphIndex ?? pendingSelection.paragraphIndex) })
+          setPopoverPos(null)
+          window.getSelection()?.removeAllRanges()
+        }}>故事里的回声</button>}
         {canManageIllustrations && <button type="button" onClick={event => {
           event.preventDefault(); event.stopPropagation()
           if (!pendingSelection) return
@@ -1615,6 +1652,17 @@ function ReaderContent() {
           window.getSelection()?.removeAllRanges()
         }}>在本段后插图</button>}
         </div>
+      )}
+
+      {echoSelection && echoSelection.chapterId === chapter.id && !checking && !blocked && (
+        <StoryEchoes key={`${user?.id}:${mode}:${chapter.id}:${echoSelection.paragraphHash}:${echoSelection.selectedText}`}
+          input={echoSelection} chapterTitle={chapter.title} onClose={() => setEchoSelection(null)}
+          onSource={source => {
+            setEchoOrigin({ chapterId: chapter.id, chapterTitle: chapter.title, chapterOrder: chapter.order,
+              paragraphIndex: echoSelection.paragraphIndex, paragraphHash: echoSelection.paragraphHash, quote: echoSelection.selectedText })
+            setEchoSelection(null)
+            navigateToEcho(source)
+          }} />
       )}
 
       {/* Thought panel */}
