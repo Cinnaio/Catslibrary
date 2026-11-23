@@ -18,9 +18,27 @@
 .footerActions { justify-content: flex-end; }
 .error { margin: 0; color: var(--color-danger); font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
 .cover { display: block; width: auto; max-width: 100%; max-height: 52dvh; margin-inline: auto; object-fit: contain; border-radius: var(--radius-poster); }
+.impact, .impactResult { display: grid; gap: 10px; min-width: 0; }
+.impactControls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+.impactControls label { font-size: 13px; color: var(--text-primary); }
+.impactControls select {
+  min-height: 36px; padding-inline: 10px; border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text-primary); background: var(--bg-card); font-size: 13px;
+}
+.impactNote { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
+.impactFindings { display: grid; gap: 18px; margin: 0; padding: 0; list-style: none; }
+.impactFindings li { min-width: 0; font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; animation: chapter-impact-enter 180ms ease both; }
+.impactFindings a { color: var(--text-primary); font-weight: 600; text-decoration: underline; text-underline-offset: .2em; }
+.impactFindings p { margin: 4px 0; }
+.impactFindings dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; margin: 8px 0; }
+.impactFindings dt { color: var(--text-muted); }
+.impactFindings dd { margin: 0; white-space: pre-wrap; }
+@keyframes chapter-impact-enter { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .impactFindings li { animation: none; } }
 @media (max-width: 800px) {
   .target { grid-template-columns: minmax(0, 1fr); }
   .footer button { min-height: 48px; }
+  .impact button, .impact select { min-height: 44px; }
 }
 @media (max-width: 480px) {
   .footer { align-items: stretch; }

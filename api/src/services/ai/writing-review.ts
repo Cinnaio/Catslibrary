@@ -114,6 +114,10 @@ export async function reviewSourcesCurrent(db: Db, novelId: string, sources: Rev
   return true
 }
 
+export function isReviewExcerpt(quote: unknown, text: string): quote is string {
+  return typeof quote === 'string' && !!quote.trim() && quote.length <= 500 && text.includes(quote)
+}
+
 /** Reject unverifiable findings instead of displaying invented citations. */
 export function parseReview(text: string, draft: string, sources: ReviewSource[]): Pick<WritingReview, 'findings' | 'completeness' | 'rejectedFindings'> {
   let parsed: unknown
@@ -149,8 +153,7 @@ export function parseReview(text: string, draft: string, sources: ReviewSource[]
         item.evidence.some(
           (e) => {
             const source = e && sources.find(s => s.id === e.sourceId)
-            return !source || typeof e.quote !== 'string' || !e.quote.trim() || e.quote.length > 500 ||
-              !source.text.includes(e.quote) || !!source.authorRequirement !== (item.category === 'requirement')
+            return !source || !isReviewExcerpt(e.quote, source.text) || !!source.authorRequirement !== (item.category === 'requirement')
           },
         )
       )

@@ -169,7 +169,28 @@ public struct AIAgentAction: Codable, Identifiable, Equatable, Sendable {
     public let error: String
     public let createdAt: Int64
     public let canResume: Bool?
+    public let chapterImpactAvailable: Bool?
     public var canConfirm: Bool { status == "pending" || (status == "executing" && canResume == true) }
+}
+
+public struct AIAgentChapterImpactReport: Decodable, Sendable {
+    public struct Chapter: Decodable, Sendable {
+        public let id: String
+        public let title: String
+    }
+
+    public struct Finding: Decodable, Sendable {
+        public let chapterId: String
+        public let chapterTitle: String
+        public let description: String
+        public let beforeQuote: String
+        public let afterQuote: String
+        public let chapterQuote: String
+    }
+
+    public let checkedChapters: [Chapter]
+    public let findings: [Finding]
+    public let rejectedFindings: Int
 }
 
 public struct AIAgentArtifact: Codable, Identifiable, Equatable, Sendable {

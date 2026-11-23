@@ -38,6 +38,28 @@ it('distinguishes returning to reading from rejecting the saved proposal', async
   expect(callbacks.onConfirm).not.toHaveBeenCalled()
 })
 
+it('checks a chosen later range and returns the cited finding to the conversation without confirming', async () => {
+  const action = { ...source(), chapterImpactAvailable: true as const }
+  const finding = { chapterId: 'future', chapterTitle: '第十五章', description: '她在后文提到见过信。',
+    beforeQuote: '她看见了信。', afterQuote: '她没看见信。', chapterQuote: '我亲眼见过那封信。' }
+  const onCheck = vi.fn(async () => ({ findings: [finding], checkedChapters: [{ id: 'future', title: finding.chapterTitle }], rejectedFindings: 0 }))
+  const onDiscuss = vi.fn()
+  const onConfirm = vi.fn()
+  render(<AiAgentActionDialog action={action} novelTitle="雨夜来信" busy={false}
+    impact={{ novelId: 'book', onCheck, onDiscuss }} onClose={vi.fn()} onReject={vi.fn()} onConfirm={onConfirm} />)
+  const scope = screen.getByLabelText('检查范围')
+  await userEvent.selectOptions(scope, '1')
+  await userEvent.click(screen.getByRole('button', { name: '检查后续影响' }))
+  expect(onCheck).toHaveBeenCalledWith(action, 1)
+  expect(await screen.findByText(finding.chapterQuote)).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: finding.chapterTitle })).toHaveAttribute('href', '/read/book/future')
+  await userEvent.click(screen.getByRole('button', { name: '带到对话中修改' }))
+  expect(onDiscuss).toHaveBeenCalledWith(action, finding)
+  expect(onConfirm).not.toHaveBeenCalled()
+  await userEvent.selectOptions(scope, '3')
+  expect(screen.queryByText(finding.chapterQuote)).not.toBeInTheDocument()
+})
+
 it('blocks closing and duplicate confirmation while saving, then retains the original preview on failure', async () => {
   const callbacks = open(source(), true)
   expect(screen.getByRole('button', { name: '正在处理…' })).toBeDisabled()

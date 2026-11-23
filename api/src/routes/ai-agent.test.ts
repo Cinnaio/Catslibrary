@@ -16,8 +16,9 @@ import { setAgentPhase } from '../services/ai/agent-recovery'
 import { generationContentRevision } from '../services/ai/generations'
 import { replaceCoverForAdmin } from '../services/covers'
 import { AiError, type AiToolCall } from '../services/ai/client'
-import type { AgentAction, AgentSession, AgentSessionDetail } from '@shared/ai-agent'
+import type { AgentAction, AgentChapterImpactReport, AgentSession, AgentSessionDetail } from '@shared/ai-agent'
 import { subscribeAiTask } from '../services/ai/task-events'
+import { buildChapterEditParams, chapterRevision } from '../services/ai/chapter-edit'
 import { activeAgentMemories, changeAgentMemory, createAgentMemory, getAgentSummary, listAgentMemories, saveAgentSummary } from '../services/ai/agent-memory'
 import { loadAgentContext, parseAgentSummary } from '../services/ai/agent-context'
 import { readConversationSources, isAuthorQuote } from '../services/ai/agent-conversation'
@@ -248,6 +249,79 @@ function request(path: string, method = 'GET', body?: unknown, token = adminToke
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   })
 }
+
+it('checks only the changes saved for write-back and verifies later chapter evidence', async () => {
+  const novel = 'impact-novel'
+  const chapter = { id: 'impact-source', title: '雨夜来信', sort_order: 1, content: '她看见了信。\n门口的灯亮着。\n他佩着银扣。' }
+  const later = '她说：“我那天亲眼看到了。”'
+  await t.db.query('INSERT INTO novels(id,title,created_at,updated_at) VALUES($1,$1,1,1)', [novel])
+  for (const [id, title, content, order] of [
+    [chapter.id, chapter.title, chapter.content, 1], ['impact-later', '再访', later, 2], ['impact-beyond', '远行', '这章超出范围。', 3],
+  ]) {
+    await t.db.query('INSERT INTO chapters(id,novel_id,title,content,sort_order,created_at) VALUES($1,$2,$3,$4,$5,1)', [id, novel, title, content, order])
+  }
+  const session = await createAgentSession(t.db, 'admin', { novelId: novel, afterChapterId: chapter.id })
+  const params = buildChapterEditParams(session, chapter, { baseRevision: chapterRevision(session, chapter),
+    startUTF16: 0, endUTF16: chapter.content.length, selectedText: chapter.content, instruction: '调整两处设定' })
+  const task = await createAiTask(t.db, { userId: 'admin', novelId: novel, kind: 'chapter_edit', params: JSON.stringify(params) })
+  await updateAiTask(t.db, task.id, { status: 'completed', result: JSON.stringify({ version: 1, suggestion: '她没看见信。\n门口的灯亮着。\n他佩着铜扣。' }) })
+  await trackAgentArtifact(t.db, session.id, task.id)
+  const artifact = await readAgentArtifact(t.db, session, task.id)
+  const selection = { version: 1, revision: artifact.chapterEdit!.selectionRevision, acceptedChanges: [0] }
+  const action = await prepareAgentAction(t.db, session, 'apply_chapter_edit', task.id, '', selection)
+  expect(action.chapterImpactAvailable).toBe(true)
+  const path = `/api/ai/agent/sessions/${session.id}/actions/${action.id}/impact`
+  const finding = { changeId: 1, chapterId: 'impact-later', beforeQuote: '她看见了信。', afterQuote: '她没看见信。',
+    chapterQuote: '我那天亲眼看到了。', description: '后文依然写她亲眼看见信。' }
+  expect((await request(path, 'POST', { chapterCount: 1 }, otherToken)).status).toBe(404)
+  expect((await request(path, 'POST', { chapterCount: 11 })).status).toBe(422)
+  expect(fetchMock).not.toHaveBeenCalled()
+
+  fetchMock.mockImplementationOnce(async (_url, init) => {
+    const body = JSON.parse(String(init?.body))
+    const input = JSON.parse(body.messages[1].content)
+    expect(input.changes).toEqual([{ id: 1, before: '她看见了信。\n', after: '她没看见信。\n' }])
+    expect(input.chapters).toEqual([{ id: 'impact-later', title: '再访', content: later }])
+    return completion(JSON.stringify({ findings: [finding, { ...finding, afterQuote: '他佩着铜扣。' }, { ...finding, chapterId: 'impact-beyond' }] }))
+  })
+  const checked = await request(path, 'POST', { chapterCount: 1 })
+  expect(checked.status).toBe(200)
+  const { report } = await checked.json() as { report: AgentChapterImpactReport }
+  expect(report).toMatchObject({ checkedChapters: [{ id: 'impact-later', title: '再访' }], rejectedFindings: 2 })
+  expect(report.findings).toEqual([{ chapterId: finding.chapterId, chapterTitle: '再访', description: finding.description,
+    beforeQuote: finding.beforeQuote, afterQuote: finding.afterQuote, chapterQuote: finding.chapterQuote }])
+
+  fetchMock.mockResolvedValueOnce(completion(JSON.stringify({ findings: [finding] })))
+  expect((await request(path, 'POST', { chapterCount: 1 })).status).toBe(200)
+  expect((await request(path, 'POST', { chapterCount: 1 })).status).toBe(200)
+  expect(fetchMock).toHaveBeenCalledTimes(2)
+  expect((await prepareAgentAction(t.db, session, 'apply_chapter_edit', task.id, '', selection)).id).toBe(action.id)
+  expect((await first<{ content: string }>(t.db, 'SELECT content FROM chapters WHERE id=$1', [chapter.id]))?.content).toBe(chapter.content)
+
+  const alternate = await prepareAgentAction(t.db, session, 'apply_chapter_edit', task.id, '', { ...selection, acceptedChanges: [1] })
+  fetchMock.mockImplementationOnce(async (_url, init) => {
+    const input = JSON.parse(JSON.parse(String(init?.body)).messages[1].content)
+    expect(input.changes).toEqual([{ id: 1, before: '他佩着银扣。', after: '他佩着铜扣。' }])
+    return completion(JSON.stringify({ findings: [finding] }))
+  })
+  const alternatePath = path.replace(action.id, alternate.id)
+  expect(await (await request(alternatePath, 'POST', { chapterCount: 1 })).json()).toMatchObject({ report: { findings: [], rejectedFindings: 1 } })
+
+  await t.db.query('UPDATE chapters SET content=$1 WHERE id=$2', ['她改口说没见到信。', 'impact-later'])
+  fetchMock.mockResolvedValueOnce(completion('{"findings":[]}'))
+  expect(await (await request(path, 'POST', { chapterCount: 1 })).json()).toMatchObject({ report: { findings: [] } })
+  expect(fetchMock).toHaveBeenCalledTimes(4)
+
+  fetchMock.mockImplementationOnce(async () => {
+    await t.db.query('UPDATE chapters SET content=$1 WHERE id=$2', ['这章在等待响应时改动了。', 'impact-later'])
+    return completion('{"findings":[]}')
+  })
+  expect((await request(alternatePath, 'POST', { chapterCount: 1 })).status).toBe(409)
+
+  expect((await request(path.replace('/impact', '/confirm'), 'POST', {})).status).toBe(200)
+  expect((await first<{ content: string }>(t.db, 'SELECT content FROM chapters WHERE id=$1', [chapter.id]))?.content)
+    .toBe('她没看见信。\n门口的灯亮着。\n他佩着银扣。')
+})
 const internalApi = () =>
   agentApiAdapter(new Request('http://localhost/api/ai/agent/sessions', { headers: { Authorization: `Bearer ${adminToken}` } }), (r) => app.fetch(r))
 async function draft(id = 'draft', novelId = 'novel', text = original) {

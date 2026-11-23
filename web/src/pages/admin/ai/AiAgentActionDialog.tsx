@@ -1,9 +1,10 @@
 import { Check } from 'lucide-react'
-import type { AgentAction } from '@shared/ai-agent'
+import type { AgentAction, AgentChapterImpactFinding, AgentChapterImpactReport } from '@shared/ai-agent'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { ReadingDialog } from '@/components/shared/ReadingDialog'
 import AiAgentTextComparison, { AiAgentTextComparisonToolbar } from './AiAgentTextComparison'
+import AiAgentChapterImpact from './AiAgentChapterImpact'
 import { useAgentTextComparisonControls } from './useAgentTextComparison'
 import styles from './agent-action-dialog.module.css'
 
@@ -17,12 +18,17 @@ const LABELS: Record<AgentAction['kind'], { title: string; confirm: string; targ
   adopt_cover: { title: '封面替换', confirm: '确认设为封面', target: '封面操作' },
 }
 
-export default function AiAgentActionDialog({ action, novelTitle, coverUrl, busy, error, onClose, onReject, onConfirm }: {
+export default function AiAgentActionDialog({ action, novelTitle, coverUrl, busy, error, impact, onClose, onReject, onConfirm }: {
   action: AgentAction | null
   novelTitle: string
   coverUrl?: string
   busy: boolean
   error?: string
+  impact?: {
+    novelId: string
+    onCheck: (action: AgentAction, count: number) => Promise<AgentChapterImpactReport>
+    onDiscuss: (action: AgentAction, finding: AgentChapterImpactFinding) => void
+  }
   onClose: () => void
   onReject: (action: AgentAction) => void
   onConfirm: (action: AgentAction) => void
@@ -58,6 +64,9 @@ export default function AiAgentActionDialog({ action, novelTitle, coverUrl, busy
       </section>
       {[...new Set([action.error, error].filter(Boolean))].map(message => <p className={styles.error} role="alert" key={message}>{message}</p>)}
       {coverUrl && <img className={styles.cover} src={coverUrl} alt="准备采纳的封面候选" />}
+      {action.status === 'pending' && action.chapterImpactAvailable && impact &&
+        <AiAgentChapterImpact key={`impact:${action.id}`} novelId={impact.novelId} disabled={busy}
+          onCheck={count => impact.onCheck(action, count)} onDiscuss={finding => impact.onDiscuss(action, finding)} />}
       <AiAgentTextComparison key={action.id} before={action.preview.before} after={action.preview.after}
         controls={comparison} beforeLabel={beforeLabel} afterLabel={afterLabel} />
     </ReadingDialog>

@@ -207,7 +207,7 @@ export async function prepareAgentAction(db: Db, session: AgentSession, kind: Ag
   } else throw new AiError('invalid', '不支持的采纳操作', 422)
   const same = await first<AgentActionRow>(
     db,
-    "SELECT * FROM ai_agent_actions WHERE session_id=$1 AND kind=$2 AND payload=$3::jsonb AND status IN ('pending','executing') ORDER BY created_at DESC LIMIT 1",
+    "SELECT * FROM ai_agent_actions WHERE session_id=$1 AND kind=$2 AND (payload-'impactReview'-'impactReviewLock')=$3::jsonb AND status IN ('pending','executing') ORDER BY created_at DESC LIMIT 1",
     [session.id, kind, JSON.stringify(payload)],
   )
   if (same) return publicAgentAction(same)

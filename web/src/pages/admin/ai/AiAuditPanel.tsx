@@ -47,6 +47,7 @@ const aiCallTypeLabels: Record<string, string> = {
   plot_state: '剧情状态分析',
   story_memory: '章节增量记忆',
   writing_review: '草稿质量检查',
+  chapter_impact_review: '跨章影响检查',
   import_review: '导入审校',
   'content-rating-llm': '内容分级',
   selection_image: '选段配图',

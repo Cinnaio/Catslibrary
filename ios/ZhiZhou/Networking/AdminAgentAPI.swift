@@ -159,6 +159,14 @@ struct AdminAgentAPI {
         return value.action
     }
 
+    func chapterImpact(_ id: String, actionID: String, chapterCount: Int) async throws -> AIAgentChapterImpactReport {
+        struct Response: Decodable { let report: AIAgentChapterImpactReport }
+        let path = Self.path(id) + "/actions/" + ReaderMediaAPI.pathSegment(actionID) + "/impact"
+        let value: Response = try await AdminAPI.parityRequest("POST", path, body: ["chapterCount": chapterCount],
+                                                               token: token, timeout: 150)
+        return value.report
+    }
+
     func confirm(_ id: String, actionID: String) async throws -> AIAgentAction {
         let value: AIAgentActionResponse = try await AdminAPI.parityRequest("POST",
             Self.path(id) + "/actions/" + ReaderMediaAPI.pathSegment(actionID) + "/confirm", body: [:], token: token, timeout: 120)

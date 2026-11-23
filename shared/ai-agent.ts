@@ -248,9 +248,25 @@ export interface AgentAction {
   title: string
   status: 'pending' | 'executing' | 'completed' | 'rejected' | 'failed'
   preview: { description: string; before?: string; after?: string; candidateId?: string; draftId?: string; chapterId?: string; chapterTitle?: string; sourceTaskId?: string; selection?: AgentRewriteSelection }
+  chapterImpactAvailable?: true
   error: string
   createdAt: number
   canResume?: boolean
+}
+
+export interface AgentChapterImpactFinding {
+  chapterId: string
+  chapterTitle: string
+  description: string
+  beforeQuote: string
+  afterQuote: string
+  chapterQuote: string
+}
+
+export interface AgentChapterImpactReport {
+  checkedChapters: Array<{ id: string; title: string }>
+  findings: AgentChapterImpactFinding[]
+  rejectedFindings: number
 }
 
 export interface AgentArtifact {

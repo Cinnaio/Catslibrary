@@ -1,4 +1,5 @@
 import { chapterEditSource, chapterEditHistory } from '../services/ai/chapter-edit'
+import { reviewChapterImpact } from '../services/ai/chapter-impact'
 import { Hono } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import type { AgentActionKind } from '@shared/ai-agent'
@@ -283,6 +284,15 @@ export function createAgentRoutes(dispatch: Dispatch) {
     const action = await first<AgentActionRow>(getDb(), 'SELECT * FROM ai_agent_actions WHERE id=$1 AND session_id=$2', [c.req.param('actionId'), session.id])
     if (!action) throw new AiError('invalid', '操作记录不存在', 404)
     return c.json({ action: publicAgentAction(action) })
+  })
+  routes.post('/sessions/:id/actions/:actionId/impact', async (c) => {
+    const db = getDb()
+    const userId = c.get('user').id
+    const session = await getAgentSession(db, userId, c.req.param('id'))
+    const body = await c.req.json().catch(() => null)
+    return c.json({ report: await reviewChapterImpact(db, session, c.req.param('actionId'), body?.chapterCount, {
+      userId, ipAddress: clientIpFromContext(c), userAgent: c.req.header('User-Agent'),
+    }) })
   })
   routes.post('/sessions/:id/actions/:actionId/confirm', async (c) => {
     const session = await getAgentSession(getDb(), c.get('user').id, c.req.param('id'))

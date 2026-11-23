@@ -320,6 +320,7 @@ export const publicAgentAction = (r: AgentActionRow): AgentAction => ({
   status: r.status,
   error: r.error,
   createdAt: Number(r.created_at),
+  ...(r.kind === 'apply_chapter_edit' ? { chapterImpactAvailable: true } : {}),
   ...(r.status === 'executing' ? { canResume: Number(r.lease_until) < Date.now() } : {}),
 })
 export async function listAgentActions(db: DbClient, sessionId: string) {

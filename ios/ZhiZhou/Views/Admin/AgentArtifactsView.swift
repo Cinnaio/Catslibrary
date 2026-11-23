@@ -35,7 +35,7 @@ struct AgentOutputSheet: View {
                         .navigationBarBackButtonHidden(model.working)
                 case .action:
                     if let action = model.selectedAction {
-                        AgentActionPreview(model: model, initialAction: action)
+                        AgentActionPreview(model: model, initialAction: action, returnToConversation: { dismiss() })
                             .navigationBarBackButtonHidden(model.working)
                     }
                 }
@@ -578,7 +578,7 @@ struct AgentActionSheet: View {
 
     var body: some View {
         NavigationStack {
-            AgentActionPreview(model: model, initialAction: initialAction)
+            AgentActionPreview(model: model, initialAction: initialAction, returnToConversation: { dismiss() })
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("关闭") { dismiss() }.disabled(model.working) }
                 }
@@ -590,6 +590,7 @@ struct AgentActionSheet: View {
 private struct AgentActionPreview: View {
     let model: AdminAIAgentConversationModel
     let initialAction: AIAgentAction
+    let returnToConversation: () -> Void
     private var action: AIAgentAction { model.selectedAction ?? initialAction }
 
     private var draftTitle: String? {
@@ -618,6 +619,10 @@ private struct AgentActionPreview: View {
             }
             Label(AgentDisplay.status(action.status), systemImage: action.status == "completed" ? "checkmark.circle" : "doc.text")
                 .font(.subheadline).foregroundStyle(action.status == "completed" ? AppTheme.success : ReadingSpace.profileMuted)
+            if action.status == "pending", action.chapterImpactAvailable == true {
+                AgentChapterImpactView(model: model, action: action, returnToConversation: returnToConversation)
+                    .id(action.id)
+            }
             if let before = action.preview.before { AgentPlainPreview(title: "修改前", text: before) }
             if let after = action.preview.after { AgentPlainPreview(title: action.kind == .publishDraft ? "发布内容" : "修改后", text: after) }
             if let id = action.preview.candidateId {
@@ -658,5 +663,114 @@ private struct AgentActionPreview: View {
             Button("刷新操作状态", systemImage: "arrow.clockwise") { Task { await model.openAction(action.id) } }
                 .font(.subheadline).frame(maxWidth: .infinity, minHeight: 44).disabled(model.working)
         }
+    }
+}
+
+private struct AgentChapterImpactView: View {
+    let model: AdminAIAgentConversationModel
+    let action: AIAgentAction
+    let returnToConversation: () -> Void
+    @State private var chapterCount = 3
+    @State private var checking = false
+    @State private var report: AIAgentChapterImpactReport?
+    @State private var error: String?
+
+    var body: some View {
+        AgentPanelSection("跨章影响检查") {
+            Picker("检查范围", selection: $chapterCount) {
+                ForEach(1...10, id: \.self) { count in Text("后续 \(count) 章").tag(count) }
+            }
+            .frame(minHeight: 44)
+            .disabled(checking || model.working)
+            .onChange(of: chapterCount) { _, _ in
+                report = nil
+                error = nil
+            }
+            Button {
+                Task { await check() }
+            } label: {
+                HStack(spacing: 8) {
+                    if checking { ProgressView() }
+                    Text(checking ? "正在核对后续章节…" : checkTitle)
+                }
+            }
+            .buttonStyle(AgentPanelButtonStyle())
+            .disabled(checking || model.working)
+            Text("只核对本次将写回的改动，调用文本模型时计入用量。")
+                .font(.footnote).foregroundStyle(ReadingSpace.profileMuted)
+
+            if let error { AgentPanelNotice(error, isError: true) }
+            if let report {
+                Text(summary(report)).font(.subheadline).foregroundStyle(ReadingSpace.ink)
+                if !report.checkedChapters.isEmpty {
+                    Text(report.checkedChapters.map(\.title).joined(separator: " · "))
+                        .font(.footnote).foregroundStyle(ReadingSpace.profileMuted)
+                }
+                if report.rejectedFindings > 0 {
+                    AgentPanelNotice("有 \(report.rejectedFindings) 条结果的引文无法核对，可以重试。")
+                }
+                ForEach(report.findings.indices, id: \.self) { index in
+                    findingView(report.findings[index]).readingSpaceEntrance(index)
+                }
+            }
+        }
+    }
+
+    private var checkTitle: String {
+        error != nil || (report?.rejectedFindings ?? 0) > 0 ? "重试影响检查" : "检查后续影响"
+    }
+
+    private func summary(_ report: AIAgentChapterImpactReport) -> String {
+        guard !report.checkedChapters.isEmpty else { return "这章之后没有已发布章节。" }
+        let scope = "已检查 \(report.checkedChapters.count) 章"
+        if !report.findings.isEmpty { return scope + "，发现 \(report.findings.count) 处疑点" }
+        return report.rejectedFindings > 0 ? scope : scope + "，未发现有原文支持的疑点"
+    }
+
+    private func findingView(_ finding: AIAgentChapterImpactReport.Finding) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            NavigationLink {
+                SavedChapterDestination(novelID: model.session.novelId, chapterID: finding.chapterId)
+            } label: {
+                Label(finding.chapterTitle, systemImage: "book").frame(minHeight: 44, alignment: .leading)
+            }
+            Text(finding.description).font(.subheadline).foregroundStyle(ReadingSpace.ink)
+            if !finding.beforeQuote.isEmpty { AgentPanelFact(title: "改动前", value: finding.beforeQuote) }
+            if !finding.afterQuote.isEmpty { AgentPanelFact(title: "改动后", value: finding.afterQuote) }
+            AgentPanelFact(title: "后文原句", value: finding.chapterQuote)
+            Button("带到对话中修改") { discuss(finding) }
+                .buttonStyle(AgentPanelButtonStyle()).disabled(model.working)
+        }
+    }
+
+    private func check() async {
+        guard !checking, !model.working, model.isCurrentAccount else { return }
+        checking = true
+        error = nil
+        report = nil
+        defer { checking = false }
+        do {
+            let result = try await model.api.chapterImpact(model.sessionID, actionID: action.id, chapterCount: chapterCount)
+            if model.isCurrentAccount { report = result }
+        } catch {
+            if model.isCurrentAccount { self.error = AppCopy.friendlyError(error) }
+        }
+    }
+
+    private func discuss(_ finding: AIAgentChapterImpactReport.Finding) {
+        guard model.isCurrentAccount else { return }
+        let chapterTitle = action.preview.chapterTitle ?? action.title
+        let prompt = [
+            "请核对「\(chapterTitle)」的待采纳改动与后文「\(finding.chapterTitle)」（章节 ID：\(finding.chapterId)）。",
+            finding.description,
+            finding.beforeQuote.isEmpty ? "" : "改动前：\(finding.beforeQuote)",
+            finding.afterQuote.isEmpty ? "" : "改动后：\(finding.afterQuote)",
+            "后文原句：\(finding.chapterQuote)",
+            "如果疑点成立，请只对这一处提出后文修改建议。若后文章节超出本对话的可编辑范围，请根据引文给出建议，提示我从该章开始新对话写回。"
+        ].filter { !$0.isEmpty }.joined(separator: "\n")
+        let input = model.localDraft.input
+        model.localDraft.input = input.isEmpty ? prompt : input + "\n\n" + prompt
+        model.selectedAction = nil
+        returnToConversation()
     }
 }

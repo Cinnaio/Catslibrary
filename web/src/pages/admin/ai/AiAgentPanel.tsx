@@ -896,6 +896,23 @@ function AgentConversation({ sessionId, novelId, onSession }: { sessionId: strin
         </aside>
       </div>
       <AiAgentActionDialog key={action?.id || 'no-action'} action={action} novelTitle={data.session.novelTitle} busy={busy} error={error}
+        impact={{ novelId,
+          onCheck: async (saved, count) => (await agentApi.chapterImpact(sessionId, saved.id, count)).report,
+          onDiscuss: (saved, finding) => {
+            const prompt = [
+              `请核对「${saved.preview.chapterTitle || saved.title}」的待采纳改动与后文「${finding.chapterTitle}」（章节 ID：${finding.chapterId}）。`,
+              finding.description,
+              finding.beforeQuote && `改动前：${finding.beforeQuote}`,
+              finding.afterQuote && `改动后：${finding.afterQuote}`,
+              `后文原句：${finding.chapterQuote}`,
+              '如果疑点成立，请只对这一处提出后文修改建议。若后文章节超出本对话的可编辑范围，请根据引文给出建议，提示我从该章开始新对话写回。',
+            ].filter(Boolean).join('\n')
+            setInput(current => current.trim() ? `${current}\n\n${prompt}` : prompt)
+            setPreview(null)
+            setMobileView('chat')
+            setFocusRequest(value => value + 1)
+          },
+        }}
         coverUrl={action?.preview.candidateId && action.status === 'pending' ? url(`/ai/agent/sessions/${encodeURIComponent(sessionId)}/covers/${encodeURIComponent(action.preview.candidateId)}`) : undefined}
         onClose={() => setPreview(null)}
         onReject={saved => void perform(async () => {
