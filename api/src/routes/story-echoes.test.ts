@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest'
 import { hashParagraphText } from '@shared/thought-anchor'
+import type { CharacterCardResponse } from '@shared/character-cards'
 import type { StoryEchoInput, StoryEchoResponse } from '@shared/story-echoes'
 import { app } from '../app'
 import { setDbForTests } from '../db/pool'
@@ -179,4 +180,111 @@ it('无法解析的模型回复仍计入额度，并且不会被缓存成正常�
   expect(await usageCount()).toBe(1)
   expect((await request()).status).toBe(429)
   expect(fetchMock).toHaveBeenCalledTimes(1)
+})
+
+
+const characterRequest = (body: unknown = input, auth = token) => app.request('/api/ai/character-card', json(body, auth))
+async function prepareCharacter(name = '林舟') {
+  const earlier = `${name}是许宁的同窗，那天两人一起抵达渡口。`
+  const current = `渡口已经安静下来。${name}抬起头。后文秘密：他其实是另一人。`
+  await t.db.query('UPDATE chapters SET content=$1 WHERE id=$2', [earlier, previousId])
+  await t.db.query('UPDATE chapters SET content=$1 WHERE id=$2', [current, anchorId])
+  input = { chapterId: anchorId, paragraphIndex: 0, paragraphHash: hashParagraphText(current), selectedText: name }
+  generated = prompt => ({ clues: [{ candidateId: prompt.candidates.find(c => c.text.includes(earlier))!.candidateId,
+    quote: earlier, explanation: '原文提到两人是同窗，一起抵达渡口。', kind: 'relationship', certainty: 'supported' }] })
+  return earlier
+}
+
+it('人物小卡支持两字名字，只发送当前位置之前的文字并附上原文定位', async () => {
+  const earlier = await prepareCharacter()
+  const response = await characterRequest(); expect(response.status).toBe(200)
+  expect(response.headers.get('cache-control')).toBe('private, no-store')
+  const result = await response.json() as CharacterCardResponse
+  expect(result.items[0]).toMatchObject({ kind: 'relationship', certainty: 'supported', source: { chapterId: previousId, quote: earlier, paragraphHash: hashParagraphText(earlier) } })
+  const body = String(fetchMock.mock.calls[0]![1]?.body)
+  expect(body).toContain(earlier)
+  for (const forbidden of ['抬起头', '后文秘密', '未来书名秘密', '标题不送入模型', '同序后文秘密']) expect(body).not.toContain(forbidden)
+  expect((await t.db.query<{ generation_type: string }>('SELECT generation_type FROM ai_usage')).rows[0]?.generation_type).toBe('character_card')
+})
+
+it('人物小卡剔除虚构引文、无完整名字和无效分类，保留身份未确认标记', async () => {
+  const earlier = await prepareCharacter()
+  generated = prompt => {
+    const item = { candidateId: prompt.candidates[0]!.candidateId, quote: earlier, explanation: '同名是否指当前人物，尚不能确定。', kind: 'appearance', certainty: 'uncertain' }
+    return { clues: [{ ...item, quote: '林舟从未说过的句子' }, { ...item, quote: '那天两人一起抵达渡口。' },
+      { ...item, kind: 'ending' }, { ...item, certainty: 'certain' }, null, item] }
+  }
+  const result = await (await characterRequest()).json() as CharacterCardResponse
+  expect(result.items).toHaveLength(1); expect(result.omitted).toBe(5)
+  expect(result.items[0]?.certainty).toBe('uncertain')
+})
+
+it('人物小卡没有同名候选时不生成、不拆名字凑出其他人物', async () => {
+  await prepareCharacter('南宫林舟')
+  await t.db.query('UPDATE chapters SET content=$1 WHERE id=$2', ['林舟在河边，南宫家在山上。', previousId])
+  const result = await (await characterRequest()).json() as CharacterCardResponse
+  expect(result.items).toEqual([]); expect(result.generated).toBe(false)
+  expect(fetchMock).not.toHaveBeenCalled(); expect(await usageCount()).toBe(0)
+})
+
+it('人物小卡同时保留较早和较近的候选，并报告检索截断', async () => {
+  const earlier = await prepareCharacter()
+  await t.db.query('UPDATE chapters SET sort_order=100 WHERE id=$1', [anchorId])
+  await t.db.query(`INSERT INTO chapters(id,novel_id,title,content,sort_order,created_at)
+    SELECT $1 || '-' || i, $1, '标题不送入模型', '林舟在第' || i || '处留下记录。', i, 0 FROM generate_series(3,67) i`, [novelId])
+  const result = await (await characterRequest()).json() as CharacterCardResponse
+  expect(result.limited).toBe(true); expect(result.candidateCount).toBeLessThanOrEqual(20)
+  expect(result.searchedChapters).toBeLessThanOrEqual(60)
+  const body = String(fetchMock.mock.calls[0]![1]?.body)
+  expect(body).toContain(earlier); expect(body).toContain('林舟在第67处留下记录。')
+})
+
+it('人物小卡与回声分别缓存，复用小卡不重复计费且仍重验内容权限', async () => {
+  const earlier = await prepareCharacter('南宫林舟')
+  generated = prompt => { const entry = { candidateId: prompt.candidates[0]!.candidateId, quote: earlier, explanation: '原文中的人物线索。' }
+    return { echoes: [entry], clues: [{ ...entry, kind: 'appearance', certainty: 'supported' }] } }
+  expect((await request()).status).toBe(200)
+  expect((await characterRequest()).status).toBe(200)
+  const cached = await (await characterRequest()).json() as CharacterCardResponse
+  expect(cached.cached).toBe(true); expect(cached.items[0]?.kind).toBe('appearance')
+  expect(fetchMock).toHaveBeenCalledTimes(2); expect(await usageCount()).toBe(2)
+  await t.db.query("UPDATE novels SET content_rating='restricted' WHERE id=$1", [novelId])
+  expect((await characterRequest()).status).toBe(403)
+})
+
+it('人物小卡对未登录、关闭能力和非法名字拒绝生成', async () => {
+  await prepareCharacter()
+  expect((await characterRequest(input, '')).status).toBe(401)
+  for (const name of ['', '人'.repeat(41)]) expect((await characterRequest({ ...input, selectedText: name })).status).toBe(422)
+  await saveAiSettings(t.db, { recapEnabled: false })
+  expect((await characterRequest()).status).toBe(403)
+  const status = await (await app.request('/api/ai/status', { headers: { Authorization: `Bearer ${token}` } })).json() as { features: { characterCards: boolean } }
+  expect(status.features.characterCards).toBe(false); expect(fetchMock).not.toHaveBeenCalled()
+})
+
+it('人物小卡生成期间正文变化时丢弃结果，并记录已发生的调用', async () => {
+  await prepareCharacter()
+  const original = fetchMock.getMockImplementation()!
+  fetchMock.mockImplementationOnce(async (...args) => {
+    await t.db.query('UPDATE chapters SET content=content || $1 WHERE id=$2', ['正文发生变化。', previousId])
+    return original(...args)
+  })
+  expect((await characterRequest()).status).toBe(409)
+  expect(await usageCount()).toBe(1)
+})
+
+it('人物小卡原生格式返回可在纯文本段落中定位的引用', async () => {
+  const earlier = await prepareCharacter()
+  await t.db.query('UPDATE chapters SET content=$1 WHERE id=$2', [`<p>雨停了<br>${earlier}</p>`, previousId])
+  const result = await (await characterRequest({ ...input, sourceFormat: 'text' })).json() as CharacterCardResponse
+  expect(result.items[0]?.source).toMatchObject({ paragraphIndex: 1, paragraphHash: hashParagraphText(earlier), quote: earlier })
+})
+
+it('人物小卡重复名字保守采用最早位置，不让同段较后文字进入模型', async () => {
+  await prepareCharacter()
+  const current = '林舟离开了。秘密乙：林舟换了身份。'
+  await t.db.query('UPDATE chapters SET content=$1 WHERE id=$2', [current, anchorId])
+  input.paragraphHash = hashParagraphText(current)
+  expect((await characterRequest()).status).toBe(200)
+  expect(String(fetchMock.mock.calls[0]![1]?.body)).not.toContain('秘密乙')
 })

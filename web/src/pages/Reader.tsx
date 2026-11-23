@@ -178,9 +178,10 @@ function ReaderContent() {
   const [popoverPos, setPopoverPos] = useState<{ left: number; top: number } | null>(null)
   const [thoughtPanelOpen, setThoughtPanelOpen] = useState(false)
   const [keepsakesOpen, setKeepsakesOpen] = useState(false)
-  const [echoSelection, setEchoSelection] = useState<StoryEchoInput | null>(null)
-  const [echoOrigin, setEchoOrigin] = useState<StoryEchoSource | null>(null)
+  const [echoSelection, setEchoSelection] = useState<(StoryEchoInput & { purpose?: 'character' }) | null>(null)
+  const [echoOrigin, setEchoOrigin] = useState<(StoryEchoSource & { purpose?: 'character' }) | null>(null)
   const readerAi = useAiStatus(!!user)
+  const characterCardsEnabled = !!user && readerAi?.features.characterCards === true
   const echoEnabled = !!user && readerAi?.features.storyEchoes === true
   const onImageThoughtPublished = useCallback((thought: Thought) => {
     setChapterThoughts((prev) => prev.some((item) => item.id === thought.id) ? prev : [...prev, thought])
@@ -1265,7 +1266,7 @@ function ReaderContent() {
         selectedText: parsed.text.length > 200 ? parsed.text.slice(0, 200) : parsed.text,
       })
       const rect = range.getBoundingClientRect()
-      const popoverWidth = Math.min(window.innerWidth - 24, (canManageIllustrations ? 210 : 88) + (echoEnabled ? 112 : 0))
+      const popoverWidth = Math.min(window.innerWidth - 24, (canManageIllustrations ? 210 : 88) + (echoEnabled ? 112 : 0) + (characterCardsEnabled ? 140 : 0))
       setPopoverPos({
         left: Math.min(window.innerWidth - popoverWidth - 12, Math.max(12, rect.left + rect.width / 2 - popoverWidth / 2)),
         top: Math.max(12, rect.top - 44),
@@ -1287,7 +1288,7 @@ function ReaderContent() {
       contentEl?.removeEventListener('mouseup', handleSelection)
       if (selectionTimer) clearTimeout(selectionTimer)
     }
-  }, [chapter?.id, canManageIllustrations, echoEnabled])
+  }, [chapter?.id, canManageIllustrations, echoEnabled, characterCardsEnabled])
 
   function openThoughtPanel(index: number) {
     setActiveThoughtParagraph(index)
@@ -1510,7 +1511,7 @@ function ReaderContent() {
           {echoOrigin && <Button size="sm" variant="ghost" onClick={() => {
             navigateToEcho(echoOrigin)
             setEchoOrigin(null)
-          }}>返回回声选段</Button>}
+          }}>{echoOrigin.purpose === "character" ? "返回刚才的人名" : "返回回声选段"}</Button>}
           <Button size="sm" variant="ghost" onClick={bodySearch.close}>结束定位</Button>
         </div>}
         <article
@@ -1641,6 +1642,17 @@ function ReaderContent() {
         >
           写想法
         </button>
+        {characterCardsEnabled && <button type="button" onClick={event => {
+          event.preventDefault(); event.stopPropagation()
+          if (!pendingSelection) return
+          const name = pendingSelection.selectedText.trim()
+          if (!name || name.length > 40) { toast('请选择 1–40 字的人名或称呼'); return }
+          const paragraph = contentRef.current?.querySelectorAll<HTMLParagraphElement>('p')[pendingSelection.paragraphIndex]
+          setEchoSelection({ ...pendingSelection, selectedText: name, chapterId: chapter.id, purpose: 'character',
+            paragraphIndex: Number(paragraph?.dataset.sourceParagraphIndex ?? pendingSelection.paragraphIndex) })
+          setPopoverPos(null)
+          window.getSelection()?.removeAllRanges()
+        }}>这个人，我见过吗？</button>}
         {echoEnabled && <button type="button" onClick={event => {
           event.preventDefault(); event.stopPropagation()
           if (!pendingSelection) return
@@ -1666,11 +1678,11 @@ function ReaderContent() {
         <ReadingKeepsakes key={`${user.id}:${mode}:${novel.id}:${chapter.id}`} novelId={novel.id} mode={mode} onClose={() => setKeepsakesOpen(false)} />
       )}
       {echoSelection && echoSelection.chapterId === chapter.id && !checking && !blocked && (
-        <StoryEchoes key={`${user?.id}:${mode}:${chapter.id}:${echoSelection.paragraphHash}:${echoSelection.selectedText}`}
-          input={echoSelection} chapterTitle={chapter.title} onClose={() => setEchoSelection(null)}
+        <StoryEchoes key={`${user?.id}:${mode}:${chapter.id}:${echoSelection.paragraphHash}:${echoSelection.selectedText}:${echoSelection.purpose ?? "echo"}`}
+          input={echoSelection} purpose={echoSelection.purpose} chapterTitle={chapter.title} onClose={() => setEchoSelection(null)}
           onSource={source => {
             setEchoOrigin({ chapterId: chapter.id, chapterTitle: chapter.title, chapterOrder: chapter.order,
-              paragraphIndex: echoSelection.paragraphIndex, paragraphHash: echoSelection.paragraphHash, quote: echoSelection.selectedText })
+              paragraphIndex: echoSelection.paragraphIndex, paragraphHash: echoSelection.paragraphHash, quote: echoSelection.selectedText, purpose: echoSelection.purpose })
             setEchoSelection(null); setKeepsakesOpen(false)
             navigateToEcho(source)
           }} />

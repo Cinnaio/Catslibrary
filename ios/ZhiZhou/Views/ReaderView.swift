@@ -140,6 +140,8 @@ struct ReaderView: View {
     @State private var showRecap = false
     @State private var showKeepsakes = false
     @State private var echoEnabled = false
+    @State private var characterCardsEnabled = false
+    @State private var evidenceSelectionMessage = ""
     @State private var echoInput: StoryEchoInput?
     @State private var echoTarget: StoryEchoSource?
     @State private var echoReturnSource: StoryEchoSource?
@@ -338,7 +340,7 @@ struct ReaderView: View {
                 if let chapter {
                     echoReturnSource = StoryEchoSource(chapterId: chapter.id, chapterTitle: chapter.title,
                         chapterOrder: chapter.order, paragraphIndex: input.paragraphIndex,
-                        paragraphHash: input.paragraphHash, quote: input.selectedText)
+                        paragraphHash: input.paragraphHash, quote: input.selectedText, purpose: input.purpose)
                 }
                 echoInput = nil
                 navigateToEcho(source)
@@ -347,7 +349,7 @@ struct ReaderView: View {
         }
         .alert("请重新选择正文", isPresented: $echoSelectionError) {
             Button("知道了", role: .cancel) { }
-        } message: { Text("请在同一段落中选择至少 4 字，回声会使用选段的前 200 字。") }
+        } message: { Text(evidenceSelectionMessage) }
         .sheet(isPresented: $showRecap) {
             if let previousChapter {
                 ReaderRecapView(source: .chapter(id: previousChapter.id, title: previousChapter.title))
@@ -461,6 +463,7 @@ struct ReaderView: View {
         .task(id: ContentAccessStore.shared.revision) {
             recapEnabled = false
             echoEnabled = false
+            characterCardsEnabled = false
             showKeepsakes = false
             echoInput = nil
             echoReturnSource = nil
@@ -471,6 +474,7 @@ struct ReaderView: View {
             guard !Task.isCancelled, revision == ContentAccessStore.shared.revision else { return }
             recapEnabled = status?.features.recap == true
             echoEnabled = status?.features.storyEchoes == true
+            characterCardsEnabled = status?.features.characterCards == true
         }
         .task(id: "\(chapter?.id ?? "-"):\(ContentAccessStore.shared.revision):\(illustrationsAttempt)") {
             await loadIllustrations()
@@ -679,6 +683,9 @@ struct ReaderView: View {
             onSelectionChange: { isSelectingBodyText = $0 },
             onEcho: echoEnabled && !offlineOnly ? { selectedText, _ in
                 openEcho(for: index, selectedText: selectedText)
+            } : nil,
+            onCharacterCard: characterCardsEnabled && !offlineOnly ? { selectedText, _ in
+                openEcho(for: index, selectedText: selectedText, purpose: .character)
             } : nil
         ) { selectedText, _ in
             openThoughtPanel(for: index, selectedText: selectedText)
@@ -971,10 +978,20 @@ struct ReaderView: View {
                         let start = pageRanges[pageIndex].location + selectedRange.location
                         guard let index = paragraphIndex(atCharacterLocation: start),
                               paragraphIndex(atCharacterLocation: start + selectedRange.length - 1) == index else {
-                            echoSelectionError = true
+                            showEvidenceSelectionError(.echo)
                             return
                         }
                         openEcho(for: index, selectedText: selectedText)
+                    } : nil,
+                    onCharacterCard: characterCardsEnabled && !offlineOnly ? { selectedText, selectedRange in
+                        guard pageRanges.indices.contains(pageIndex) else { return }
+                        let start = pageRanges[pageIndex].location + selectedRange.location
+                        guard let index = paragraphIndex(atCharacterLocation: start),
+                              paragraphIndex(atCharacterLocation: start + selectedRange.length - 1) == index else {
+                            showEvidenceSelectionError(.character)
+                            return
+                        }
+                        openEcho(for: index, selectedText: selectedText, purpose: .character)
                     } : nil
                 ) { selectedText, selectedRange in
                     guard pageRanges.indices.contains(pageIndex) else { return }
@@ -1342,7 +1359,7 @@ struct ReaderView: View {
                     }
                 }
                 if let origin = echoReturnSource {
-                    Button("返回回声选段", systemImage: "arrow.uturn.forward") {
+                    Button(origin.purpose == .character ? "返回刚才的人名" : "返回回声选段", systemImage: "arrow.uturn.forward") {
                         echoReturnSource = nil
                         navigateToEcho(origin)
                     }
@@ -1762,20 +1779,31 @@ struct ReaderView: View {
         if settings.pageMode != "page" { pendingSearchCharacter = nil }
     }
 
-    private func openEcho(for index: Int, selectedText: String) {
-        guard echoEnabled, !offlineOnly, let chapter, paragraphs.indices.contains(index) else { return }
+    private func openEcho(for index: Int, selectedText: String, purpose: ReaderEvidencePurpose = .echo) {
+        guard (purpose == .character ? characterCardsEnabled : echoEnabled), !offlineOnly, let chapter, paragraphs.indices.contains(index) else { return }
         let normalized = selectedText.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        if purpose == .character && (normalized.isEmpty || normalized.utf16.count > 40) {
+            showEvidenceSelectionError(purpose)
+            return
+        }
         var quote = ""
         for character in normalized {
             guard quote.utf16.count + String(character).utf16.count <= 200 else { break }
             quote.append(character)
         }
-        guard quote.utf16.count >= 4 else { echoSelectionError = true; return }
+        guard quote.utf16.count >= (purpose == .character ? 1 : 4) else { showEvidenceSelectionError(purpose); return }
         autoScrollPaused = true
         echoInput = StoryEchoInput(chapterId: chapter.id, paragraphIndex: index,
-            paragraphHash: Self.paragraphHash(paragraphs[index]), selectedText: quote)
+            paragraphHash: Self.paragraphHash(paragraphs[index]), selectedText: quote, purpose: purpose)
         interactionFeedback &+= 1
+    }
+
+    private func showEvidenceSelectionError(_ purpose: ReaderEvidencePurpose) {
+        evidenceSelectionMessage = purpose == .character
+            ? "请在同一段落中选择 1–40 字的人名或称呼。"
+            : "请在同一段落中选择至少 4 字，回声会使用选段的前 200 字。"
+        echoSelectionError = true
     }
 
     private func navigateToEcho(_ source: StoryEchoSource) {

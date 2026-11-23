@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ReaderAIStatus: Decodable {
-    struct Features: Decodable { let recap: Bool; let catchup: Bool; let storyEchoes: Bool? }
+    struct Features: Decodable { let recap: Bool; let catchup: Bool; let storyEchoes: Bool?; let characterCards: Bool? }
     struct Quota: Decodable { let used: Int; let limit: Int; let resetAt: Int64 }
     let configured: Bool
     let features: Features

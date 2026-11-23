@@ -14,15 +14,15 @@ const mocks = vi.hoisted(() => ({
   policy: { mode: 'adult', checking: false, policyError: '', adultContentEnabled: true, isAllowed: () => true, setMode: vi.fn(), refreshPolicy: vi.fn() },
   chapter: vi.fn(), novel: vi.fn(), chapters: vi.fn(), thoughts: vi.fn(),
   session: { user: null as null | { id: string; role: UserRole }, loading: false },
-  playing: false, dispose: vi.fn(), stats: vi.fn(), echoEnabled: false, echoes: vi.fn(),
+  playing: false, dispose: vi.fn(), stats: vi.fn(), echoEnabled: false, echoes: vi.fn(), characterEnabled: false, characterCard: vi.fn(),
 }))
 vi.mock('../context/SessionContext', () => ({ useSession: () => mocks.session, useOptionalSession: () => mocks.session }))
 vi.mock('../hooks/useAiStatus', () => ({
-  useAiStatus: () => ({ features: { storyEchoes: mocks.echoEnabled } }),
+  useAiStatus: () => ({ features: { storyEchoes: mocks.echoEnabled, characterCards: mocks.characterEnabled } }),
   loadAiStatus: () => Promise.resolve({ quota: { limit: 10, used: 0 } }),
 }))
 vi.mock('../lib/story-echoes', async (importOriginal) => ({
-  ...await importOriginal<typeof import('../lib/story-echoes')>(), findStoryEchoes: mocks.echoes,
+  ...await importOriginal<typeof import('../lib/story-echoes')>(), findStoryEchoes: mocks.echoes, findCharacterCard: mocks.characterCard,
 }))
 vi.mock('../hooks/useReadingStats', () => ({ useReadingStats: mocks.stats }))
 vi.mock('../lib/edge-audio', () => ({ EdgeAudio: class {
@@ -66,6 +66,7 @@ beforeEach(() => {
   mocks.session = { user: null, loading: false }
   mocks.playing = false
   mocks.echoEnabled = false
+  mocks.characterEnabled = false
   mocks.thoughts.mockResolvedValue({ thoughts: [] })
   mocks.policy.mode = 'adult'
   mocks.policy.checking = false
@@ -339,11 +340,12 @@ describe('阅读器访问状态', () => {
 
 
 describe('回声原文导航刷新', () => {
-  it.each(['chapter', 'second'])('跳转 %s 重新读取正文，返回原选段也不使用旧缓存', async (targetID) => {
+  it.each([['chapter', false], ['second', false], ['chapter', true], ['second', true]] as const)('跳转 %s（人物小卡 %s）重新读取正文和原选段', async (targetID, character) => {
     mocks.session = { user: { id: 'reader', role: 'admin' }, loading: false }
-    mocks.echoEnabled = true
+    mocks.echoEnabled = !character
+    mocks.characterEnabled = character
     mocks.novel.mockResolvedValue({ novel: { id: 'book', title: '测试小说' } })
-    const first = '她把银铃留在窗边。', selected = '他再次拿起那枚银铃。'
+    const first = character ? '林舟把银铃留在窗边。' : '她把银铃留在窗边。', selected = character ? '林舟' : '他再次拿起那枚银铃。'
     let currentContent = `${first}\n${selected}`, earlierContent = first
     mocks.chapter.mockImplementation((id: string) => Promise.resolve({ chapter: {
       id, novelId: 'book', title: id === 'chapter' ? '当前章' : '前文章',
@@ -363,7 +365,8 @@ describe('回声原文导航刷新', () => {
       }
       const source: StoryEchoSource = { chapterId: targetID, chapterTitle: '前文', chapterOrder: targetID === 'chapter' ? 2 : 1,
         paragraphIndex: 0, paragraphHash: hashParagraphText(first), quote: first }
-      mocks.echoes.mockResolvedValue({ anchor: source, items: [{ source, explanation: '银铃可能呼应前文。' }],
+      const findEvidence = character ? mocks.characterCard : mocks.echoes
+      findEvidence.mockResolvedValue({ anchor: source, items: [{ source, explanation: '银铃可能呼应前文。', ...(character ? { kind: 'appearance', certainty: 'supported' } : {}) }],
         cached: false, generated: true, searchedChapters: 1, candidateCount: 1, limited: false, omitted: 0, model: 'test' })
       const paragraph = screen.getByText(selected)
       await waitFor(() => expect(paragraph).toHaveAttribute('data-paragraph-hash'))
@@ -371,8 +374,10 @@ describe('回声原文导航刷新', () => {
       range.setStart(paragraph.firstChild!, 0); range.setEnd(paragraph.firstChild!, selected.length)
       window.getSelection()!.removeAllRanges(); window.getSelection()!.addRange(range)
       fireEvent.mouseUp(paragraph)
-      fireEvent.click(await screen.findByRole('button', { name: '故事里的回声' }))
-      fireEvent.click(screen.getByRole('button', { name: '查找前文的回声' }))
+      fireEvent.click(await screen.findByRole('button', { name: character ? '这个人，我见过吗？' : '故事里的回声' }))
+      expect(mocks.stats.mock.lastCall?.[0].enabled).toBe(false)
+      expect(findEvidence).not.toHaveBeenCalled()
+      fireEvent.click(screen.getByRole('button', { name: character ? '查看人物线索' : '查找前文的回声' }))
       const openSource = await screen.findByRole('button', { name: /回到原文/ })
       const changed = `${first}这处正文已更新。`
       if (targetID === 'chapter') currentContent = `${changed}\n${selected}`
@@ -384,10 +389,10 @@ describe('回声原文导航刷新', () => {
       await waitFor(() => expect(screen.getByRole('region', { name: '本章搜索定位' })).toHaveTextContent('正文可能已更新'))
       currentContent = `${first}\n${selected}原选段也已更新。`
       const returnCalls = mocks.chapter.mock.calls.filter(([id]) => id === 'chapter').length
-      fireEvent.click(screen.getByRole('button', { name: '返回回声选段' }))
+      fireEvent.click(screen.getByRole('button', { name: character ? '返回刚才的人名' : '返回回声选段' }))
       await screen.findByText(`${selected}原选段也已更新。`)
       expect(mocks.chapter.mock.calls.filter(([id]) => id === 'chapter')).toHaveLength(returnCalls + 1)
-      expect(screen.queryByRole('button', { name: '返回回声选段' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: character ? '返回刚才的人名' : '返回回声选段' })).not.toBeInTheDocument()
     } finally {
       view.unmount()
       window.getSelection()?.removeAllRanges()

@@ -1,8 +1,13 @@
 import type { StoryEchoInput, StoryEchoResponse, StoryEchoSource } from '@shared/story-echoes'
+import type { CharacterCardInput, CharacterCardResponse } from '@shared/character-cards'
 import { request } from './api'
 
 export function findStoryEchoes(input: StoryEchoInput): Promise<StoryEchoResponse> {
   return request('POST', '/ai/story-echoes', input, true, {}, 180_000)
+}
+
+export function findCharacterCard(input: CharacterCardInput): Promise<CharacterCardResponse> {
+  return request('POST', '/ai/character-card', input, true, {}, 180_000)
 }
 
 export function storyEchoSourceURL(novelId: string, source: StoryEchoSource): string {

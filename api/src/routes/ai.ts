@@ -1,4 +1,4 @@
-import { findStoryEchoes, parseStoryEchoInput } from '../services/ai/story-echoes'
+import { findCharacterCard, findStoryEchoes, parseStoryEchoInput } from '../services/ai/story-echoes'
 import { resolveRewriteSelection } from '../services/ai/rewrite-selection'
 import { chapterEditRoutes } from './ai-chapter-edit'
 import { generationAssociationRoutes } from './ai-generation-association'
@@ -238,7 +238,7 @@ aiRoutes.get('/status', optionalUser(), async (c) => {
     {
       configured,
       // 未登录用户不给 AI 能力：调用要记账到具体用户头上
-      features: { storyEchoes: configured && settings.recapEnabled && !!user, recap: configured && settings.recapEnabled && !!user, catchup: configured && settings.catchupEnabled && !!user },
+      features: { characterCards: configured && settings.recapEnabled && !!user, storyEchoes: configured && settings.recapEnabled && !!user, recap: configured && settings.recapEnabled && !!user, catchup: configured && settings.catchupEnabled && !!user },
       model: configured ? textProvider().model : '',
       imageConfigured: isImageAiConfigured(),
       quota,
@@ -262,6 +262,25 @@ aiRoutes.post('/story-echoes', requireUser(), async (c) => {
     if (!settings.recapEnabled || !isTextAiConfigured()) return c.json({ error: '服务器暂未开放故事里的回声', code: 'disabled' }, 403)
     const user = c.get('user')
     const result = await findStoryEchoes(db, input, {
+      userId: user.id, unlimitedQuota: isAdministrator(user.role), ...(await auditRequestContext(c, db)),
+    })
+    const revoked = await chapterContentAccessError(c, db, input.chapterId)
+    if (revoked) return revoked
+    return c.json(result)
+  } catch (error) { return aiErrorResponse(c, error) }
+})
+
+aiRoutes.post('/character-card', requireUser(), async (c) => {
+  c.header('Cache-Control', 'private, no-store')
+  const db = getDb()
+  try {
+    const input = parseStoryEchoInput(await c.req.json().catch(() => null), 'character')
+    const denied = await chapterContentAccessError(c, db, input.chapterId)
+    if (denied) return denied
+    const settings = await getAiSettings(db)
+    if (!settings.recapEnabled || !isTextAiConfigured()) return c.json({ error: '服务器暂未开放人物小卡', code: 'disabled' }, 403)
+    const user = c.get('user')
+    const result = await findCharacterCard(db, input, {
       userId: user.id, unlimitedQuota: isAdministrator(user.role), ...(await auditRequestContext(c, db)),
     })
     const revoked = await chapterContentAccessError(c, db, input.chapterId)

@@ -1995,7 +1995,7 @@ export interface AiQuota {
 
 export interface AiStatus {
   configured: boolean
-  features: { recap: boolean; catchup: boolean; storyEchoes?: boolean }
+  features: { recap: boolean; catchup: boolean; storyEchoes?: boolean; characterCards?: boolean }
   model: string
   quota: AiQuota | null
   /** 「回来接着读」的过期天数：入口渲染阈值与后端判定同源 */
