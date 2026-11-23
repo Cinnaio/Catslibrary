@@ -94,6 +94,7 @@ export default function NovelAnalysisReport({ novelId, reportId, onChange, onRea
         <Button variant="outline" size="sm" disabled={editing || busy} onClick={() => onReanalyze(report.request)}>按此范围新建报告</Button>
       </header>
       {report.request.question && <p className={styles.question}>{report.request.question}</p>}
+      {!!report.reusedSources && <p className={styles.meta}>本次复用了 {report.reusedSources} 段阅读底稿，原文依据仍可逐条核对。</p>}
       {report.sourceChanged && <p className={styles.notice}>正文或章节顺序已变化。这份报告仍对应生成时的原文；需要反映修改时，请新建报告。</p>}
       {!report.content && <div className={styles.progress}>
         <p role="status">{report.step || (report.status === 'interrupted' ? '任务记录已移除，可继续已保存的阅读记录' : taskStatusLabel(report.status))}</p>

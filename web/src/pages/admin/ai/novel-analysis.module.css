@@ -3,6 +3,7 @@
 .fields { display: grid; grid-template-columns: minmax(160px, .8fr) repeat(2, minmax(0, 1fr)); gap: 20px; }
 .fields > *, .workspace > * { min-width: 0; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.reuseChoice { display: flex; align-items: center; gap: 10px; min-height: 48px; cursor: pointer; }
 .actions h2 { margin: 0 auto 0 0; font-size: 16px; }
 .meta { color: var(--text-secondary); font-size: 13px; line-height: 1.7; }
 .workspace { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 36px; align-items: start; }

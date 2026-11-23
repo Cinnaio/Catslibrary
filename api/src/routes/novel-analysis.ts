@@ -29,7 +29,7 @@ novelAnalysisRoutes.post('/:novelId', async c => {
   if (!isTextAiConfigured()) throw new AiError('disabled', '请先配置 AI 文本服务', 503)
   const body = await c.req.json().catch(() => ({}))
   const novelId = c.req.param('novelId')
-  const receipt = await createAnalysis(getDb(), c.get('user').id, novelId, body?.request, String(body?.requestId || ''))
+  const receipt = await createAnalysis(getDb(), c.get('user').id, novelId, body?.request, String(body?.requestId || ''), body?.forceRefresh)
   if (receipt.created) void runNovelAnalysis(getDb(), novelId, receipt.reportId, receipt.taskId,
     { ipAddress: clientIpFromContext(c), userAgent: c.req.header('user-agent') }).catch(error => console.error('[novel-analysis-worker]', error))
   return c.json(receipt, receipt.created ? 201 : 200)

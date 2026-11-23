@@ -1,4 +1,4 @@
-import type { AnalysisKind, AnalysisNote } from '@shared/novel-analysis'
+import type { AnalysisKind, AnalysisNote, AnalysisSource } from '@shared/novel-analysis'
 import { ANALYSIS_KINDS } from '@shared/novel-analysis'
 import type { Db } from '../../db/pool'
 import { run, withTx } from '../../db/query'
@@ -9,7 +9,8 @@ import { recordUsage } from './usage'
 import { usageAuditFields } from './upstream-usage'
 import { getAiTask, isAiTaskActive, startAiTaskHeartbeat, updateAiTask } from './tasks'
 import { requireAnalysis } from './novel-analysis-store'
-import { analysisPrompt, analysisSourceMaterial } from './novel-analysis-prompts'
+import { analysisGenerationKey, loadSharedAnalysisReadings, saveSharedAnalysisReading, sharesAnalysisReading } from './novel-analysis-reuse'
+import { analysisPrompt, analysisSourceMaterial, sharedAnalysisReadingPrompt } from './novel-analysis-prompts'
 import { searchAnalysisSources } from './novel-analysis-source'
 import { saveAnalysisEvidence } from './novel-analysis-review-store'
 
@@ -49,8 +50,13 @@ export async function runNovelAnalysis(db: Db, novelId: string, reportId: string
     const task = await getAiTask(db, taskId)
     if (!task || task.kind !== 'novel_analysis' || task.novelId !== novelId || report.task_id !== taskId || report.content) return
     const settings = await getAiSettings(db)
+    const generationKey = analysisGenerationKey(settings.storyMemoryReasoningMode)
+    // Legacy checkpoints contain topic-specific notes and never seed the shared cache.
+    const sharedReading = !!report.generation_key && sharesAnalysisReading(report.request_json.kind)
+    let reusedSources = Number(report.reused_sources || 0)
     const notes = [...report.notes_json]
     const read = new Set(notes.flatMap(note => note.sourceIds))
+    const sourceOrder = new Map(report.source_json.map((source, index) => [source.id, index]))
     const checked = new Set(report.checked_source_ids)
     const defaultQuestion = report.request_json.kind === 'style'
       ? '归纳所选章节可延续的写法及原文依据。'
@@ -89,20 +95,32 @@ export async function runNovelAnalysis(db: Db, novelId: string, reportId: string
       if (!response.text.trim() && !response.toolCalls?.length) throw new AiError('invalid', '模型返回空内容，已保存的阅读记录可继续使用', 422)
       return response
     }
-    const checkpoint = async (synthesis?: AnalysisNote[], content?: string) => withTx(db, async query => {
+    const checkpoint = async (synthesis?: AnalysisNote[], content?: string, sharedGroup?: AnalysisSource[]) => withTx(db, async query => {
       const tx = { query }
       await query('SELECT id FROM ai_tasks WHERE id=$1 FOR UPDATE', [taskId])
       if (!await isAiTaskActive(tx, taskId)) throw new AiError('cancelled', '分析已停止', 409)
       const changed = await run(tx, `UPDATE novel_analysis_reports SET notes_json=$1::jsonb,
         synthesis_json=COALESCE($2::jsonb,synthesis_json),checked_source_ids=$3::jsonb,
-        content=COALESCE($4,content),revision=revision+CASE WHEN $4::text IS NULL THEN 0 ELSE 1 END,updated_at=$5
+        content=COALESCE($4,content),revision=revision+CASE WHEN $4::text IS NULL THEN 0 ELSE 1 END,updated_at=$5,
+        reused_sources=$8,reuse_key=CASE WHEN generation_key=$9 THEN reuse_key ELSE '' END
         WHERE id=$6 AND task_id=$7`, [JSON.stringify(notes), synthesis ? JSON.stringify(synthesis) : null,
-        JSON.stringify([...checked]), content ?? null, Date.now(), reportId, taskId])
+        JSON.stringify([...checked]), content ?? null, Date.now(), reportId, taskId, reusedSources, generationKey])
       if (!changed) throw new AiError('cancelled', '报告已由另一个任务继续处理', 409)
+      if (sharedGroup) await saveSharedAnalysisReading(tx, novelId, generationKey, sharedGroup, notes.at(-1)!.content)
       if (content !== undefined) await saveAnalysisEvidence(tx, await requireAnalysis(tx, novelId, reportId))
       if (content !== undefined) await updateAiTask(tx, taskId, { status: 'completed', current: report.source_json.length,
         total: report.source_json.length, step: '分析报告已保存，可核对和修订', result: JSON.stringify({ reportId }) })
     })
+    if (sharedReading && !report.force_refresh) {
+      const reused = await loadSharedAnalysisReadings(db, novelId, generationKey, report.source_json, read)
+      if (reused.length) {
+        notes.push(...reused)
+        for (const note of reused) for (const id of note.sourceIds) read.add(id)
+        reusedSources += reused.reduce((count, note) => count + note.sourceIds.length, 0)
+        await checkpoint()
+        await updateAiTask(db, taskId, { current: read.size, step: '已复用 ' + reusedSources + ' 段阅读底稿，正在补充分析' })
+      }
+    }
     // Small ranges fit directly: avoid lossy intermediate summaries and needless paid calls.
     if (!notes.length && report.source_json.reduce((sum, source) => sum + source.text.length, 0) <= 20_000) {
       await updateAiTask(db, taskId, { status: 'running', step: '正在直接阅读所选正文并撰写报告' })
@@ -119,22 +137,25 @@ export async function runNovelAnalysis(db: Db, novelId: string, reportId: string
     while (remaining.length) {
       const group = [remaining.shift()!]
       let size = group[0]!.text.length
-      while (remaining.length && group.length < 8 && size + remaining[0]!.text.length <= 12_000) {
+      while (remaining.length && group.length < 8 && size + remaining[0]!.text.length <= 12_000
+        && sourceOrder.get(remaining[0]!.id) === sourceOrder.get(group.at(-1)!.id)! + 1) {
         const next = remaining.shift()!
         group.push(next); size += next.text.length
       }
       await active()
       await updateAiTask(db, taskId, { step: `阅读《${group[0]!.chapterTitle}》${group.length > 1 ? `等 ${group.length} 段原文` : ''}` })
       const content = group.some(source => source.text.trim()) ? (await request([
-        { role: 'system', content: analysisPrompt('reading', report.request_json.kind) },
-        { role: 'user', content: JSON.stringify({ focus, sources: group.map(analysisSourceMaterial) }) },
+        { role: 'system', content: sharedReading ? sharedAnalysisReadingPrompt : analysisPrompt('reading', report.request_json.kind) },
+        { role: 'user', content: JSON.stringify({ ...(sharedReading ? {} : { focus }), sources: group.map(analysisSourceMaterial) }) },
       ], 6000)).text : '本段没有可分析正文。'
       notes.push({ sourceIds: group.map(source => source.id), content })
       for (const source of group) read.add(source.id)
-      await checkpoint()
+      await checkpoint(undefined, undefined, sharedReading ? group : undefined)
       await updateAiTask(db, taskId, { current: read.size, step: `已保存 ${read.size} / ${report.source_json.length} 段原文的阅读记录` })
     }
     // Consolidation preserves the original per-source notes and checkpoints each merge.
+    // Cached groups may have been inserted before newly read groups. Synthesis must follow the original order.
+    notes.sort((a, b) => (sourceOrder.get(a.sourceIds[0]!) ?? 0) - (sourceOrder.get(b.sourceIds[0]!) ?? 0))
     let synthesis = report.synthesis_json || [...notes]
     while (JSON.stringify(synthesis).length > 28_000 && synthesis.length > 1) {
       const group: AnalysisNote[] = []

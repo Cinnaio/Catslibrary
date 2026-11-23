@@ -95,3 +95,48 @@ it('未保存的修订在重开报告后保留，仍绑定原版本', async () =
   fireEvent.click(screen.getByRole('button', { name: '保存修订' }))
   await waitFor(() => expect(api.edit).toHaveBeenCalledWith('book', 'report', '尚未保存的批注', 3))
 })
+
+
+it('复用已有分析时打开报告并说明没有重复生成', async () => {
+  api.create.mockResolvedValue({ reportId: 'report', taskId: 'task', created: false, reused: true })
+  open('novel=book')
+  const generate = await screen.findByRole('button', { name: '生成分析报告' })
+  await waitFor(() => expect(generate).not.toBeDisabled())
+  fireEvent.click(generate)
+  await screen.findByText('已打开相同分析，复用已有报告或正在进行的任务，本次未重复生成。')
+  expect(api.create).toHaveBeenCalledTimes(1)
+  expect(api.create.mock.calls[0]![3]).toBe(false)
+  await screen.findByText(/report 的分析结论/)
+})
+
+it('强制重新分析在断流和重开页面后保留同一次请求及复用选择', async () => {
+  api.create.mockRejectedValueOnce(new Error('连接中断')).mockResolvedValue({ reportId: 'fresh', taskId: 'task', created: true, reused: false })
+  const first = open('novel=book')
+  const checkbox = await screen.findByRole('checkbox', { name: '重新分析，不使用已有报告和阅读底稿' })
+  fireEvent.click(checkbox)
+  const generate = screen.getByRole('button', { name: '重新生成分析报告' })
+  await waitFor(() => expect(generate).not.toBeDisabled())
+  fireEvent.click(generate)
+  await screen.findByText('连接中断')
+  const original = api.create.mock.calls[0]
+  expect(original![3]).toBe(true)
+  first.unmount()
+  open('novel=book')
+  expect(screen.getByRole('checkbox')).toBeChecked()
+  expect(screen.getByRole('checkbox')).toBeDisabled()
+  fireEvent.click(screen.getByRole('button', { name: '重试并找回这次报告' }))
+  await screen.findByText(/fresh 的分析结论/)
+  expect(api.create.mock.calls[1]).toEqual(original)
+  expect(screen.getByRole('checkbox')).not.toBeChecked()
+})
+
+it('从报告重新分析会选中重做选项并显示复用段数', async () => {
+  api.read.mockResolvedValue({ ...report(), reusedSources: 2 })
+  open()
+  await screen.findByText('本次复用了 2 段阅读底稿，原文依据仍可逐条核对。')
+  HTMLElement.prototype.scrollIntoView = vi.fn()
+  fireEvent.click(screen.getByRole('button', { name: '按此范围新建报告' }))
+  expect(screen.getByRole('checkbox')).toBeChecked()
+  expect(screen.getByRole('button', { name: '重新生成分析报告' })).toBeEnabled()
+  expect(api.create).not.toHaveBeenCalled()
+})

@@ -53,6 +53,8 @@ export interface AnalysisReportSummary {
   status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted'
   step: string
   error: string
+  /** Number of source segments reused from the shared reading cache. */
+  reusedSources?: number
   processed: number
   total: number
   chapterCount: number

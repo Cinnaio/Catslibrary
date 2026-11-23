@@ -5,6 +5,7 @@ import { chaptersApi, newOperationId, type ApiError } from '@/lib/api'
 import { novelAnalysisApi as api } from '@/lib/novel-analysis-api'
 import { getStorageScope } from '@/lib/storage'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { MotionView } from '@/components/ui/motion'
 import FormField from '@/components/shared/FormField'
@@ -25,6 +26,8 @@ function AnalysisWorkspace({ novelId, reportId, onSelectReport, active = true }:
   const pendingKey = analysisPendingKey(novelId)
   const [pending, setPending] = useState<PendingAnalysis | null>(() => readPendingAnalysis(pendingKey))
   const [input, setInput] = useState<AnalysisRequest>(() => pending?.request || { kind: 'plot', startChapterId: '', endChapterId: '', question: '' })
+  const [forceRefresh, setForceRefresh] = useState(pending?.forceRefresh ?? false)
+  const [submitNotice, setSubmitNotice] = useState('')
   const [chapters, setChapters] = useState<ChapterMeta[]>([])
   const [reports, setReports] = useState<AnalysisReportSummary[]>([])
   const [hasMore, setHasMore] = useState(false)
@@ -57,13 +60,15 @@ function AnalysisWorkspace({ novelId, reportId, onSelectReport, active = true }:
   }
   async function submit() {
     if (submitting.current) return
-    const operation = pending || { id: newOperationId('analysis'), request: input }
+    const operation = pending || { id: newOperationId('analysis'), request: input, forceRefresh }
     setPending(operation); savePendingAnalysis(pendingKey, operation)
-    submitting.current = true; setBusy(true); setSubmitError('')
+    submitting.current = true; setBusy(true); setSubmitError(''); setSubmitNotice('')
     try {
-      const result = await api.create(novelId, operation.request, operation.id)
+      const result = await api.create(novelId, operation.request, operation.id, operation.forceRefresh ?? false)
       savePendingAnalysis(pendingKey, null)
       if (!mounted.current) return
+      setForceRefresh(false)
+      setSubmitNotice(result.reused ? '已打开相同分析，复用已有报告或正在进行的任务，本次未重复生成。' : '')
       setPending(null); chooseReport(result.reportId); setOffset(0); setRefresh(v => v + 1)
     } catch (e) {
       if (!mounted.current) return
@@ -91,11 +96,17 @@ function AnalysisWorkspace({ novelId, reportId, onSelectReport, active = true }:
         <FormField label={input.kind === 'custom' ? '分析问题' : '重点关注（选填）'} hint="例如：人物之间的信任如何变化？哪些判断仍缺少依据？">
           <Textarea value={input.question} maxLength={2000} rows={2} disabled={busy || !!pending} onChange={e => setInput(v => ({ ...v, question: e.target.value }))} />
         </FormField>
+        <label className={styles.reuseChoice}>
+          <Checkbox checked={forceRefresh} disabled={busy || !!pending} onCheckedChange={value => setForceRefresh(value === true)} />
+          <span className={styles.meta}>重新分析，不使用已有报告和阅读底稿</span>
+        </label>
+        <p className={styles.meta}>默认复用正文未变、要求相同的报告；情节、人物和关系分析可共用已保存的阅读底稿。</p>
         <div className={styles.actions}>
-          <Button type="submit" disabled={busy || (!pending && !valid)}>{busy ? '正在提交…' : pending ? '重试并找回这次报告' : '生成分析报告'}</Button>
+          <Button type="submit" disabled={busy || (!pending && !valid)}>{busy ? '正在提交…' : pending ? '重试并找回这次报告' : forceRefresh ? '重新生成分析报告' : '生成分析报告'}</Button>
           <span className={styles.meta}>{valid ? `已选 ${end - start + 1} 章。` : chapters.length ? '请选择有效的起止章节。' : '本书暂无可选章节。'}分析在后台进行，离开页面不会停止。</span>
         </div>
         {pending && !busy && <p className={styles.notice}>上次提交尚未确认。重试会找回同一次请求，避免重复生成。确认后即可修改范围。</p>}
+        {submitNotice && <p className={styles.notice} role="status">{submitNotice}</p>}
         {submitError && <p role="alert">{submitError}</p>}
       </form>
       <div className={styles.workspace}>
@@ -115,7 +126,7 @@ function AnalysisWorkspace({ novelId, reportId, onSelectReport, active = true }:
         </aside>
         {reportId ? <NovelAnalysisReport key={reportId} novelId={novelId} reportId={reportId} active={active} onChange={onReportChange} onReanalyze={request => {
           if (pending) { setSubmitError('请先确认上次提交，再创建另一份报告。'); return }
-          setInput(request); formRef.current?.scrollIntoView({ block: 'start' }); formRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
+          setInput(request); setForceRefresh(true); setSubmitNotice(''); formRef.current?.scrollIntoView({ block: 'start' }); formRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
         }} /> : <div className={styles.empty}>生成报告或选择一份历史记录，阅读结论并逐条查看原文。</div>}
       </div>
     </>}

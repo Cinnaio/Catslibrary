@@ -5,6 +5,7 @@ import { createAnalysis, editAnalysis, listAnalyses, readAnalysis, requireAnalys
 import { analysisSourcesChanged, captureAnalysisSources, parseAnalysisRequest, searchAnalysisSources } from './novel-analysis-source'
 import { runNovelAnalysis } from './novel-analysis'
 import { analysisPrompt } from './novel-analysis-prompts'
+import { analysisGenerationKey, saveSharedAnalysisReading } from './novel-analysis-reuse'
 import { AiError, chat, type AiChatResult } from './client'
 import { withProviderSnapshot } from './provider-snapshot'
 import { getAiTask } from './tasks'
@@ -60,11 +61,12 @@ it('保存完整分段正文，不截断长章或跨书，并检测中途插章�
   expect(sources.at(-1)?.text).toBe('阿宁计划明早去找青遥。')
 })
 
-it('相同请求在 JSONB 重排后仍返回原任务，拒绝换范围与重复活动任务', async () => {
+it('相同请求在 JSONB 重排后仍返回原任务，相同活动分析共用任务而不同要求冲突', async () => {
   const receipt = await create()
   expect(await create()).toEqual({ ...receipt, created: false })
   await expect(createAnalysis(t.db, 'admin', 'book', { ...input, question: '换题' }, 'request-0001')).rejects.toMatchObject({ status: 409 })
-  await expect(create('request-0002')).rejects.toMatchObject({ status: 409 })
+  expect(await create('request-0002')).toEqual({ ...receipt, created: false, reused: true })
+  await expect(createAnalysis(t.db, 'admin', 'book', { ...input, question: '另一问题' }, 'request-0003')).rejects.toMatchObject({ status: 409 })
   await expect(requireAnalysis(t.db, 'other', receipt.reportId)).rejects.toMatchObject({ status: 404 })
   expect(() => parseAnalysisRequest({ ...input, kind: '__proto__' })).toThrow()
 })
@@ -357,4 +359,195 @@ it('实际路由限制管理员访问，报告及来源不可跨书读取，正�
     if (previousUrl === undefined) delete process.env.DATABASE_URL
     else process.env.DATABASE_URL = previousUrl
   }
+})
+
+
+const countRows = async (table: 'ai_tasks' | 'ai_usage' | 'novel_analysis_readings') =>
+  Number((await first<{ count: number }>(t.db, 'SELECT count(*) AS count FROM ' + table))?.count)
+const readingModel = () => vi.fn<typeof chat>(async options => {
+  const payload = JSON.parse(options.messages[1]!.content)
+  if (options.tools) return answer('完成报告，依据见 [[S1]]。')
+  return answer(payload.sources.map((source: { id: string; chapterTitle: string }) =>
+    source.chapterTitle + '的事件、人物选择和关系变化。[[' + source.id + ']]').join('\n'))
+})
+const completeLongAnalysis = async () => {
+  await useLongRange()
+  const receipt = await create()
+  const invoke = readingModel()
+  await runNovelAnalysis(t.db, 'book', receipt.reportId, receipt.taskId, {}, invoke)
+  expect(invoke).toHaveBeenCalledTimes(3)
+  expect(await countRows('novel_analysis_readings')).toBe(2)
+  return receipt
+}
+
+it('跨管理员和新请求复用完整报告及人工修订，丢失响应后的重试始终指向原报告', async () => {
+  const original = await create()
+  await runNovelAnalysis(t.db, 'book', original.reportId, original.taskId, {}, async () => answer('原报告 [[S1]]'))
+  await editAnalysis(t.db, 'book', original.reportId, '已经核对的人工修订 [[S1]]', 2)
+  await t.db.query("INSERT INTO users(id,username,role,password_hash,password_salt,created_at,updated_at) VALUES('admin2','admin2','admin','test','test',1,1) ON CONFLICT DO NOTHING")
+  const reused = await createAnalysis(t.db, 'admin2', 'book', input, 'request-shared')
+  expect(reused).toEqual({ ...original, created: false, reused: true })
+  expect((await readAnalysis(t.db, 'book', reused.reportId)).content).toContain('人工修订')
+  expect(await countRows('ai_tasks')).toBe(1)
+  expect(await countRows('ai_usage')).toBe(1)
+  const fresh = await createAnalysis(t.db, 'admin', 'book', input, 'request-fresh', true)
+  expect(fresh.reportId).not.toBe(original.reportId)
+  await t.db.query("UPDATE chapters SET content='修改后' WHERE id='c1'")
+  expect(await createAnalysis(t.db, 'admin2', 'book', input, 'request-shared')).toEqual(reused)
+  await expect(createAnalysis(t.db, 'admin2', 'book', input, 'request-shared', true)).rejects.toMatchObject({ status: 409 })
+})
+
+it('主题不同共用中性底稿，关注问题只进入最终报告；文风和自定义仍独立阅读', async () => {
+  const original = await completeLongAnalysis()
+  for (const kind of ['relationships', 'characters'] as const) {
+    const receipt = await createAnalysis(t.db, 'admin', 'book', { ...input, kind, question: '关注钥匙' }, 'request-' + kind)
+    const invoke = readingModel()
+    await runNovelAnalysis(t.db, 'book', receipt.reportId, receipt.taskId, {}, invoke)
+    expect(invoke).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(invoke.mock.calls[0]![0].messages[1]!.content).focus).toContain('关注钥匙')
+    expect((await readAnalysis(t.db, 'book', receipt.reportId)).reusedSources).toBe(2)
+  }
+  for (const kind of ['style', 'custom'] as const) {
+    const receipt = await createAnalysis(t.db, 'admin', 'book', { ...input, kind, question: '关注语言' }, 'request-' + kind)
+    const invoke = readingModel()
+    await runNovelAnalysis(t.db, 'book', receipt.reportId, receipt.taskId, {}, invoke)
+    expect(invoke).toHaveBeenCalledTimes(3)
+    expect((await readAnalysis(t.db, 'book', receipt.reportId)).reusedSources).toBe(0)
+  }
+  expect((await readAnalysis(t.db, 'book', original.reportId)).reusedSources).toBe(0)
+  expect(await countRows('novel_analysis_readings')).toBe(2)
+})
+
+it('修改正文仅重读受影响批次，合并材料恢复原文顺序，旧报告标记过期', async () => {
+  const original = await completeLongAnalysis()
+  await t.db.query("UPDATE chapters SET content=content || '补充动机。' WHERE id='c1'")
+  const receipt = await createAnalysis(t.db, 'admin', 'book', input, 'request-edit')
+  expect(receipt.created).toBe(true)
+  const invoke = readingModel()
+  await runNovelAnalysis(t.db, 'book', receipt.reportId, receipt.taskId, {}, invoke)
+  expect(invoke).toHaveBeenCalledTimes(2)
+  const reading = JSON.parse(invoke.mock.calls[0]![0].messages[1]!.content)
+  expect(reading).not.toHaveProperty('focus')
+  expect(reading.sources.map((source: { id: string }) => source.id)).toEqual(['S1'])
+  expect(invoke.mock.calls[0]![0].messages[0]!.content).toContain('共同使用的阅读底稿')
+  const final = JSON.parse(invoke.mock.calls[1]![0].messages[1]!.content)
+  expect(final.notes.map((note: { sourceIds: string[] }) => note.sourceIds)).toEqual([['S1'], ['S2']])
+  expect((await readAnalysis(t.db, 'book', receipt.reportId)).reusedSources).toBe(1)
+  expect((await readAnalysis(t.db, 'book', original.reportId)).sourceChanged).toBe(true)
+})
+
+it('缩小范围时重映射引用编号且不带入范围外底稿，新增章节只补读新增段', async () => {
+  await completeLongAnalysis()
+  const narrow = await createAnalysis(t.db, 'admin', 'book', { ...input, kind: 'characters', startChapterId: 'c2' }, 'request-narrow')
+  const invoke = readingModel()
+  await runNovelAnalysis(t.db, 'book', narrow.reportId, narrow.taskId, {}, invoke)
+  expect(invoke).toHaveBeenCalledTimes(1)
+  const report = await readAnalysis(t.db, 'book', narrow.reportId)
+  expect(report).toMatchObject({ reusedSources: 1, total: 1 })
+  expect(report.notes).toEqual([{ sourceIds: ['S1'], content: '后来的事件、人物选择和关系变化。[[S1]]' }])
+  expect(report.sources[0]?.chapterId).toBe('c2')
+  await t.db.query("INSERT INTO chapters(id,novel_id,title,content,sort_order,created_at) VALUES('c3','book','新章',repeat('后续。',3500),30,1)")
+  const extended = await createAnalysis(t.db, 'admin', 'book', { ...input, endChapterId: 'c3' }, 'request-extend')
+  const extra = readingModel()
+  await runNovelAnalysis(t.db, 'book', extended.reportId, extended.taskId, {}, extra)
+  expect(extra).toHaveBeenCalledTimes(2)
+  expect(JSON.parse(extra.mock.calls[0]![0].messages[1]!.content).sources[0].id).toBe('S3')
+  expect((await readAnalysis(t.db, 'book', extended.reportId)).reusedSources).toBe(2)
+})
+
+it('重新分析跳过报告和底稿复用，重试仍幂等且旧报告保留', async () => {
+  const original = await completeLongAnalysis()
+  const receipt = await createAnalysis(t.db, 'admin', 'book', input, 'request-force', true)
+  expect(await createAnalysis(t.db, 'admin', 'book', input, 'request-force', true)).toEqual({ ...receipt, created: false })
+  const invoke = readingModel()
+  await runNovelAnalysis(t.db, 'book', receipt.reportId, receipt.taskId, {}, invoke)
+  expect(invoke).toHaveBeenCalledTimes(3)
+  expect((await readAnalysis(t.db, 'book', receipt.reportId)).reusedSources).toBe(0)
+  expect((await readAnalysis(t.db, 'book', original.reportId)).status).toBe('completed')
+  await expect(createAnalysis(t.db, 'admin', 'book', input, 'request-force', false)).rejects.toMatchObject({ status: 409 })
+  await expect(createAnalysis(t.db, 'admin', 'book', input, 'request-invalid', 'true')).rejects.toMatchObject({ status: 422 })
+})
+
+it('模型设置变化不复用报告或底稿，其他作品不能读取本书缓存', async () => {
+  await completeLongAnalysis()
+  const provider = { baseUrl: 'https://example.test/v1', apiKey: 'test-key', model: 'different-model' }
+  await withProviderSnapshot(async () => {
+    const receipt = await createAnalysis(t.db, 'admin', 'book', input, 'request-model')
+    expect(receipt.created).toBe(true)
+    const invoke = readingModel()
+    await runNovelAnalysis(t.db, 'book', receipt.reportId, receipt.taskId, {}, invoke)
+    expect(invoke).toHaveBeenCalledTimes(3)
+    expect((await readAnalysis(t.db, 'book', receipt.reportId)).reusedSources).toBe(0)
+  }, { text: provider })
+  await t.db.query("UPDATE chapters SET content=repeat('背景。',8000) WHERE id='x'")
+  const receipt = await createAnalysis(t.db, 'admin', 'other', { ...input, startChapterId: 'x', endChapterId: 'x' }, 'request-other')
+  const invoke = readingModel()
+  await runNovelAnalysis(t.db, 'other', receipt.reportId, receipt.taskId, {}, invoke)
+  expect((await readAnalysis(t.db, 'other', receipt.reportId)).reusedSources).toBe(0)
+  expect(invoke).toHaveBeenCalledTimes(3)
+})
+
+it('取消后的迟到阅读不能写共享缓存，历史主题笔记也不晋升为通用底稿', async () => {
+  await useLongRange()
+  const cancelled = await create()
+  await runNovelAnalysis(t.db, 'book', cancelled.reportId, cancelled.taskId, {}, async () => {
+    await stopAnalysis(t.db, 'book', cancelled.reportId)
+    return answer('迟到记录 [[S1]]')
+  })
+  expect(await countRows('novel_analysis_readings')).toBe(0)
+  const legacy = await create('request-legacy')
+  await t.db.query("UPDATE novel_analysis_reports SET generation_key='',reuse_key='' WHERE id=$1", [legacy.reportId])
+  await runNovelAnalysis(t.db, 'book', legacy.reportId, legacy.taskId, {}, readingModel())
+  expect(await countRows('novel_analysis_readings')).toBe(0)
+  expect((await create('request-after-legacy')).created).toBe(true)
+})
+
+
+it('重映射只更换引用标记，保留原文中的同名编号', async () => {
+  await useLongRange()
+  await t.db.query("UPDATE chapters SET content=content || '设备编号是 S2。' WHERE id='c2'")
+  const original = await create()
+  await runNovelAnalysis(t.db, 'book', original.reportId, original.taskId, {}, async options => {
+    if (options.tools) return answer('完整分析 [[S1]]')
+    const source = JSON.parse(options.messages[1]!.content).sources[0]
+    return answer(source.id === 'S2' ? '设备编号是“S2”。[[S2]]' : '转交钥匙。[[S1]]')
+  })
+  const narrow = await createAnalysis(t.db, 'admin', 'book', { ...input, startChapterId: 'c2' }, 'request-labels')
+  await runNovelAnalysis(t.db, 'book', narrow.reportId, narrow.taskId, {}, readingModel())
+  expect((await readAnalysis(t.db, 'book', narrow.reportId)).notes[0]?.content).toBe('设备编号是“S2”。[[S1]]')
+})
+
+it('恢复时更换模型仍保留进度，但混用配置的报告不能冒充原配置的可复用结果', async () => {
+  await useLongRange()
+  const receipt = await create()
+  let calls = 0
+  await runNovelAnalysis(t.db, 'book', receipt.reportId, receipt.taskId, {}, async () => {
+    if (++calls === 2) throw new AiError('upstream', '暂停')
+    return answer('首段阅读 [[S1]]')
+  })
+  await withProviderSnapshot(async () => {
+    const next = await resumeAnalysis(t.db, 'admin', 'book', receipt.reportId)
+    await runNovelAnalysis(t.db, 'book', receipt.reportId, next.taskId, {}, readingModel())
+  }, { text: { baseUrl: 'https://example.test/v1', apiKey: 'test', model: 'new-model' } })
+  expect((await requireAnalysis(t.db, 'book', receipt.reportId)).reuse_key).toBe('')
+  expect((await create('request-after-mixed')).created).toBe(true)
+})
+
+
+it('补读不跨越已缓存的中间段，底稿整体保持章节顺序', async () => {
+  await t.db.query("UPDATE chapters SET content=repeat('甲。',2500) WHERE novel_id='book'")
+  await t.db.query("INSERT INTO chapters(id,novel_id,title,content,sort_order,created_at) VALUES('c3','book','第三章',repeat('乙。',2500),30,1),('c4','book','第四章',repeat('丙。',3500),40,1)")
+  const request = { ...input, endChapterId: 'c4' }
+  const sources = await captureAnalysisSources(t.db, 'book', request)
+  const key = analysisGenerationKey((await getAiSettings(t.db)).storyMemoryReasoningMode)
+  await saveSharedAnalysisReading(t.db, 'book', key, [sources[1]!], '中间章事实 [[S2]]')
+  const receipt = await createAnalysis(t.db, 'admin', 'book', request, 'request-gap')
+  const invoke = readingModel()
+  await runNovelAnalysis(t.db, 'book', receipt.reportId, receipt.taskId, {}, invoke)
+  const readings = invoke.mock.calls.filter(([options]) => !options.tools)
+    .map(([options]) => JSON.parse(options.messages[1]!.content).sources.map((source: { id: string }) => source.id))
+  expect(readings).toEqual([['S1'], ['S3', 'S4']])
+  const report = await readAnalysis(t.db, 'book', receipt.reportId)
+  expect(report.notes.map(note => note.sourceIds)).toEqual([['S1'], ['S2'], ['S3', 'S4']])
+  expect(report.reusedSources).toBe(1)
 })
