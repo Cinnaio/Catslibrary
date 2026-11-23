@@ -1,14 +1,16 @@
-import { MotionDetails } from '@/components/ui/motion'
+import { MotionDetails, MotionPresence } from '@/components/ui/motion'
 import type { PendingChapterCounts } from '@shared/novel-updates'
 import { pendingUpdateDisplay } from '@shared/novel-updates'
 import { Link } from 'react-router-dom'
 import ScrapeTaskDetailsDialog from './ScrapeTaskDetailsDialog'
-import { BookOpen, Files, Globe2, ListOrdered, LockKeyhole } from 'lucide-react'
+import { Globe2, LockKeyhole } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { authFetch } from '@/lib/api'
 import { startPolling } from '@/lib/polling'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
+import { Switch } from '@/components/ui/switch'
+import EmptyState from '@/components/shared/EmptyState'
+import FormField from '@/components/shared/FormField'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DialogBody, DialogFrame } from '@/components/shared/DialogFrame'
@@ -85,6 +87,8 @@ export default function NovelFollowupDialog({
   const [activeTab, setActiveTab] = useState('web')
   const bodyRef = useRef<HTMLDivElement>(null)
   const titleRef = useRef<HTMLHeadingElement>(null)
+  const checkButtonRef = useRef<HTMLButtonElement>(null)
+  const sourceActionRef = useRef<HTMLButtonElement>(null)
   const [returnFocus] = useState(() => document.activeElement as HTMLElement | null)
   const [state, setState] = useState<Followup | null>(null)
   const [enabled, setEnabled] = useState(false)
@@ -161,6 +165,13 @@ export default function NovelFollowupDialog({
       const response = await request(novel.id, save ? { action: 'followup-save', enabled, intervalHours: Number(hours) } : { action: 'update' })
       await refresh()
       setNotice(save ? '追更设置已保存' : response.message || '更新任务已启动，可在抓取任务中查看详情')
+      if (save && variant === 'settings') {
+        requestAnimationFrame(() => {
+          const target = checkButtonRef.current
+          if (target && !target.disabled) target.focus({ preventScroll: true })
+          else titleRef.current?.focus({ preventScroll: true })
+        })
+      }
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -190,6 +201,7 @@ export default function NovelFollowupDialog({
       setEnabled(data.enabled)
       setHours(String(data.intervalHours))
       setSourceEditing(false)
+      requestAnimationFrame(() => sourceActionRef.current?.focus({ preventScroll: true }))
       setNotice('网页来源已保存，自动追更已暂停；确认后可手动开启。')
     } catch (error) {
       setSourceError(error instanceof SyntaxError ? '选择器需填写有效的 JSON 对象' : (error as Error).message)
@@ -226,20 +238,13 @@ export default function NovelFollowupDialog({
         }}
       >
         <DialogHeader className={styles.header}>
-          <span className={styles.bookIcon} aria-hidden="true">
-            <BookOpen />
-          </span>
-          <div className={styles.heading}>
-            <DialogTitle ref={titleRef} tabIndex={-1}>
-              {variant === 'event' ? '追更事件详情' : '更新与来源'}
-            </DialogTitle>
-            <DialogDescription className={styles.book}>{novel.title}</DialogDescription>
-            {state && (
-              <p className={styles.origin}>
-                本地已入库 {state.chapterCount ?? novel.chapterCount ?? 0} 章{state.importSourceLabel ? ` · 文件导入：${state.importSourceLabel}` : ''}
-              </p>
-            )}
-          </div>
+          <DialogTitle ref={titleRef} tabIndex={-1}>
+            {variant === 'event' ? '追更事件详情' : '更新与来源'}
+          </DialogTitle>
+          <DialogDescription className={styles.book}>
+            <span className={styles.bookTitle}>{novel.title}</span>
+            {state && <span className={styles.bookMeta}>本地已入库 {state.chapterCount ?? novel.chapterCount ?? 0} 章</span>}
+          </DialogDescription>
         </DialogHeader>
         <Tabs
           value={activeTab}
@@ -252,7 +257,6 @@ export default function NovelFollowupDialog({
           {variant === 'settings' && (
             <TabsList className={styles.navigation} aria-label="更新与来源分类">
               <TabsTrigger value="web" disabled={busy}>
-                <Globe2 aria-hidden="true" />
                 网页追更
                 {(hasUnsavedSettings || sourceEditing) && (
                   <span className={styles.draftDot}>
@@ -261,11 +265,9 @@ export default function NovelFollowupDialog({
                 )}
               </TabsTrigger>
               <TabsTrigger value="files" disabled={busy}>
-                <Files aria-hidden="true" />
                 附加文件
               </TabsTrigger>
               <TabsTrigger value="reference" disabled={busy}>
-                <ListOrdered aria-hidden="true" />
                 章节目录
               </TabsTrigger>
             </TabsList>
@@ -287,114 +289,132 @@ export default function NovelFollowupDialog({
                   {(variant === 'settings' || showSettings) && (
                     <div className={styles.webSettings}>
                       {variant === 'settings' && (
-                        <>
-                          <section className={styles.section} aria-labelledby="novel-web-source-title">
+                        <section className={styles.section} aria-label="网页来源">
+                          {(state.sourceUrl || sourceEditing) && (
                             <div className={styles.sectionHead}>
-                              <h3 id="novel-web-source-title">网页追更</h3>
-                              <span className={styles.badge} data-tone={state.hasConfig ? (state.enabled ? 'partial' : 'idle') : undefined}>
-                                {state.hasConfig ? (state.enabled ? `每 ${state.intervalHours} 小时` : '已暂停') : '未配置来源'}
-                              </span>
+                              <h3>网页来源</h3>
+                              {sourceEditing ? (
+                                <span className={styles.count}>编辑中</span>
+                              ) : (
+                                <Button ref={sourceActionRef} variant="ghost" size="sm" disabled={busy || state.result === 'running'} onClick={editSource}>
+                                  {state.hasConfig ? '调整网页来源' : '绑定网页来源'}
+                                </Button>
+                              )}
                             </div>
-                            <p className="dialog-frame-hint">从网页目录检查新章，并通过正文抓取任务入库。</p>
-                            {state.importSourceLabel && state.hasConfig && (
-                              <p className="dialog-frame-hint">文件导入的书籍首次接入网页追更时，请先用「章节目录」页签核对章节对应关系。</p>
-                            )}
-                            {state.sourceUrl ? (
-                              <div className={styles.entry}>
-                                <dl className={styles.facts}>
-                                  <div>
-                                    <dt>作品目录</dt>
-                                    <dd>{state.sourceUrl}</dd>
-                                  </div>
-                                </dl>
-                                <div className={styles.entryActions}>
-                                  <Button variant="outline" size="sm" disabled={busy || sourceEditing || state.result === 'running'} onClick={editSource}>
-                                    {state.hasConfig ? '调整网页来源' : '绑定网页来源'}
-                                  </Button>
-                                </div>
-                              </div>
-                            ) : (
-                              <>
-                                <p className={styles.empty}>
-                                  {state.importSourceLabel
-                                    ? '当前书籍已有文件导入内容，尚未配置可抓取正文的网页来源。可绑定网页来源自动追更，或使用「附加文件」页签检查文件版本。'
-                                    : '尚未配置可抓取正文的网页来源。可绑定网页来源，或使用「附加文件」页签检查版本。'}
-                                </p>
-                                <div className={styles.entryActions}>
-                                  <Button variant="secondary" size="sm" disabled={busy || sourceEditing || state.result === 'running'} onClick={editSource}>
-                                    {state.hasConfig ? '调整网页来源' : '绑定网页来源'}
-                                  </Button>
-                                </div>
-                              </>
-                            )}
-                            {sourceEditing && (
-                              <div className={[styles.entry, styles.sourceEditor].join(' ')}>
-                                <Label htmlFor="novel-web-source-url">作品目录链接</Label>
+                          )}
+                          {sourceEditing ? (
+                            <div className={styles.sourceEditor}>
+                              <FormField
+                                label="作品目录链接"
+                                htmlFor="novel-web-source-url"
+                                hint="支持站点自动使用内置规则。保存来源后，可另行开启自动追更。"
+                                error={sourceError}
+                              >
                                 <Input
-                                  id="novel-web-source-url"
                                   type="url"
+                                  autoFocus
                                   value={sourceUrl}
                                   disabled={busy}
+                                  placeholder="粘贴作品的目录链接"
                                   onChange={(event) => {
                                     setSourceUrl(event.target.value)
                                     setSelectors('')
                                     setEncoding('')
                                   }}
                                 />
-                                <p className="dialog-frame-hint">支持站点自动使用内置规则。保存来源后，可另行开启自动追更。</p>
-                                <MotionDetails>
-                                  <summary>高级配置：自定义选择器</summary>
-                                  <Label htmlFor="novel-web-encoding">网页编码（留空使用站点规则）</Label>
-                                  <Input
-                                    id="novel-web-encoding"
-                                    value={encoding}
-                                    disabled={busy}
-                                    onChange={(event) => setEncoding(event.target.value)}
-                                    placeholder="utf-8 / gbk"
-                                  />
-                                  <Label htmlFor="novel-web-selectors">抓取选择器（JSON）</Label>
-                                  <Textarea
-                                    id="novel-web-selectors"
-                                    value={selectors}
-                                    disabled={busy}
-                                    onChange={(event) => setSelectors(event.target.value)}
-                                    placeholder={'{"chapterList":".chapters a","chapterContent":"#content"}'}
-                                  />
-                                </MotionDetails>
-                                {sourceError && <p role="alert">{sourceError}</p>}
-                                <div className={styles.sourceActions}>
-                                  <Button size="sm" disabled={busy || !sourceUrl.trim()} onClick={() => void saveSource()}>
-                                    保存网页来源
-                                  </Button>
-                                  <Button variant="outline" size="sm" disabled={busy} onClick={() => setSourceEditing(false)}>
-                                    取消来源调整
-                                  </Button>
+                              </FormField>
+                              <MotionDetails className={styles.advanced}>
+                                <summary>高级配置：自定义选择器</summary>
+                                <div className={styles.advancedFields}>
+                                  <FormField label="网页编码（留空使用站点规则）" htmlFor="novel-web-encoding">
+                                    <Input value={encoding} disabled={busy} onChange={(event) => setEncoding(event.target.value)} placeholder="utf-8 / gbk" />
+                                  </FormField>
+                                  <FormField label="抓取选择器（JSON）" htmlFor="novel-web-selectors">
+                                    <Textarea
+                                      value={selectors}
+                                      disabled={busy}
+                                      onChange={(event) => setSelectors(event.target.value)}
+                                      placeholder={'{"chapterList":".chapters a","chapterContent":"#content"}'}
+                                    />
+                                  </FormField>
                                 </div>
+                              </MotionDetails>
+                              <div className={styles.sourceActions}>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={busy}
+                                  onClick={() => {
+                                    setSourceEditing(false)
+                                    requestAnimationFrame(() => sourceActionRef.current?.focus({ preventScroll: true }))
+                                  }}
+                                >
+                                  取消来源调整
+                                </Button>
+                                <Button size="sm" disabled={busy || !sourceUrl.trim()} onClick={() => void saveSource()}>
+                                  保存网页来源
+                                </Button>
                               </div>
-                            )}
-                          </section>
-                        </>
+                            </div>
+                          ) : state.sourceUrl ? (
+                            <div className={styles.sourceAddress}>
+                              <Globe2 aria-hidden="true" />
+                              <div>
+                                <p className={styles.sourceUrl}>{state.sourceUrl}</p>
+                                <p className="dialog-frame-hint">从此目录检查新章，并抓取正文入库。</p>
+                              </div>
+                            </div>
+                          ) : (
+                            <EmptyState
+                              icon={<Globe2 />}
+                              message="还没有网页来源"
+                              hint={
+                                state.importSourceLabel
+                                  ? '已有文件导入内容。绑定作品目录后可检查网页新章，也可在「附加文件」中更新文件版本。'
+                                  : '绑定作品目录后可检查新章，也可在「附加文件」中更新文件版本。'
+                              }
+                              action={
+                                <Button ref={sourceActionRef} size="sm" disabled={busy || state.result === 'running'} onClick={editSource}>
+                                  {state.hasConfig ? '调整网页来源' : '绑定网页来源'}
+                                </Button>
+                              }
+                            />
+                          )}
+                          {state.importSourceLabel && (
+                            <p className="dialog-frame-hint">
+                              文件导入：{state.importSourceLabel}
+                              {state.hasConfig ? '。首次接入网页追更，请先在「章节目录」核对对应关系。' : ''}
+                            </p>
+                          )}
+                        </section>
                       )}
                       {(variant === 'event' || state.hasConfig || state.enabled) && (
-                        <div className={styles.schedule}>
+                        <section className={styles.schedule} aria-label="追更设置">
                           {showSettings && (
                             <>
-                              <div className={styles.setting}>
-                                <div>
-                                  <Label htmlFor="followup-enabled">自动追更</Label>
-                                  <p className="dialog-frame-hint">定期检查目录，有新章节时自动入库。</p>
-                                </div>
-                                <Checkbox
+                              <Label htmlFor="followup-enabled" className={styles.setting}>
+                                <span className={styles.settingCopy}>
+                                  <span className={styles.settingName}>自动追更</span>
+                                  <span id="followup-enabled-hint" className="dialog-frame-hint">
+                                    定期检查目录，有新章节时自动入库。
+                                  </span>
+                                </span>
+                                <Switch
                                   id="followup-enabled"
+                                  aria-label="自动追更"
+                                  aria-describedby="followup-enabled-hint"
                                   checked={enabled}
                                   disabled={busy || (!state.hasConfig && !enabled)}
-                                  onCheckedChange={(value) => setEnabled(value === true)}
+                                  onCheckedChange={setEnabled}
                                 />
-                              </div>
+                              </Label>
                               {!state.hasConfig && <p className="dialog-frame-hint">尚未绑定可抓取正文的网页来源，请在小说管理的「更新与来源」中配置。</p>}
                               {!state.ongoing && <p className="dialog-frame-hint">已完结作品默认不追更；如需继续检查，可手动开启。</p>}
                               <div className={styles.frequency}>
-                                <Label id="followup-frequency">检查频率</Label>
+                                <div className={styles.settingCopy}>
+                                  <Label id="followup-frequency">检查频率</Label>
+                                  <p className="dialog-frame-hint">无新章时降低频率，失败后自动重试。</p>
+                                </div>
                                 <SearchSelect
                                   aria-labelledby="followup-frequency"
                                   value={hours}
@@ -402,19 +422,18 @@ export default function NovelFollowupDialog({
                                   disabled={busy}
                                   options={[1, 3, 6, 12, 24].map((h) => ({ value: String(h), label: `每 ${h} 小时` }))}
                                 />
-                                <p className="dialog-frame-hint">无新章时逐步降低频率，失败后自动重试。</p>
                               </div>
+                              <p className="dialog-frame-hint">暂停追更后，正在执行的任务仍会完成。</p>
                             </>
                           )}
-                          {showSettings && <p className="dialog-frame-hint">暂停追更后，正在执行的任务仍会完成。</p>}
-                        </div>
+                        </section>
                       )}
                     </div>
                   )}
                   {(variant === 'event' || state.hasConfig || state.enabled) && (
                     <section className={styles.result} aria-label="最近检查">
                       <div className={styles.sectionHead}>
-                        <span className="dialog-frame-section-label">{variant === 'event' ? '最新检查结果' : '最近检查'}</span>
+                        <h3>{variant === 'event' ? '最新检查结果' : '最近检查'}</h3>
                         <span
                           className={styles.badge}
                           data-tone={state.result === 'failed' || state.result === 'partial' ? 'failed' : state.result === 'running' ? 'partial' : undefined}
@@ -531,56 +550,54 @@ export default function NovelFollowupDialog({
               />
             )}
           </DialogBody>
-          <DialogFooter className={styles.footer} data-web-actions={webActionsVisible} aria-busy={busy}>
-            {(variant === 'settings' || !editing) && (
-              <Button variant="ghost" disabled={busy} onClick={onClose}>
-                关闭
-              </Button>
-            )}
-            {webActionsVisible ? (
-              <>
-                {variant === 'event' && editing ? (
-                  <Button
-                    variant="outline"
-                    disabled={busy}
-                    onClick={() => {
-                      setEditing(false)
-                      setEnabled(state?.enabled || false)
-                      setHours(String(state?.intervalHours || 6))
-                    }}
-                  >
-                    取消调整
-                  </Button>
-                ) : (
-                  (variant === 'event' || state?.hasConfig || state?.enabled) && (
+          <DialogFooter className={styles.footer} aria-busy={busy}>
+            {variant === 'settings' && activeTab === 'web' && hasUnsavedSettings && !sourceEditing && <p className={styles.footerHint}>设置尚未保存</p>}
+            <div className={styles.footerActions}>
+              {(variant === 'settings' || !editing) && (
+                <Button variant="ghost" disabled={busy} onClick={onClose}>
+                  关闭
+                </Button>
+              )}
+              {webActionsVisible && !sourceEditing && (
+                <>
+                  {variant === 'event' && editing ? (
                     <Button
                       variant="outline"
-                      onClick={() => void act(false)}
-                      disabled={busy || sourceEditing || !state?.hasConfig || state.result === 'running'}
+                      disabled={busy}
+                      onClick={() => {
+                        setEditing(false)
+                        setEnabled(state?.enabled || false)
+                        setHours(String(state?.intervalHours || 6))
+                      }}
                     >
-                      {state?.result === 'running' ? '更新中…' : variant === 'settings' ? '检查网页更新' : '检查更新'}
+                      取消调整
                     </Button>
-                  )
-                )}
-                {showSettings ? (
-                  (variant === 'event' || state?.hasConfig || state?.enabled) && (
-                    <Button
-                      className={styles.saveButton}
-                      onClick={() => void act(true)}
-                      disabled={busy || !state || (variant === 'settings' && ((!state.hasConfig && enabled) || sourceEditing))}
-                    >
-                      {variant === 'settings' ? '保存网页追更设置' : '保存设置'}
+                  ) : (
+                    (variant === 'event' || state?.hasConfig || state?.enabled) && (
+                      <Button
+                        ref={checkButtonRef}
+                        variant={variant === 'settings' && !hasUnsavedSettings ? 'default' : 'outline'}
+                        onClick={() => void act(false)}
+                        disabled={busy || !state?.hasConfig || state.result === 'running'}
+                      >
+                        {state?.result === 'running' ? '更新中…' : variant === 'settings' ? '检查网页更新' : '检查更新'}
+                      </Button>
+                    )
+                  )}
+                  {showSettings ? (
+                    <MotionPresence asChild open={variant === 'event' || hasUnsavedSettings}>
+                      <Button onClick={() => void act(true)} disabled={busy || !state || (variant === 'settings' && !state.hasConfig && enabled)}>
+                        {variant === 'settings' ? '保存网页追更设置' : '保存设置'}
+                      </Button>
+                    </MotionPresence>
+                  ) : (
+                    <Button variant="secondary" onClick={() => setEditing(true)} disabled={busy || !state}>
+                      调整追更设置
                     </Button>
-                  )
-                ) : (
-                  <Button variant="secondary" onClick={() => setEditing(true)} disabled={busy || !state}>
-                    调整追更设置
-                  </Button>
-                )}
-              </>
-            ) : (
-              <p className={styles.footerHint}>{activeTab === 'files' ? '先预览章节差异，再确认入库。' : '预览章节对应关系后，再确认融合。'}</p>
-            )}
+                  )}
+                </>
+              )}
+            </div>
           </DialogFooter>
         </Tabs>
       </DialogFrame>

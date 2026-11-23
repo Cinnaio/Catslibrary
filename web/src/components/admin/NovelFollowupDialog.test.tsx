@@ -21,33 +21,39 @@ const state = { enabled: false, intervalHours: 6, nextCheckAt: 0, checkedAt: 0, 
 it('会话失效保留追更开关并明确等待重新登录', async () => {
   vi.stubGlobal(
     'fetch',
-    vi
-      .fn()
-      .mockResolvedValue({
-        ok: true,
-        json: async () => ({ ...state, enabled: true, result: 'failed', blockedReason: '请重新登录 PO18', message: '请重新登录 PO18' }),
-      }),
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ ...state, enabled: true, result: 'failed', blockedReason: '请重新登录 PO18', message: '请重新登录 PO18' }),
+    }),
   )
   render(<NovelFollowupDialog novel={{ id: 'n', title: '测试书' }} onClose={() => {}} />)
   expect(await screen.findByText('等待书源恢复')).toBeVisible()
-  expect(screen.getByRole('checkbox', { name: '自动追更' })).toBeChecked()
+  expect(screen.getByRole('switch', { name: '自动追更' })).toBeChecked()
 })
 afterEach(() => vi.unstubAllGlobals())
-it('保存自动追更开关及频率，并展示保存结果', async () => {
-  const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => state })
+it('仅在设置改变后显示保存，保存成功后恢复检查更新动作', async () => {
+  const fetch = vi
+    .fn()
+    .mockResolvedValueOnce({ ok: true, json: async () => state })
+    .mockResolvedValue({ ok: true, json: async () => ({ ...state, enabled: true, intervalHours: 3 }) })
   vi.stubGlobal('fetch', fetch)
   render(<NovelFollowupDialog novel={{ id: 'n', title: '测试书' }} onClose={() => {}} />)
-  fireEvent.click(await screen.findByRole('checkbox', { name: '自动追更' }))
+  const toggle = await screen.findByRole('switch', { name: '自动追更' })
+  expect(screen.queryByRole('button', { name: '保存网页追更设置' })).not.toBeInTheDocument()
+  fireEvent.click(toggle)
   fireEvent.change(screen.getByRole('combobox', { name: '检查频率' }), { target: { value: '3' } })
   fireEvent.click(screen.getByRole('button', { name: '保存网页追更设置' }))
   await screen.findByText('追更设置已保存')
   expect(JSON.parse(fetch.mock.calls[1]![1].body)).toEqual({ novelId: 'n', action: 'followup-save', enabled: true, intervalHours: 3 })
+  expect(screen.queryByRole('button', { name: '保存网页追更设置' })).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '检查网页更新' })).toBeEnabled()
+  await waitFor(() => expect(screen.getByRole('button', { name: '检查网页更新' })).toHaveFocus())
 })
 it('未配置爬虫时不能开启或手动更新', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ...state, hasConfig: false }) }))
   render(<NovelFollowupDialog novel={{ id: 'n', title: '测试书' }} onClose={() => {}} />)
   await screen.findByRole('button', { name: '绑定网页来源' })
-  expect(screen.queryByRole('checkbox', { name: '自动追更' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('switch', { name: '自动追更' })).not.toBeInTheDocument()
   expect(screen.queryByRole('combobox', { name: '检查频率' })).not.toBeInTheDocument()
   expect(screen.queryByText(/请先在抓取中心/)).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: '检查网页更新' })).not.toBeInTheDocument()
@@ -56,7 +62,7 @@ it('完结作品默认关闭但允许手动开启并保存', async () => {
   const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ...state, ongoing: false }) })
   vi.stubGlobal('fetch', fetch)
   render(<NovelFollowupDialog novel={{ id: 'done', title: '完结作品' }} onClose={() => {}} />)
-  const checkbox = await screen.findByRole('checkbox', { name: '自动追更' })
+  const checkbox = await screen.findByRole('switch', { name: '自动追更' })
   expect(checkbox).toBeEnabled()
   expect(checkbox).not.toBeChecked()
   expect(screen.getByText('已完结作品默认不追更；如需继续检查，可手动开启。')).toBeInTheDocument()
@@ -72,7 +78,7 @@ it('手动更新出错时显示服务端原因并允许重试', async () => {
     .mockResolvedValueOnce({ ok: false, json: async () => ({ error: '源站不可达' }) })
   vi.stubGlobal('fetch', fetch)
   render(<NovelFollowupDialog novel={{ id: 'n', title: '测试书' }} onClose={() => {}} />)
-  await screen.findByRole('checkbox', { name: '自动追更' })
+  await screen.findByRole('switch', { name: '自动追更' })
   fireEvent.click(screen.getByRole('button', { name: '检查网页更新' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('源站不可达')
   await waitFor(() => expect(screen.getByRole('button', { name: '检查网页更新' })).toBeEnabled())
@@ -101,10 +107,11 @@ it('TXT 书可绑定网页来源，但来源保存不会隐式开启追更', asy
   vi.stubGlobal('fetch', fetch)
   render(<NovelFollowupDialog novel={{ id: 'txt', title: '测试书' }} onClose={() => {}} />)
   fireEvent.click(await screen.findByRole('button', { name: '绑定网页来源' }))
-  expect(screen.getByText(/本地已入库 52 章/)).toHaveTextContent('测试书.txt')
+  expect(screen.getByText(/本地已入库 52 章/)).toBeVisible()
+  expect(screen.getByText(/文件导入：测试书.txt/)).toBeVisible()
   fireEvent.change(screen.getByLabelText('作品目录链接'), { target: { value: 'https://source.example/books/123' } })
   fireEvent.click(screen.getByRole('button', { name: '保存网页来源' }))
-  expect(await screen.findByRole('checkbox', { name: '自动追更' })).not.toBeChecked()
+  expect(await screen.findByRole('switch', { name: '自动追更' })).not.toBeChecked()
   expect(JSON.parse(fetch.mock.calls[1]![1].body)).toEqual({ novelId: 'txt', action: 'followup-source-save', sourceUrl: 'https://source.example/books/123' })
   expect(fetch).toHaveBeenCalledTimes(2)
 })
@@ -116,7 +123,7 @@ it('网页配置失效后仍可明确暂停，保留已有频率', async () => {
     .mockResolvedValue({ ok: true, json: async () => ({ ...state, enabled: false, hasConfig: false, intervalHours: 12 }) })
   vi.stubGlobal('fetch', fetch)
   render(<NovelFollowupDialog novel={{ id: 'stale', title: '失效来源' }} onClose={() => {}} />)
-  const checkbox = await screen.findByRole('checkbox', { name: '自动追更' })
+  const checkbox = await screen.findByRole('switch', { name: '自动追更' })
   expect(checkbox).toBeEnabled()
   fireEvent.click(checkbox)
   fireEvent.click(screen.getByRole('button', { name: '保存网页追更设置' }))
@@ -129,15 +136,15 @@ it('切换来源页签保留未保存的追更设置，文件页不显示网页�
   const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => state })
   vi.stubGlobal('fetch', fetch)
   render(<NovelFollowupDialog novel={{ id: 'n', title: '测试书' }} onClose={() => {}} />)
-  await user.click(await screen.findByRole('checkbox', { name: '自动追更' }))
+  await user.click(await screen.findByRole('switch', { name: '自动追更' }))
   await user.selectOptions(screen.getByRole('combobox', { name: '检查频率' }), '3')
   await user.click(screen.getByRole('tab', { name: '附加文件' }))
-  expect(screen.queryByRole('checkbox', { name: '自动追更' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('switch', { name: '自动追更' })).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: '保存网页追更设置' })).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: '检查网页更新' })).not.toBeInTheDocument()
-  expect(screen.getByText('先预览章节差异，再确认入库。')).toBeVisible()
+  expect(screen.getByRole('button', { name: /^关闭$/ })).toBeVisible()
   await user.click(screen.getByRole('tab', { name: /网页追更/ }))
-  expect(screen.getByRole('checkbox', { name: '自动追更' })).toBeChecked()
+  expect(screen.getByRole('switch', { name: '自动追更' })).toBeChecked()
   expect(screen.getByRole('combobox', { name: '检查频率' })).toHaveValue('3')
   await user.click(screen.getByRole('button', { name: '保存网页追更设置' }))
   await screen.findByText('追更设置已保存')
@@ -155,6 +162,8 @@ it('切换页签保留网页来源输入，不因导航请求保存', async () =
   await user.click(screen.getByRole('tab', { name: /网页追更/ }))
   expect(screen.getByLabelText('作品目录链接')).toHaveValue('https://example.com/book')
   expect(fetch).toHaveBeenCalledTimes(1)
+  await user.click(screen.getByRole('button', { name: '取消来源调整' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: '绑定网页来源' })).toHaveFocus())
 })
 
 it('事件详情保持直接查看和取消设置调整的流程', async () => {
@@ -169,8 +178,8 @@ it('事件详情保持直接查看和取消设置调整的流程', async () => {
   expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
   expect(screen.queryByRole('tabpanel')).not.toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: '调整追更设置' }))
-  await user.click(screen.getByRole('checkbox', { name: '自动追更' }))
+  await user.click(screen.getByRole('switch', { name: '自动追更' }))
   await user.click(screen.getByRole('button', { name: '取消调整' }))
   await user.click(screen.getByRole('button', { name: '调整追更设置' }))
-  expect(screen.getByRole('checkbox', { name: '自动追更' })).not.toBeChecked()
+  expect(screen.getByRole('switch', { name: '自动追更' })).not.toBeChecked()
 })

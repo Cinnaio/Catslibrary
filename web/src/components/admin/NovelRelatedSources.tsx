@@ -3,6 +3,9 @@ import type { SupplementaryOverview } from '@shared/supplementary-source'
 import { scrapeApi, supplementarySourceApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { TabsContent } from '@/components/ui/tabs'
+import { Files, ListOrdered } from 'lucide-react'
+import EmptyState from '@/components/shared/EmptyState'
+import { MotionDetails } from '@/components/ui/motion'
 import styles from './NovelFollowupDialog.module.css'
 import SupplementarySourcesDialog from './SupplementarySourcesDialog'
 
@@ -84,22 +87,32 @@ export default function NovelRelatedSources({ novel, onUpdated, activeTab }: { n
     setSourceId(id)
     setFilesOpen(true)
   }
+  const fileAction = (
+    <Button variant="secondary" size="sm" onClick={() => openFiles()}>
+      绑定附加源
+    </Button>
+  )
+  const referenceAction = (
+    <Button variant="secondary" size="sm" onClick={() => setMergeOpen(true)}>
+      读取参考目录并预览
+    </Button>
+  )
   return (
     <div className={styles.sources} data-tabbed={activeTab !== undefined}>
       <SourcePanel value="files" activeTab={activeTab}>
         <section className={styles.section} aria-labelledby="novel-file-source-title">
           <div className={styles.sectionHead}>
-            <h3 id="novel-file-source-title">附加文件更新</h3>
-            <span className={styles.count} aria-label="已绑定附加源数量">
-              {overview ? `${fileBindings.length} 个绑定` : '读取中'}
-            </span>
+            <div className={styles.sectionTitle}>
+              <h3 id="novel-file-source-title">文件来源</h3>
+              {overview && fileBindings.length > 0 && (
+                <span className={styles.count} aria-label="已绑定附加源数量">
+                  {fileBindings.length} 个绑定
+                </span>
+              )}
+            </div>
+            {(!overview || fileBindings.length > 0 || fileError) && fileAction}
           </div>
-          <p className="dialog-frame-hint">检查 TXT／EPUB 文件版本，下载并预览实际章节差异后确认入库。</p>
-          <div className={styles.entryActions}>
-            <Button variant="secondary" size="sm" onClick={() => openFiles()}>
-              绑定附加源
-            </Button>
-          </div>
+          <p className="dialog-frame-hint">检查 TXT／EPUB 文件版本，预览章节差异后再确认入库。</p>
           {fileError && (
             <div role="alert" className={styles.inlineAlert}>
               <p>{fileError}</p>
@@ -108,57 +121,76 @@ export default function NovelRelatedSources({ novel, onUpdated, activeTab }: { n
               </Button>
             </div>
           )}
-          {!overview && !fileError && <p role="status">正在读取附加源…</p>}
-          {overview && !fileBindings.length && <p className={styles.empty}>尚未绑定附加源，可从共享目录选择文件并绑定到这本书。</p>}
-          {fileBindings.map((binding) => {
-            const source = overview!.sources.find((item) => item.id === binding.sourceId)
-            if (!source) return null
-            return (
-              <div className={[styles.entry, styles.fileEntry].join(' ')} key={binding.id}>
-                <div className={styles.entryHead}>
-                  <strong>{source.name}</strong>
-                  <span className={styles.badge} data-tone={statusTone(source.status)}>
-                    {statusText(source.status)}
-                  </span>
+          {!overview && !fileError && (
+            <p role="status" className={styles.loading}>
+              正在读取附加源…
+            </p>
+          )}
+          {overview && !fileBindings.length && !fileError && (
+            <EmptyState icon={<Files />} message="还没有文件来源" hint="从共享目录选择文件，绑定到这本书后即可检查新版本。" action={fileAction} />
+          )}
+          <div className={styles.sourceList}>
+            {fileBindings.map((binding, index) => {
+              const source = overview!.sources.find((item) => item.id === binding.sourceId)
+              if (!source) return null
+              return (
+                <div className={styles.entry} key={binding.id} style={{ animationDelay: `${Math.min(index, 6) * 30}ms` }}>
+                  <div className={styles.entryHead}>
+                    <strong>{source.name}</strong>
+                    <span className={styles.badge} data-tone={statusTone(source.status)}>
+                      {statusText(source.status)}
+                    </span>
+                  </div>
+                  <p className="dialog-frame-hint">
+                    {source.enabled ? `跟随来源设置 · 每 ${source.intervalHours} 小时自动检查文件更新` : '来源的自动检查已暂停'}
+                  </p>
+                  {source.error && (
+                    <p role="status" className={styles.sourceError}>
+                      {source.error}
+                    </p>
+                  )}
+                  <dl className={styles.sourceFacts}>
+                    <div>
+                      <dt>上次检查</dt>
+                      <dd>{time(source.checkedAt)}</dd>
+                    </div>
+                    <div>
+                      <dt>下次检查</dt>
+                      <dd>{source.enabled ? (source.nextCheckAt ? time(source.nextCheckAt) : '等待安排') : '已暂停'}</dd>
+                    </div>
+                  </dl>
+                  <div className={styles.candidateRow}>
+                    <div className={styles.settingCopy}>
+                      <span className={styles.factLabel}>候选文件</span>
+                      <p>{binding.candidates.length ? `${binding.candidates.length} 个版本 · 以预览为准` : '未找到匹配文件，请检查目录或绑定新的来源别名'}</p>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => openFiles(source.id)}>
+                      查看候选版本
+                    </Button>
+                  </div>
                 </div>
-                <p className="dialog-frame-hint">
-                  {source.enabled ? `跟随来源设置 · 每 ${source.intervalHours} 小时自动检查文件更新` : '来源的自动检查已暂停'}
-                </p>
-                {source.error && <p role="status">{source.error}</p>}
-                <dl className={styles.sourceFacts}>
-                  <div>
-                    <dt>上次检查</dt>
-                    <dd>{time(source.checkedAt)}</dd>
-                  </div>
-                  <div>
-                    <dt>下次检查</dt>
-                    <dd>{source.enabled ? (source.nextCheckAt ? time(source.nextCheckAt) : '等待安排') : '已暂停'}</dd>
-                  </div>
-                  <div className={styles.candidates}>
-                    <dt>候选文件</dt>
-                    <dd>{binding.candidates.length ? `${binding.candidates.length} 个版本 · 以预览为准` : '未找到匹配文件，请检查目录或绑定新的来源别名'}</dd>
-                  </div>
-                </dl>
-                <div className={styles.entryActions}>
-                  <Button variant="secondary" size="sm" onClick={() => openFiles(source.id)}>
-                    查看候选版本
-                  </Button>
-                </div>
-              </div>
-            )
-          })}
-          <p className="dialog-frame-hint">文件名进度仅作线索。共享目录共用检查频率；解除本书绑定不会暂停其他书籍。</p>
+              )
+            })}
+          </div>
+          <MotionDetails className={styles.help}>
+            <summary>文件更新说明</summary>
+            <p className="dialog-frame-hint">文件名进度仅作线索。共享目录共用检查频率；解除本书绑定不会暂停其他书籍。</p>
+          </MotionDetails>
         </section>
       </SourcePanel>
       <SourcePanel value="reference" activeTab={activeTab}>
         <section className={styles.section} aria-labelledby="novel-reference-title">
           <div className={styles.sectionHead}>
-            <h3 id="novel-reference-title">章节名与顺序</h3>
-            <span className={styles.count} aria-label="参考目录数量">
-              {bindings ? `${bindings.length} 个参考目录` : '读取中'}
-            </span>
+            <div className={styles.sectionTitle}>
+              <h3 id="novel-reference-title">参考目录</h3>
+              {bindings && bindings.length > 0 && (
+                <span className={styles.count} aria-label="参考目录数量">
+                  {bindings.length} 个目录
+                </span>
+              )}
+            </div>
           </div>
-          <p className="dialog-frame-hint">使用参考目录核对章节名和顺序，保留已确认的对应关系。</p>
+          <p className="dialog-frame-hint">核对章节名与顺序，预览对应关系后再确认融合。</p>
           {referenceError && (
             <div role="alert" className={styles.inlineAlert}>
               <p>{referenceError}</p>
@@ -167,33 +199,45 @@ export default function NovelRelatedSources({ novel, onUpdated, activeTab }: { n
               </Button>
             </div>
           )}
-          {!bindings && !referenceError && <p role="status">正在读取参考目录…</p>}
-          {bindings && !bindings.length && <p className={styles.empty}>尚未绑定参考目录。可按书名和作者搜索，或粘贴目录链接。</p>}
-          {bindings?.map((binding) => (
-            <div className={styles.entry} key={String(binding.id)}>
-              <div className={styles.entryHead}>
-                <strong>{String(binding.site || '参考目录')}</strong>
-                {Boolean(binding.isPrimary) && (
-                  <span className={styles.badge} data-tone="primary">
-                    当前优先使用
-                  </span>
-                )}
-              </div>
-              <p className={styles.sourceUrl}>{String(binding.sourceUrl || '')}</p>
-              <dl className={styles.facts}>
-                <div>
-                  <dt>上次融合</dt>
-                  <dd>{Number(binding.lastSyncedAt) ? time(Number(binding.lastSyncedAt)) : '已读取来源，尚未确认融合'}</dd>
+          {!bindings && !referenceError && (
+            <p role="status" className={styles.loading}>
+              正在读取参考目录…
+            </p>
+          )}
+          {bindings && !bindings.length && !referenceError && (
+            <EmptyState
+              icon={<ListOrdered />}
+              message="还没有参考目录"
+              hint="按书名和作者搜索，或粘贴目录链接，核对本地章节的名称与顺序。"
+              action={referenceAction}
+            />
+          )}
+          <div className={styles.sourceList}>
+            {bindings?.map((binding, index) => (
+              <div className={styles.entry} key={String(binding.id)} style={{ animationDelay: `${Math.min(index, 6) * 30}ms` }}>
+                <div className={styles.entryHead}>
+                  <strong>{String(binding.site || '参考目录')}</strong>
+                  {Boolean(binding.isPrimary) && (
+                    <span className={styles.badge} data-tone="primary">
+                      当前优先使用
+                    </span>
+                  )}
                 </div>
-              </dl>
-            </div>
-          ))}
-          <div className={styles.entryActions}>
-            <Button size="sm" onClick={() => setMergeOpen(true)}>
-              读取参考目录并预览
-            </Button>
+                <p className={styles.sourceUrl}>{String(binding.sourceUrl || '')}</p>
+                <dl className={styles.facts}>
+                  <div>
+                    <dt>上次融合</dt>
+                    <dd>{Number(binding.lastSyncedAt) ? time(Number(binding.lastSyncedAt)) : '已读取来源，尚未确认融合'}</dd>
+                  </div>
+                </dl>
+              </div>
+            ))}
           </div>
-          <p className="dialog-frame-hint">新增章节可继续融合；暂未匹配时保留 TXT 标题。正文版本、插章与映射冲突需要确认，打赏章等有效章节继续保留。</p>
+          {(!bindings || bindings.length > 0 || referenceError) && <div className={styles.entryActions}>{referenceAction}</div>}
+          <MotionDetails className={styles.help}>
+            <summary>目录融合说明</summary>
+            <p className="dialog-frame-hint">新增章节可继续融合；暂未匹配时保留 TXT 标题。正文版本、插章与映射冲突需要确认，打赏章等有效章节继续保留。</p>
+          </MotionDetails>
         </section>
       </SourcePanel>
       {filesOpen && (
