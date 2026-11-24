@@ -64,6 +64,8 @@ export interface ScrapeAdapter {
     isBlocked(db: DbClient): Promise<boolean>
     message(previous?: string): string
   }
+  /** 可选：进程内后台维护（会话保活、自动重登等）。API 进程启动时调用一次。 */
+  background?: { start(db: Db): void }
   legacyActions?: { search?: string; account?: string; titles?: string }
 }
 

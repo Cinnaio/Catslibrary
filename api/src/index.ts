@@ -3,6 +3,7 @@ import { pruneImportSnapshots } from './services/book-import-state'
 import { runFollowupTick } from './services/novel-followup'
 import { runSupplementaryTick } from './services/supplementary-source'
 import { makeDeps, fireJob } from './services/scraper/runtime'
+import { scrapeAdapters } from './services/scraper/sources'
 import { serve } from '@hono/node-server'
 import { app } from './app'
 import { loadConfig } from './config'
@@ -152,6 +153,17 @@ async function start() {
   }, 60000)
   followupTimer.unref()
   void checkFollowups()
+  // 书源自带的后台维护（会话保活、自动重登）：只在 API 进程里跑，不依赖后台页面是否打开。
+  if (config.configured) {
+    for (const adapter of scrapeAdapters()) {
+      if (!adapter.background) continue
+      try {
+        adapter.background.start(getDb())
+      } catch (error) {
+        console.error(`[source-background] ${adapter.id} 启动失败:`, (error as Error)?.message || error)
+      }
+    }
+  }
   let supplementaryRunning = false
   const supplementaryTimer = setInterval(() => {
     if (supplementaryRunning || !loadConfig().configured) return
