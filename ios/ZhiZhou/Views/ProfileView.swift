@@ -24,13 +24,22 @@ struct ProfileView: View {
 
     var body: some View {
         GeometryReader { geometry in
+            let isIPad = ReadingSpaceWindowLayout.usesIPadLayout
+            let contentWidth = min(geometry.size.width, isIPad ? 960 : 700)
+            let isWideWindow = isIPad && geometry.size.width >= 700
+            let coverHeight = isWideWindow
+                ? min(320, max(280, geometry.size.width * 0.26))
+                : max(246, geometry.safeAreaInsets.top + 187)
+            let compactSpacing = isWideWindow && !dynamicTypeSize.isAccessibilitySize
+
             ScrollView {
                 VStack(spacing: 0) {
-                    profileCover(topInset: geometry.safeAreaInsets.top)
-                    profilePaper
+                    profileCover(topInset: geometry.safeAreaInsets.top, height: coverHeight, contentWidth: contentWidth)
+                    profilePaper(contentWidth: contentWidth, compactSpacing: compactSpacing)
                         .padding(.top, -28)
                 }
-                .frame(maxWidth: 700)
+                // iPad 的窗景与纸面通栏，只有内容和封面控件收在居中的可读宽度内。
+                .frame(maxWidth: isIPad ? .infinity : 700)
                 .frame(maxWidth: .infinity)
                 .buttonStyle(.plain)
             }
@@ -51,10 +60,8 @@ struct ProfileView: View {
         }
     }
 
-    private func profileCover(topInset: CGFloat) -> some View {
-        let height = max(246, topInset + 187)
-
-        return GeometryReader { geometry in
+    private func profileCover(topInset: CGFloat, height: CGFloat, contentWidth: CGFloat) -> some View {
+        GeometryReader { geometry in
             let pullDistance = max(0, geometry.frame(in: .named("profileScroll")).minY)
             let coverScale = reduceMotion ? 1 : 1 + pullDistance / geometry.size.height * 0.08
 
@@ -106,6 +113,8 @@ struct ProfileView: View {
                 .padding(.bottom, 18)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
             }
+            .frame(maxWidth: contentWidth)
+            .frame(maxWidth: .infinity)
         }
         .overlay(alignment: .top) {
             HStack(spacing: 16) {
@@ -128,15 +137,16 @@ struct ProfileView: View {
             }
             .padding(.horizontal, 24)
             .padding(.top, topInset + 12)
+            .frame(maxWidth: contentWidth)
         }
     }
 
-    private var profilePaper: some View {
+    private func profilePaper(contentWidth: CGFloat, compactSpacing: Bool) -> some View {
         VStack(spacing: 0) {
-            profileIdentity
+            profileIdentity(compactSpacing: compactSpacing)
             sectionPicker
-                .padding(.top, 16)
-                .padding(.bottom, 18)
+                .padding(.top, compactSpacing ? 12 : 16)
+                .padding(.bottom, compactSpacing ? 16 : 18)
             VStack(alignment: .leading, spacing: 24) {
                 switch section {
                 case .reading:
@@ -159,6 +169,7 @@ struct ProfileView: View {
             .padding(.bottom, 32)
         }
         .padding(.horizontal, 22)
+        .frame(maxWidth: contentWidth)
         .frame(maxWidth: .infinity, alignment: .top)
         .background {
             UnevenRoundedRectangle(topLeadingRadius: 32, topTrailingRadius: 32)
@@ -166,7 +177,7 @@ struct ProfileView: View {
         }
     }
 
-    private var profileIdentity: some View {
+    private func profileIdentity(compactSpacing: Bool) -> some View {
         VStack(spacing: 6) {
             Text("A READER’S ROOM")
                 .font(.caption2)
@@ -185,7 +196,7 @@ struct ProfileView: View {
         }
         .multilineTextAlignment(.center)
         .frame(maxWidth: .infinity)
-        .padding(.top, 62)
+        .padding(.top, compactSpacing ? 56 : 62)
         .overlay(alignment: .top) {
             if let user = appState.user {
                 NavigationLink { ProfileAccountView().profileDestinationNavigation() } label: {
