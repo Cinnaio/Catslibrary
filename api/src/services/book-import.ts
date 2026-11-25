@@ -1235,9 +1235,41 @@ function zipEntry(entries: Record<string, Uint8Array>, name: string): string {
   return value ? strFromU8(value) : ''
 }
 
+/** 解压上限：EPUB 属外部输入，声明大小与真实内容都不可信。 */
+const EPUB_MAX_BYTES = 64 * 1024 * 1024
+const EPUB_MAX_ENTRIES = 2000
+
+/**
+ * 受限解压 EPUB。
+ * fflate 会按中央目录里声明的未压缩大小**先分配**缓冲区，该字段可任意伪造
+ * （518 字节的文件声明 4×512 MiB 即可让进程分配 2 GiB）。因此必须在 filter
+ * 阶段按声明值累计并限额：filter 早于解压执行，超限直接抛错，不产生分配。
+ */
+function unzipEpubEntries(data: Uint8Array): Record<string, Uint8Array> {
+  let total = 0
+  let count = 0
+  return unzipSync(data, {
+    filter(entry) {
+      if (++count > EPUB_MAX_ENTRIES) throw new Error('EPUB 条目过多，最多支持 2000 项')
+      const name = entry.name
+      if (
+        !name ||
+        name.startsWith('/') ||
+        /[\\\x00-\x1f]/.test(name) ||
+        /^[A-Za-z]:/.test(name) ||
+        name.split('/').some((part) => part === '..' || part === '.')
+      )
+        throw new Error('EPUB 文件包含不安全路径')
+      total += entry.originalSize
+      if (total > EPUB_MAX_BYTES) throw new Error('EPUB 解压内容超过 64 MB，请拆分后导入')
+      return !name.endsWith('/')
+    },
+  })
+}
+
 /** 轻量 EPUB 解析：读取 OPF spine 顺序，正文以 XHTML 文本形式导入。 */
 export function parseEpubImport(data: Uint8Array, fileName = '未命名.epub'): BookImportPayload {
-  const entries = unzipSync(data)
+  const entries = unzipEpubEntries(data)
   const container = zipEntry(entries, 'META-INF/container.xml')
   const rootfile = container.match(/rootfile[^>]+full-path=["']([^"']+)["']/i)?.[1]
   if (!rootfile) throw new Error('EPUB 缺少有效的 OPF 目录')

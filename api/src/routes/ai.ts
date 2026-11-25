@@ -14,6 +14,7 @@ import { visibleNovelSql } from '../services/novel-visibility'
  * 管理侧：GET|PUT /settings、POST /test（连通性自检）、GET /usage（用量统计）。
  */
 import { Hono, type Context } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
 import { getDb } from '../db/pool'
 import { all, first, withTx } from '../db/query'
 import { AiError, chat, isTextAiConfigured, providerLabel, textProvider } from '../services/ai/client'
@@ -1136,8 +1137,14 @@ aiRoutes.delete('/cover/candidates/:id', requireAdmin(), async (c) => {
   return c.json({ ok: true }, 200, { 'Cache-Control': 'no-store' })
 })
 
+/** upload 之前就按 multipart 上限拒绝，避免 c.req.formData() 把任意大小请求体读进内存。 */
+const coverUploadLimit = bodyLimit({
+  maxSize: 8 * 1024 * 1024,
+  onError: (c) => c.json({ error: '封面上传请求过大，文件不能超过 5MB' }, 413),
+})
+
 /** 上传本地图片替换当前封面：直接覆盖 novel_covers（source='upload'），读者端立即生效。 */
-aiRoutes.post('/cover/upload', requireAdmin(), async (c) => {
+aiRoutes.post('/cover/upload', requireAdmin(), coverUploadLimit, async (c) => {
   const db = getDb()
   const form = await c.req.formData().catch(() => null)
   const file = form?.get('cover')

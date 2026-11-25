@@ -38,6 +38,7 @@ import { adminSiteSettingsRoutes, publicSiteSettingsRoutes } from './routes/site
 import { backupRoutes } from './routes/backups'
 import { backupMaintenance } from './middlewares/backup-maintenance'
 import { csrfProtection, browserSecurityHeaders } from './middlewares/browser-security'
+import { requestBodyLimit } from './middlewares/request-body-limit'
 import { readingDataRoutes } from './routes/reading-data'
 import { readingStatsRoutes } from './routes/reading-stats'
 import { readingKeepsakesRoutes } from './routes/reading-keepsakes'
@@ -49,6 +50,7 @@ import { checkReadiness } from './services/readiness'
 export const app = new Hono()
 
 app.use('*', browserSecurityHeaders())
+app.use('/api/*', requestBodyLimit())
 app.use('/api/*', cors())
 app.use('/api/*', csrfProtection())
 app.use('/api/*', async (c, next) => {

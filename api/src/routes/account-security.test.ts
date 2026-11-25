@@ -136,6 +136,11 @@ describe('三级权限与初始化保护', () => {
     }
     expect((await request('/ai/settings', {}, 'manager', 'PUT')).status).toBe(403)
     expect((await request('/scrape', { action: 'proxy', proxyBase: '' }, 'manager')).status).toBe(403)
+    // 全局出站代理的写入与读取同属超管能力：动作名不含 proxy- 前缀，必须单独断言。
+    expect(
+      (await request('/scrape', { action: 'save-proxy-config', proxyBase: 'http://127.0.0.1:7890', proxyBypass: '' }, 'manager'))
+        .status,
+    ).toBe(403)
     expect((await request('/admin-users', { action: 'settings', registerMode: 'open' }, 'manager')).status).toBe(403)
     for (const actor of ['manager', 'reader', undefined]) {
       expect((await request('/auth/mail-settings', {}, actor, 'PUT')).status).toBe(actor ? 403 : 401)

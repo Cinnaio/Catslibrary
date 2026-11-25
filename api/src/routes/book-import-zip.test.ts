@@ -144,3 +144,23 @@ it('解压超量在解压前拒绝，伪装图片拒绝', async () => {
   await expect(parseBookZip(zipSync({ 'huge.txt': new Uint8Array(65 * 1024 * 1024) }))).rejects.toThrow('解压内容超过')
   await expect(parseBookZip(zipSync({ '正文.txt': txt('a'), '封面.png': strToU8('<svg>伪装</svg>') }))).rejects.toThrow('图片类型不符')
 })
+it('EPUB 伪造中央目录声明大小在解压前被拒绝，不产生超大分配', async () => {
+  // fflate 按中央目录的未压缩大小先分配缓冲区，声明值完全可伪造：
+  // 500 字节的文件声明 2 GiB 就能让进程直接 OOM，因此必须靠 filter 阶段限额拦下。
+  const forged = new Uint8Array(zipSync({ 'META-INF/container.xml': strToU8('<container/>') }))
+  const cd = forged.findIndex(
+    (_, i) => forged[i] === 0x50 && forged[i + 1] === 0x4b && forged[i + 2] === 0x01 && forged[i + 3] === 0x02,
+  )
+  new DataView(forged.buffer).setUint32(cd + 24, 0x7fff_fff0, true)
+  const before = process.memoryUsage().arrayBuffers
+  const form = new FormData()
+  form.append('file', new File([Buffer.from(forged)], 'bomb.epub', { type: 'application/epub+zip' }))
+  const res = await app.request('/api/book-import/preview', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  })
+  expect(res.ok).toBe(false)
+  expect(((await res.json()) as { error: string }).error).toContain('64 MB')
+  expect((process.memoryUsage().arrayBuffers - before) / 1024 / 1024).toBeLessThan(128)
+})

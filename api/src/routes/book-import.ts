@@ -154,7 +154,12 @@ bookImportRoutes.post('/preview-zip', bodyLimit({ maxSize: 66 * 1024 * 1024, onE
 })
 
 /** 预览：文件在这里解析，URL 在这里抓取，之后所有流程只读数据库中的统一快照。 */
-bookImportRoutes.post('/preview', async (c) => {
+/** multipart 上限在 formData() 之前生效，文件本身仍按 25 MB 校验。 */
+const previewUploadLimit = bodyLimit({
+  maxSize: 32 * 1024 * 1024,
+  onError: (c) => c.json({ error: '文件不能超过 25 MB' }, 413),
+})
+bookImportRoutes.post('/preview', previewUploadLimit, async (c) => {
   const db = getDb()
   try {
     const contentType = c.req.header('content-type') || ''

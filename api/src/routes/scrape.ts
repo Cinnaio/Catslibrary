@@ -609,6 +609,10 @@ scrapeRoutes.post('/', async (c) => {
       }
     }
     case 'save-proxy-config': {
+      // 全局出站代理会接管模型密钥、书源会话与封面下载，与 proxy-config 读取同属超管能力。
+      // 该动作名不在 requiresSuperAdministrator 的前缀正则里（proxy* 只匹配以 proxy 开头的动作），
+      // 因此必须在处理分支内显式收敛，否则普通管理员可写入全局代理。
+      if (c.get('user').role !== 'super_admin') return c.json({ error: '需要超级管理员权限' }, 403)
       const validated = validateProxyConfig(body as Record<string, unknown>)
       if ('error' in validated) return c.json({ error: validated.error }, 400)
       const patch = { PROXY_BASE: validated.proxyBase, PROXY_BYPASS: validated.proxyBypass, PROXY_DOMAINS: '' } as const
