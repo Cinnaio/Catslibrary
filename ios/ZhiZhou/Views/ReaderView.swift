@@ -77,7 +77,6 @@ struct ReaderView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.colorScheme) private var systemScheme
-    @Environment(\.dismiss) private var dismiss
     @ScaledMetric(relativeTo: .footnote) private var readerControlWidth: CGFloat = 300
 
     @State private var chapter: ChapterFull?
@@ -88,6 +87,8 @@ struct ReaderView: View {
     @State private var statsOwner = UUID()
     private enum ReaderTool: Equatable { case contents, search, settings, thoughts }
     @State private var activeTool: ReaderTool?
+    // inspector 会自行恢复呈现状态，必须接受系统对 true / false 的双向写入。
+    @State private var inspectorPresented = false
     @State private var thoughtDrafts: [ReaderThoughtContext: String] = [:]
     @State private var submittingThoughts: Set<ReaderThoughtContext> = []
     @State private var bodySearchSnapshot: BookSearchSnapshot?
@@ -377,14 +378,21 @@ struct ReaderView: View {
     @ViewBuilder private var readerWithToolPanels: some View {
         if ReadingSpaceWindowLayout.usesIPadLayout {
             readerSurface
-            .inspector(isPresented: readerToolPresented) {
-                readerToolContent(for: activeTool)
+            .inspector(isPresented: $inspectorPresented) {
+                readerToolContent(for: activeTool ?? .contents)
                     .preferredColorScheme(scheme)
                     .inspectorColumnWidth(min: 300, ideal: 360, max: 420)
                     .presentationBackground(ReadingSpace.profilePaper)
                     .presentationDetents(activeTool == .search || dynamicTypeSize.isAccessibilitySize
                         ? [.large] : [.medium, .large])
                     .presentationDragIndicator(.visible)
+            }
+            .onChange(of: inspectorPresented, initial: true) { _, presented in
+                if presented {
+                    if activeTool == nil { setTool(.contents, presented: true) }
+                } else if let activeTool {
+                    setTool(activeTool, presented: false)
+                }
             }
             .onChange(of: activeTool) { previous, current in
                 if previous == .thoughts, current != .thoughts {
@@ -452,19 +460,12 @@ struct ReaderView: View {
         nonmutating set { setTool(.thoughts, presented: newValue) }
     }
 
-    private var readerToolPresented: Binding<Bool> {
-        Binding(get: { activeTool != nil }, set: { presented in
-            if !presented, let tool = activeTool { setTool(tool, presented: false) }
-        })
-    }
-
     private func setTool(_ tool: ReaderTool, presented: Bool) {
         guard presented || activeTool == tool else { return }
         autoScrollPaused = true
-        if ReadingSpaceWindowLayout.usesIPadLayout, progressRestored, pendingScrollRestore == nil {
-            preserveScrollPosition()
-        }
+        // 工具呈现本身不改阅读位置；实际正文宽度改变后再统一恢复。
         activeTool = presented ? tool : nil
+        if ReadingSpaceWindowLayout.usesIPadLayout { inspectorPresented = presented }
     }
 
     @ViewBuilder private func readerToolContent(for tool: ReaderTool?) -> some View {
@@ -885,11 +886,12 @@ struct ReaderView: View {
     /// 自己按“两侧取较大值”补一份对称留白，任何方向都左右等宽。
     private func readerScroll(geo: GeometryProxy) -> some View {
         let sideInset = max(geo.safeAreaInsets.leading, geo.safeAreaInsets.trailing)
+        let contentWidth = max(40, min(geo.size.width, 720) - (sideInset + 22) * 2)
         let scrollIdentity = readerScrollIdentity
         return ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: readerParagraphSpacing) {
-                    readingContent(width: max(40, min(geo.size.width, 720) - (sideInset + 22) * 2))
+                    readingContent(width: contentWidth)
                 }
                 .padding(.horizontal, sideInset + 22)
                 .padding(.top, 18)
@@ -935,11 +937,11 @@ struct ReaderView: View {
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 readerChrome
             }
-            .scrollPosition(id: $scrolledParagraph, anchor: ReadingSpaceWindowLayout.usesIPadLayout ? .top : nil)
-            .onChange(of: geo.size.width) { previous, current in
-                guard ReadingSpaceWindowLayout.usesIPadLayout, abs(previous - current) >= 1 else { return }
-                autoScrollPaused = true
-                if progressRestored, pendingScrollRestore == nil { preserveScrollPosition() }
+            // 只跟踪可见段落；固定顶端锚点会在懒加载正文测高时持续参与定位。
+            // 显式恢复统一交给 ScrollViewProxy，避免同一目标同时驱动两套定位。
+            .scrollPosition(id: $scrolledParagraph)
+            .task(id: contentWidth) {
+                await restoreAfterReaderWidthChange(identity: scrollIdentity)
             }
             .overlay(alignment: chapterSwipeProgress < 0 ? .trailing : .leading) {
                 if chapterSwipeProgress != 0 {
@@ -2099,6 +2101,24 @@ struct ReaderView: View {
         debounceSaveProgress()
     }
 
+    /// 侧栏动画、旋转和分屏会连续改变宽度；等正文行宽稳定后只恢复一次。
+    /// task 的 id 使用实际正文宽度，已达到 720pt 上限的窗口缩放无需重复定位。
+    private func restoreAfterReaderWidthChange(identity: String) async {
+        guard ReadingSpaceWindowLayout.usesIPadLayout, settings.pageMode == "scroll",
+              progressRestored, pendingScrollRestore == nil,
+              let target = currentReadingParagraphIndex else { return }
+        let progressSession = ReaderProgressStore.shared.sessionID
+        autoScrollPaused = true
+        do { try await Task.sleep(for: .milliseconds(200)) }
+        catch { return }
+        guard !Task.isCancelled, readerScrollIdentity == identity,
+              ReaderProgressStore.shared.sessionID == progressSession,
+              settings.pageMode == "scroll", progressRestored,
+              pendingScrollRestore == nil else { return }
+        suppressPercent = true
+        pendingScrollRestore = target
+    }
+
     /// A late progress response can install the restore target after the
     /// scroll view has already reported its content size. Use the proxy as a
     /// second, deterministic restore path for that timing window.
@@ -2111,9 +2131,9 @@ struct ReaderView: View {
             await Task.yield()
             guard readerScrollIdentity == identity, pendingScrollRestore == target else { return }
             let scrollID = target == 0 ? readerTopScrollID : target
-            proxy.scrollTo(scrollID, anchor: .top)
-            scrolledParagraph = scrollID
+            // 在触发懒加载排版前消费请求，后续 contentSize 回调不再重复排队。
             pendingScrollRestore = nil
+            proxy.scrollTo(scrollID, anchor: .top)
             suppressPercent = false
         }
     }

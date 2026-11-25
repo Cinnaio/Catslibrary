@@ -20,7 +20,7 @@ function Require-ReaderPattern {
 
 $configureBlock = [regex]::Match(
     $selectableTextView,
-    '(?s)private func configure\(_ view: ThoughtSelectableTextView\) \{(.*?)\n    \}\n\}'
+    '(?s)private func configure\(_ view: ThoughtSelectableTextView\) \{(.*?)\r?\n    \}\r?\n\}'
 )
 
 Require-ReaderPattern "UIKit text updates are gated before relayout" (
@@ -44,7 +44,7 @@ Require-ReaderPattern "scroll progress is not driven by continuous geometry upda
     $readerView -notmatch "(?s)\.onScrollGeometryChange\(for: CGFloat\.self\).*?updatePercent\(fromScrollOffset:"
 )
 Require-ReaderPattern "chapter loading is keyed and cancellable" (
-    $readerView.Contains('.task(id: "\(novel.id)-\(chapterOrder)-\(requestedChapterID)-\(ContentAccessStore.shared.mode)")') -and
+    $readerView -match '\.task\(id: "\\\(novel\.id\)-\\\(chapterOrder\)-\\\(requestedChapterID\)-\\\(ContentAccessStore\.shared\.mode\)[^"]*"\) \{ await load\(\) \}' -and
     $readerView -match "(?s)private func load\(\).*?catch is CancellationError"
 )
 Require-ReaderPattern "scroll body avoids rebuilding an enumerated array" (
@@ -66,7 +66,7 @@ Require-ReaderPattern "system chrome keeps a stable layout reservation" (
 )
 Require-ReaderPattern "collapsed chrome removes the trailing toolbar group" (
     $readerView -match '\.navigationTitle\(chapter\?\.title \?\? "阅读"\)' -and
-    $readerView -match "(?s)\.toolbar \{\s*if showChrome \{\s*ToolbarItem\(placement: \.topBarTrailing\)\s*\{\s*readerToolbarGroup\s*\}\s*\}\s*\}" -and
+    $readerView -match "(?s)\.toolbar \{.*?if showChrome \{\s*ToolbarItem\(placement: \.topBarTrailing\)\s*\{\s*readerToolbarGroup\s*\}\s*\}\s*\}" -and
     $readerView -notmatch "(?s)private var readerToolbarGroup.*?\.opacity\(showChrome \? 1 : 0\)"
 )
 

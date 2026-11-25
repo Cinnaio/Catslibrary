@@ -124,7 +124,7 @@ struct BookshelfView: View {
                     .background(ReadingSpace.profilePaper)
             }
             .navigationDestination(for: BookshelfRoute.self) { route in
-                destination(for: route)
+                Self.destination(for: route)
             }
         }
         .sheet(item: $compactDetailNovel) { novel in
@@ -484,7 +484,7 @@ struct BookshelfView: View {
     @ViewBuilder
     private var bookshelfDetail: some View {
         if let selection {
-            destination(for: selection)
+            Self.destination(for: selection)
         } else {
             ContentUnavailableView(
                 "选择一本书",
@@ -494,8 +494,9 @@ struct BookshelfView: View {
         }
     }
 
+    // 目的地只依赖路由，避免闭包捕获整个书架及其动态环境和状态。
     @ViewBuilder
-    private func destination(for route: BookshelfRoute) -> some View {
+    private static func destination(for route: BookshelfRoute) -> some View {
         switch route {
         case .read(let launch):
             ReaderView(
@@ -528,9 +529,10 @@ struct BookshelfView: View {
                 }
             }
             .accessibilityHint("打开后接着读")
+            .accessibilityIdentifier("bookshelf.recent.\(item.novelId)")
         } else if horizontalSizeClass != .regular {
             NavigationLink {
-                destination(for: route)
+                Self.destination(for: route)
             } label: {
                 recentRow(item, featured: featured)
             }
@@ -591,7 +593,7 @@ struct BookshelfView: View {
             .accessibilityHint(favorite.asLaunch == nil ? "打开书籍详情" : "打开后接着读")
         } else if horizontalSizeClass != .regular {
             NavigationLink {
-                destination(for: route)
+                Self.destination(for: route)
             } label: {
                 favoriteLabel(favorite, cover: cover)
             }

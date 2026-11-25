@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 
 final class FrontendAuditTests: XCTestCase {
     override func setUpWithError() throws {
@@ -152,6 +153,53 @@ final class FrontendAuditTests: XCTestCase {
         tap(last)
         XCTAssertTrue(app.buttons["已在书架，点按移除"].waitForExistence(timeout: 10))
         capture("bookshelf-fifty-first-favorite", app: app)
+    }
+
+    @MainActor
+    func testIPadBookshelfReaderStaysResponsiveAcrossToolsAndRotation() throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "覆盖 iPad 专用导航和 inspector")
+        executionTimeAllowance = 120
+        XCUIDevice.shared.orientation = .portrait
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = launch()
+        selectTab("书架", app: app)
+        let recent = app.buttons["bookshelf.recent.audit-book-1"]
+        let paragraph = app.textViews["reader.paragraph.1"]
+
+        // 连续两次进入，覆盖导航目的地重建和 inspector 的呈现状态恢复。
+        for pageMode in [false, true] {
+            selectTab("我的", app: app)
+            let settings = app.buttons["阅读设置"]
+            reveal(settings, app: app)
+            tap(settings)
+            let mode = app.buttons[pageMode ? "左右翻页" : "上下滚动"]
+            reveal(mode, app: app)
+            tap(mode)
+            tap(app.buttons["完成"])
+            selectTab("书架", app: app)
+            tap(recent)
+            let loadedContent = pageMode
+                ? app.descendants(matching: .any).matching(identifier: "reader.progress").firstMatch
+                : paragraph
+            XCTAssertTrue(loadedContent.waitForExistence(timeout: 15))
+            for orientation in [UIDeviceOrientation.landscapeLeft, .portrait] {
+                tap(app.buttons["reader.toolbar.contents"])
+                XCTAssertTrue(app.searchFields.firstMatch.waitForExistence(timeout: 10))
+                XCUIDevice.shared.orientation = orientation
+                tap(app.buttons["完成"])
+                XCTAssertTrue(loadedContent.waitForExistence(timeout: 10))
+                tap(app.buttons["reader.toolbar.settings"])
+                tap(app.buttons["完成"])
+            }
+            // 真实操作要求应用主线程持续响应，不能只检查加载前存在的导航栏。
+            app.swipeUp()
+            app.swipeDown()
+            if app.buttons["显示阅读控制"].exists { tap(app.buttons["显示阅读控制"]) }
+            tap(app.buttons["reader.toolbar.contents"])
+            tap(app.buttons["完成"])
+            tap(app.navigationBars.buttons.firstMatch)
+            XCTAssertTrue(recent.waitForExistence(timeout: 10))
+        }
     }
 
     @MainActor
