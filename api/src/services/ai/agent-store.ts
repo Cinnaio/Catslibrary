@@ -1,3 +1,4 @@
+import { validateStoryThreadSnapshot } from './agent-story-threads'
 import type { AgentReferenceSelection, AgentEvent, AgentSession, AgentAction, AgentActionKind } from '@shared/ai-agent'
 import type { Db, DbClient } from '../../db/pool'
 import { all, first, run, withTx } from '../../db/query'
@@ -262,6 +263,7 @@ export async function beginAgentTurn(
     if (active) throw new AiError('conflict', '助手正在处理上一条消息，请等待或停止后继续', 409)
     // Serialize per-account admission as well as the conversation.
     await query('SELECT id FROM users WHERE id=$1 FOR UPDATE', [userId])
+    if (chapterPlan) await validateStoryThreadSnapshot(scoped, userId, sessionId, chapterPlan)
     const running = await first<{ count: number }>(
       scoped,
       "SELECT COUNT(*)::int AS count FROM ai_tasks WHERE user_id=$1 AND kind='agent_chat' AND status IN ('queued','running')",

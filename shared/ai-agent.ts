@@ -1,3 +1,5 @@
+import type { StoryThread } from './story-graph'
+import type { AgentTextDifference } from './ai-text-diff'
 /** Conversation state belongs to an author and a novel; it is never formal story memory. */
 export interface AgentContentPreferences {
   version: 1
@@ -62,6 +64,8 @@ export interface AgentChapterPlan extends AgentChapterPlanInput {
   revision: number
   updatedAt: number
   sourceBranch?: { id: string; name: string }
+  sourceOutline?: { chapterId: string; revision: number }
+  storyThreads?: AgentStoryThreadPlan[]
 }
 
 export interface AgentChapterPlanBranch {
@@ -83,7 +87,30 @@ export const AGENT_CHAPTER_PLAN_LIMITS = { title: 200, goal: 1200, beats: 4000, 
 export const AGENT_OUTLINE_MIN = 3
 export const AGENT_OUTLINE_MAX = 5
 export const AGENT_OUTLINE_LIMITS = { title: 80, goal: 180, beats: 1000 } as const
-export interface AgentOutlineChapter { title: string; goal: string; beats: string }
+export interface AgentOutlineChapter {
+  id?: string
+  title: string
+  goal: string
+  beats: string
+  progress?: { status: 'planned' | 'draft' | 'published' | 'unavailable'; drafts: Array<{ id: string; title: string; sessionId: string; status: string; chapterId?: string }>; changedSinceWriting: boolean }
+}
+export type AgentStoryThreadDisposition = 'advance' | 'later' | 'hold' | 'resolved'
+export interface AgentStoryThreadPlan {
+  id: string
+  thread: StoryThread
+  disposition: AgentStoryThreadDisposition
+  note: string
+  revision: number
+  sourceRevision: string
+  sourceAnchorId: string
+  stale?: boolean
+}
+export interface AgentStoryThreadState {
+  candidates: StoryThread[]
+  sourceRevision: string
+  graphStatus: string
+  plans: AgentStoryThreadPlan[]
+}
 export interface AgentOutline { revision: number; chapters: AgentOutlineChapter[] }
 
 export type AgentContinuationNoteKind = 'question' | 'next_step' | 'author_message' | 'note'
@@ -305,8 +332,8 @@ export interface AgentArtifact {
     lengthCheck?: { actualWords: number; minimumWords?: number; targetWords?: number }
   }>
   covers: Array<{ id: string; prompt: string; imageUrl: string }>
-  rewrite?: { draftId: string; before: string; after: string; baseRevision: string; selectionRevision?: string; minimumLengthWarning?: string }
-  chapterEdit?: { chapterId: string; chapterTitle: string; before: string; after: string; baseRevision: string; selectionRevision?: string }
+  rewrite?: { draftId: string; before: string; after: string; baseRevision: string; selectionRevision?: string; differences?: AgentTextDifference[]; minimumLengthWarning?: string }
+  chapterEdit?: { chapterId: string; chapterTitle: string; before: string; after: string; baseRevision: string; selectionRevision?: string; differences?: AgentTextDifference[] }
   analysisReport?: { id: string; title: string; url: string }
 }
 
@@ -314,6 +341,9 @@ export interface AgentSessionDetail {
   chapterPlan?: AgentChapterPlan | null
   chapterPlanBranchesAvailable?: true
   outlineAvailable?: true
+  outlineWorkflowAvailable?: true
+  storyThreadPlansAvailable?: true
+  writingReferencesAvailable?: true
   writingReferences?: AgentWritingReferenceSnapshot[]
   turnUsage?: AgentTurnUsage[]
   messageReceipt?: { requestId: string; taskId: string } | null

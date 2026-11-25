@@ -866,6 +866,7 @@ function AgentConversation({ sessionId, novelId, onSession, onOpenContinuation }
             onProviderChange={setProviderPresetId}
             focusRequest={focusRequest}
             tools={<>{data.chapterPlan !== undefined && <AiAgentChapterPlan key={sessionId} sessionId={sessionId} plan={data.chapterPlan || null} branchesAvailable={data.chapterPlanBranchesAvailable === true}
+              novelId={novelId} afterChapterId={data.session.afterChapterId} storyThreadsAvailable={data.storyThreadPlansAvailable === true} outlineWorkflowAvailable={data.outlineWorkflowAvailable === true}
               outlineAvailable={data.outlineAvailable === true}
               disabled={busy || running || !!pending} onChanged={reload}
               onDiscuss={prompt => send(prompt, undefined, true)}

@@ -9,7 +9,7 @@ type Session = { chapter_plan: AgentChapterPlan | null; active_task_id: string }
 type Change = { kind: 'save'; name: string; expectedRevision: number } | { kind: 'select'; branchId: string; expectedRevision: number }
 const conflict = (message: string) => new AiError('conflict', message, 409)
 const invalid = (message: string) => new AiError('invalid', message, 422)
-const sameContent = (a: AgentChapterPlan, b: AgentChapterPlan) => JSON.stringify(parseChapterPlan(a)) === JSON.stringify(parseChapterPlan(b))
+const sameContent = (a: AgentChapterPlan, b: AgentChapterPlan) => JSON.stringify([parseChapterPlan(a), a.sourceOutline, a.storyThreads]) === JSON.stringify([parseChapterPlan(b), b.sourceOutline, b.storyThreads])
 
 function parseChange(value: unknown, branchId?: string): { requestId: string; change: Change } {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalid('分支请求格式无效')
@@ -96,7 +96,7 @@ export async function changePlanBranch(db: Db, userId: string, sessionId: string
           for (let i = 2; branches.some(item => item.name === name); i++) name = base + ' ' + i
           await insertBranch(scoped, sessionId, name, current, 'switch')
         }
-        const plan: AgentChapterPlan = { ...parseChapterPlan(selected.plan), version: 1, revision: current.revision + 1, updatedAt: Date.now(), sourceBranch: { id: selected.id, name: selected.name } }
+        const plan: AgentChapterPlan = { ...parseChapterPlan(selected.plan), sourceOutline: selected.plan.sourceOutline, storyThreads: selected.plan.storyThreads, version: 1, revision: current.revision + 1, updatedAt: Date.now(), sourceBranch: { id: selected.id, name: selected.name } }
         await query("UPDATE ai_agent_sessions SET chapter_plan=$1::jsonb,chapter_plan_operation_id='' WHERE id=$2", [JSON.stringify(plan), sessionId])
         row.chapter_plan = plan
       }

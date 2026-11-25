@@ -1,3 +1,4 @@
+import { outlineChapterInput, readAgentOutline } from './agent-outline'
 import { createHash } from 'node:crypto'
 import { AGENT_CONTINUATION_LIMIT, AGENT_CONTINUATION_NOTE_LIMIT, type AgentContinuationPreview } from '@shared/ai-agent'
 import type { Db, DbClient } from '../../db/pool'
@@ -59,6 +60,21 @@ export async function continuePublishedChapter(db: Db, userId: string, sessionId
     if (note.trim()) continuationNotes.push({ kind: 'note', text: note.trim() })
     const source = await getAgentSession(tx, userId, sessionId)
     const next = await createAgentSession(tx, userId, { novelId: source.novelId, afterChapterId: preview.chapter.id, continuationNotes })
+    const published = await first<{ source_id: string }>(tx, `SELECT g.params_json::jsonb#>>'{agentChapterPlan,sourceOutline,chapterId}' AS source_id
+      FROM ai_agent_actions a JOIN ai_generations g ON g.id=a.payload->>'draftId'
+      WHERE a.id=$1 AND a.session_id=$2 AND g.created_by=$3 AND g.novel_id=$4`, [actionId, sessionId, userId, source.novelId])
+    if (published?.source_id) {
+      // A proposal for the next chapter is seeded only from this publication's stable outline identity.
+      await query('SELECT revision FROM ai_agent_outlines WHERE user_id=$1 AND novel_id=$2 FOR SHARE', [userId, source.novelId])
+      const outline = await readAgentOutline(tx, userId, sessionId)
+      const sourceIndex = outline?.chapters.findIndex(chapter => chapter.id === published.source_id) ?? -1
+      const nextIndex = sourceIndex >= 0 ? outline!.chapters.findIndex((chapter, index) => index > sourceIndex && chapter.progress?.status !== 'published') : -1
+      if (outline && nextIndex >= 0) {
+        const plan = { ...outlineChapterInput(outline, nextIndex), version: 1, revision: 1, updatedAt: Date.now(),
+          sourceOutline: { chapterId: outline.chapters[nextIndex]!.id, revision: outline.revision } }
+        await query('UPDATE ai_agent_sessions SET chapter_plan=$1::jsonb WHERE id=$2', [JSON.stringify(plan), next.id])
+      }
+    }
     await query("UPDATE ai_agent_actions SET result=result || jsonb_build_object('continuationSessionId',$3::text) WHERE id=$1 AND session_id=$2",
       [actionId, sessionId, next.id])
     return next

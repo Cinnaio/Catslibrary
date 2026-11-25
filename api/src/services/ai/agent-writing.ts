@@ -206,7 +206,7 @@ export function agentWritingMaterials(context: AgentWritingContext) {
   const authors = [
     ...(context.chapterPlan ? [createMaterialBlock({
       id: 'confirmed-chapter-plan', kind: 'author_request', required: true,
-      text: '作者已确认的本章计划（待创作情节，不是既有正文事实）：' + JSON.stringify(context.chapterPlan),
+      text: '作者已确认的本章计划（待创作情节，不是既有正文事实）。storyThreads 中 advance 本章推进、later 留给后续、hold 暂缓；所附证据是报告摘录而非章节原句，不得当成无误事实：' + JSON.stringify(context.chapterPlan),
       source: { field: 'agent_chapter_plan', revision: String(context.chapterPlan.revision) },
     })] : []),
     ...(references.length ? [createMaterialBlock({ id: 'writing-reference-guidance', kind: 'author_request', text: WRITING_REFERENCE_GUIDANCE })] : []),

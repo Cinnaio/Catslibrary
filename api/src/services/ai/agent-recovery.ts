@@ -6,6 +6,8 @@ import { AI_TASK_OWNER_ID, getAiTask, type AiTask } from './tasks'
 import { publishAiTask } from './task-events'
 
 export const AGENT_READ_TOOLS = new Set([
+  'read_outline',
+  'read_story_thread_plans',
   'read_overview',
   'find_chapter',
   'search_chapters',

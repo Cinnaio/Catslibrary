@@ -49,6 +49,9 @@ struct AdminAgentAPI {
         var body: [String: Any] = [
             "content": pending.content, "requestId": pending.requestId, "providerPresetId": pending.providerPresetId,
         ]
+        if let selection = pending.referenceSelection {
+            body["referenceSelection"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(selection))
+        }
         switch pending.chapterPlanIntent {
         case .planning?: body["planningOnly"] = true
         case .writing(let revision)?: body["chapterPlanRevision"] = revision
@@ -78,7 +81,11 @@ struct AdminAgentAPI {
     func saveOutline(_ id: String, chapters: [AIAgentOutlineChapter], revision: Int) async throws -> AIAgentOutline {
         struct Response: Decodable { let outline: AIAgentOutline }
         let result: Response = try await AdminAPI.parityRequest("PATCH", Self.path(id) + "/outline", body: [
-            "chapters": chapters.map { ["title": $0.title, "goal": $0.goal, "beats": $0.beats] },
+            "chapters": chapters.map { chapter -> [String: Any] in
+                var fields: [String: Any] = ["title": chapter.title, "goal": chapter.goal, "beats": chapter.beats]
+                if let id = chapter.id { fields["id"] = id }
+                return fields
+            },
             "expectedRevision": revision
         ], token: token)
         return result.outline
@@ -170,9 +177,10 @@ struct AdminAgentAPI {
         return value.report
     }
 
-    func prepare(_ id: String, kind: AIAgentActionKind, targetID: String, title: String = "") async throws -> AIAgentAction {
-        let value: AIAgentActionResponse = try await AdminAPI.parityRequest("POST", Self.path(id) + "/actions",
-            body: ["kind": kind.rawValue, "targetId": targetID, "title": title], token: token)
+    func prepare(_ id: String, kind: AIAgentActionKind, targetID: String, title: String = "", selection: AIAgentRewriteSelection? = nil) async throws -> AIAgentAction {
+        var body: [String: Any] = ["kind": kind.rawValue, "targetId": targetID, "title": title]
+        if let selection { body["selection"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(selection)) }
+        let value: AIAgentActionResponse = try await AdminAPI.parityRequest("POST", Self.path(id) + "/actions", body: body, token: token)
         return value.action
     }
 

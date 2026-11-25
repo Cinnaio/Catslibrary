@@ -262,8 +262,9 @@ it('shares an outline across own book conversations and snapshots an explicitly 
   ]
   const path = outlinePath(source)
   expect((await request(path, 'PATCH', { expectedRevision: 0, chapters: chapters.slice(0, 2) })).status).toBe(422)
-  expect(await (await request(path, 'PATCH', { expectedRevision: 0, chapters })).json()).toEqual({ outline: { revision: 1, chapters } })
-  expect(await (await request(outlinePath(next))).json()).toEqual({ outline: { revision: 1, chapters } })
+  const saved = await (await request(path, 'PATCH', { expectedRevision: 0, chapters })).json()
+  expect(saved).toMatchObject({ outline: { revision: 1, chapters: chapters.map(chapter => ({ ...chapter, id: expect.any(String), progress: { status: 'planned' } })) } })
+  expect(await (await request(outlinePath(next))).json()).toEqual(saved)
   expect(await (await request(outlinePath(other), 'GET', undefined, otherToken)).json()).toEqual({ outline: null })
   expect((await request(path, 'GET', undefined, otherToken)).status).toBe(404)
   const apply = outlinePath(next) + '/apply'

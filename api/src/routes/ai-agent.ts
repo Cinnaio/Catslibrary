@@ -1,3 +1,4 @@
+import { readStoryThreadPlans, changeStoryThreadPlan, removeStoryThreadPlan, applyStoryThreadPlans } from '../services/ai/agent-story-threads'
 import { chapterEditSource, chapterEditHistory } from '../services/ai/chapter-edit'
 import { reviewChapterImpact } from '../services/ai/chapter-impact'
 import { continuePublishedChapter, readAgentContinuation } from '../services/ai/agent-continuation'
@@ -130,6 +131,9 @@ export function createAgentRoutes(dispatch: Dispatch) {
       chapterPlan: await readChapterPlan(db, c.get('user').id, session.id),
       chapterPlanBranchesAvailable: true,
       outlineAvailable: true,
+      outlineWorkflowAvailable: true,
+      storyThreadPlansAvailable: true,
+      writingReferencesAvailable: true,
       writingReferences: await snapshotWritingReferences(db, c.get('user').id, session.writingReferenceIds || [], false, false),
       messageReceipt: messageReceipt || null,
       ...history,
@@ -147,6 +151,14 @@ export function createAgentRoutes(dispatch: Dispatch) {
     return c.json({ plan: await saveChapterPlan(getDb(), c.get('user').id, c.req.param('id'), body.plan, body.expectedRevision) })
   })
   routes.get('/sessions/:id/chapter-plan/branches', async c => c.json(await readPlanBranches(getDb(), c.get('user').id, c.req.param('id'))))
+  routes.get('/sessions/:id/story-threads', async c => c.json(await readStoryThreadPlans(getDb(), c.get('user').id, c.req.param('id'))))
+  routes.post('/sessions/:id/story-threads', async c => c.json(await changeStoryThreadPlan(getDb(), c.get('user').id, c.req.param('id'), await c.req.json().catch(() => ({})))))
+  routes.post('/sessions/:id/story-threads/apply', async c => c.json({ plan: await applyStoryThreadPlans(getDb(), c.get('user').id, c.req.param('id'), await c.req.json().catch(() => ({}))) }))
+  routes.delete('/sessions/:id/story-threads/:threadId', async c => {
+    const body = await c.req.json().catch(() => ({}))
+    await removeStoryThreadPlan(getDb(), c.get('user').id, c.req.param('id'), c.req.param('threadId'), body.expectedRevision)
+    return c.json({ ok: true })
+  })
   routes.get('/sessions/:id/outline', async c => c.json({ outline: await readAgentOutline(getDb(), c.get('user').id, c.req.param('id')) }))
   routes.patch('/sessions/:id/outline', async c => c.json({ outline: await saveAgentOutline(getDb(), c.get('user').id, c.req.param('id'), await c.req.json().catch(() => null) || {}) }))
   routes.post('/sessions/:id/outline/apply', async c => c.json({ plan: await applyAgentOutlineChapter(getDb(), c.get('user').id, c.req.param('id'), await c.req.json().catch(() => null) || {}) }))

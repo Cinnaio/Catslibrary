@@ -17,10 +17,31 @@ final class AdminAIAgentConversationModel {
     private(set) var supportsChapterPlan = false
     private(set) var supportsPlanBranches = false
     private(set) var supportsOutline = false
+    private(set) var supportsOutlineWorkflow = false
+    private(set) var supportsStoryThreads = false
+    private(set) var supportsWritingReferences = false
+    private(set) var sessionReferences: [AIAgentWritingReference] = []
+    var referenceSelection: AIAgentReferenceSelection? {
+        guard supportsWritingReferences else { return nil }
+        return localDraft.referenceSelection ?? AIAgentReferenceSelection(ids: sessionReferences.map(\.id), scope: sessionReferences.isEmpty ? "turn" : "session")
+    }
+    var selectedReferences: [AIAgentWritingReference] { localDraft.selectedReferences ?? sessionReferences }
+    func selectReferences(_ references: [AIAgentWritingReference], scope: String) {
+        guard canChangeChapterPlan else { return }
+        localDraft.referenceSelection = AIAgentReferenceSelection(ids: references.map(\.id), scope: scope)
+        localDraft.selectedReferences = references
+    }
+    private func finishReferences(_ pending: AIAgentPendingMessage) {
+        if localDraft.referenceSelection == pending.referenceSelection {
+            localDraft.referenceSelection = nil
+            localDraft.selectedReferences = nil
+        }
+    }
     var tasks: [String: AIAgentTask] = [:]
     var presets: [AIAgentPreset] = []
     var localDraft: AIAgentLocalDraft { didSet { persist() } }
     var selectedAction: AIAgentAction?
+    var rewriteSelections: [String: AIAgentRewriteSelection] = [:]
     var hasEarlier = false
     var hasLoaded = false
     var isRefreshing = false
@@ -144,6 +165,7 @@ final class AdminAIAgentConversationModel {
             if let requestID, localDraft.pending?.requestId == requestID {
                 checkedRequestID = requestID
                 if value.confirmsDelivery(of: requestID) {
+                    if let pending = localDraft.pending { finishReferences(pending) }
                     localDraft.pending = nil
                     messageError = nil
                 }
@@ -156,6 +178,10 @@ final class AdminAIAgentConversationModel {
             supportsChapterPlan = value.supportsChapterPlan
             supportsPlanBranches = value.chapterPlanBranchesAvailable == true
             supportsOutline = value.outlineAvailable == true
+            supportsOutlineWorkflow = value.outlineWorkflowAvailable == true
+            supportsStoryThreads = value.storyThreadPlansAvailable == true
+            supportsWritingReferences = value.writingReferencesAvailable == true
+            sessionReferences = value.writingReferences ?? []
             if !value.supportsChapterPlan {
                 chapterPlan = nil
             } else if let plan = value.chapterPlan, plan.revision >= (chapterPlan?.revision ?? 0) {
@@ -262,7 +288,7 @@ final class AdminAIAgentConversationModel {
         } else {
             guard canSend else { return }
             localDraft.pending = AIAgentPendingMessage(content: localDraft.input.trimmingCharacters(in: .whitespacesAndNewlines),
-                                                       providerPresetId: localDraft.providerPresetId)
+                                                       providerPresetId: localDraft.providerPresetId, referenceSelection: referenceSelection)
             localDraft.input = ""
         }
         guard let pending = localDraft.pending else { return }
@@ -287,7 +313,15 @@ final class AdminAIAgentConversationModel {
             intent = .planning
         }
         let pending = AIAgentPendingMessage(content: content, providerPresetId: localDraft.providerPresetId,
-                                            chapterPlanIntent: intent)
+                                            chapterPlanIntent: intent, referenceSelection: referenceSelection)
+        localDraft.pending = pending
+        return await deliver(pending, newChapterPlanRequest: true)
+    }
+
+    func discussWorkflow(_ prompt: String) async -> Bool {
+        guard canChangeChapterPlan else { return false }
+        let pending = AIAgentPendingMessage(content: prompt, providerPresetId: localDraft.providerPresetId,
+            chapterPlanIntent: .planning, referenceSelection: referenceSelection)
         localDraft.pending = pending
         return await deliver(pending, newChapterPlanRequest: true)
     }
@@ -304,6 +338,7 @@ final class AdminAIAgentConversationModel {
             guard isCurrentAccount else { return false }
             dataRevision &+= 1
             awaitingTaskID = result.taskId
+            finishReferences(pending)
             localDraft.pending = nil
             await refresh()
             return true
@@ -432,11 +467,11 @@ final class AdminAIAgentConversationModel {
         } catch { report(error) }
     }
 
-    func prepare(_ kind: AIAgentActionKind, targetID: String, title: String = "") async {
+    func prepare(_ kind: AIAgentActionKind, targetID: String, title: String = "", selection: AIAgentRewriteSelection? = nil) async {
         guard beginWork() else { return }
         defer { working = false }
         do {
-            let value = try await api.prepare(sessionID, kind: kind, targetID: targetID, title: title)
+            let value = try await api.prepare(sessionID, kind: kind, targetID: targetID, title: title, selection: selection)
             guard isCurrentAccount else { return }
             dataRevision &+= 1
             selectedAction = value

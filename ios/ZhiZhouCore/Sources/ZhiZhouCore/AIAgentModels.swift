@@ -201,6 +201,8 @@ public struct AIAgentAction: Codable, Identifiable, Equatable, Sendable {
         public let draftId: String?
         public let chapterId: String?
         public let chapterTitle: String?
+        public let sourceTaskId: String?
+        public let selection: AIAgentRewriteSelection?
     }
     public let id: String
     public let kind: AIAgentActionKind
@@ -260,6 +262,8 @@ public struct AIAgentArtifact: Codable, Identifiable, Equatable, Sendable {
         public let before: String
         public let after: String
         public let baseRevision: String
+        public let selectionRevision: String?
+        public let differences: [AIAgentTextDifference]?
         public let minimumLengthWarning: String?
     }
     public struct ChapterEdit: Codable, Equatable, Sendable {
@@ -268,6 +272,8 @@ public struct AIAgentArtifact: Codable, Identifiable, Equatable, Sendable {
         public let before: String
         public let after: String
         public let baseRevision: String
+        public let selectionRevision: String?
+        public let differences: [AIAgentTextDifference]?
     }
     public struct AnalysisReport: Codable, Equatable, Sendable {
         public let id: String
@@ -310,10 +316,14 @@ public struct AIAgentDetail: Decodable, Sendable {
     public let supportsChapterPlan: Bool
     public let chapterPlanBranchesAvailable: Bool?
     public let outlineAvailable: Bool?
+    public let outlineWorkflowAvailable: Bool?
+    public let storyThreadPlansAvailable: Bool?
+    public let writingReferencesAvailable: Bool?
+    public let writingReferences: [AIAgentWritingReference]?
 
     private enum CodingKeys: String, CodingKey {
         case session, events, hasEarlier, activeTask, artifacts, actions, memories, summary, messageReceipt, recovery
-        case chapterPlan, chapterPlanBranchesAvailable, outlineAvailable
+        case chapterPlan, chapterPlanBranchesAvailable, outlineAvailable, outlineWorkflowAvailable, storyThreadPlansAvailable, writingReferencesAvailable, writingReferences
     }
 
     public init(from decoder: Decoder) throws {
@@ -332,6 +342,10 @@ public struct AIAgentDetail: Decodable, Sendable {
         supportsChapterPlan = values.contains(.chapterPlan)
         chapterPlanBranchesAvailable = try values.decodeIfPresent(Bool.self, forKey: .chapterPlanBranchesAvailable)
         outlineAvailable = try values.decodeIfPresent(Bool.self, forKey: .outlineAvailable)
+        outlineWorkflowAvailable = try values.decodeIfPresent(Bool.self, forKey: .outlineWorkflowAvailable)
+        storyThreadPlansAvailable = try values.decodeIfPresent(Bool.self, forKey: .storyThreadPlansAvailable)
+        writingReferencesAvailable = try values.decodeIfPresent(Bool.self, forKey: .writingReferencesAvailable)
+        writingReferences = try values.decodeIfPresent([AIAgentWritingReference].self, forKey: .writingReferences)
     }
 
     public func confirmsDelivery(of requestID: String) -> Bool {
@@ -371,12 +385,14 @@ public struct AIAgentPendingMessage: Codable, Equatable, Sendable {
     public let content: String
     public let providerPresetId: String
     public let chapterPlanIntent: ChapterPlanIntent?
+    public let referenceSelection: AIAgentReferenceSelection?
 
-    public init(content: String, providerPresetId: String, chapterPlanIntent: ChapterPlanIntent? = nil) {
+    public init(content: String, providerPresetId: String, chapterPlanIntent: ChapterPlanIntent? = nil, referenceSelection: AIAgentReferenceSelection? = nil) {
         requestId = "ios_agent_" + UUID().uuidString
         self.content = content
         self.providerPresetId = providerPresetId
         self.chapterPlanIntent = chapterPlanIntent
+        self.referenceSelection = referenceSelection
     }
 }
 
@@ -384,6 +400,8 @@ public struct AIAgentLocalDraft: Codable, Equatable, Sendable {
     public var input = ""
     public var providerPresetId = ""
     public var pending: AIAgentPendingMessage?
+    public var referenceSelection: AIAgentReferenceSelection?
+    public var selectedReferences: [AIAgentWritingReference]?
     public init() {}
 }
 

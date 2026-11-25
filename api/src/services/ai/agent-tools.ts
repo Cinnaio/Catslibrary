@@ -1,3 +1,5 @@
+import { readAgentOutline, saveAgentOutline } from './agent-outline'
+import { readStoryThreadPlans } from './agent-story-threads'
 import { chapterEditHistory, chapterRevision, parseChapterEdit } from './chapter-edit'
 import type { AgentActionKind, AgentDraftRead, AgentSession } from '@shared/ai-agent'
 import type { Db } from '../../db/pool'
@@ -37,6 +39,12 @@ const rewriteLength = {
   minimumWords: { ...writingLength.minimumWords, maximum: 12_000, description: '整章改写的最低字数。与 targetWords 二选一。' },
 }
 export const AGENT_TOOLS: AiFunctionTool[] = [
+  tool('read_outline', '查阅本书多章大纲及实际草稿、发布进度。大纲是作者计划，不是已发生剧情。'),
+  tool('read_story_thread_plans', '查阅作者安排的星图线索及其来源。stale 表示来源已变化，需回查原文；不自动认定线索已回收。'),
+  tool('propose_outline', '拟定或完善未来 3 至 5 章的大纲，不生成正文。先 read_outline，修改已有条目须保留其 id。保存后请作者核对，选择一章设为章节计划。', {
+    chapters: { type: 'string', maxLength: 9000, description: 'JSON 数组，每项 title(80字)、goal(180字)、beats(1000字)；已有章节保留 id，新章不传 id。' },
+    expectedRevision: { type: 'integer', minimum: 0, maximum: 2147483646 },
+  }),
   tool('propose_chapter_plan', '保存本会话的章节计划卡，不生成正文、不代表作者确认。修改时传本轮资料中的当前 revision；首次为 0。待定的可选文字字段传空字符串。保存后请作者在章节计划入口确认。', {
     title: { type: 'string', maxLength: 200 }, goal: { type: 'string', maxLength: 1200 },
     beats: { type: 'string', maxLength: 4000, description: '按发生顺序分行填写主要情节。' },
@@ -215,6 +223,9 @@ export const AGENT_TOOL_LABELS: Record<string, string> = {
   read_conversation: '查阅早前对话',
   read_conversation_sources: '核对作者原话',
   propose_chapter_plan: '整理章节计划',
+  read_outline: '查看大纲与写作进度',
+  read_story_thread_plans: '查看线索安排',
+  propose_outline: '整理多章大纲',
   generate_draft: '生成章节草稿',
   rewrite_chapter: '生成原章节改写建议',
   refine_chapter_edit: '调整原章节建议',
@@ -239,6 +250,21 @@ export async function executeAgentTool(
   currentTaskId = '',
   focus?: { read: AgentDraftRead; authorEventId: number },
 ): Promise<Record<string, unknown>> {
+  if (name === 'read_outline') return { outline: await readAgentOutline(db, userId, session.id) }
+  if (name === 'read_story_thread_plans') {
+    const state = await readStoryThreadPlans(db, userId, session.id)
+    return { plans: state.plans.map(plan => ({ id: plan.id, title: plan.thread.title, disposition: plan.disposition,
+      note: plan.note, stale: plan.stale, certainty: plan.thread.certainty,
+      sourceChapterIds: [...new Set(plan.thread.evidence.flatMap(evidence => evidence.chapterIds))] })),
+      message: '这些是作者安排和报告线索。需要判断具体情节时按来源回读正文，不能自动认定已回收。' }
+  }
+  if (name === 'propose_outline') {
+    if (!currentTaskId || !operationId) throw new AiError('invalid', '大纲提议需要当前作者轮次', 422)
+    let chapters: unknown
+    try { chapters = JSON.parse(String(a.chapters)) } catch { throw new AiError('invalid', '大纲须为完整 JSON 数组', 422) }
+    return { outline: await saveAgentOutline(db, userId, session.id, { chapters, expectedRevision: a.expectedRevision }, { taskId: currentTaskId, operationId }),
+      message: '大纲已保存为待核对安排，请作者打开多章大纲，选定一章并另行确认写作。' }
+  }
   if (name === 'propose_chapter_plan') {
     if (!currentTaskId || !operationId) throw new AiError('invalid', '章节计划需要当前作者轮次', 422)
     return { plan: await saveChapterPlan(db, userId, session.id, a, a.expectedRevision, { taskId: currentTaskId, operationId }),

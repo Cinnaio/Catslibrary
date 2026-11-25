@@ -33,7 +33,8 @@ export function snapshotChapterPlan(plan: AgentChapterPlan | null, revision: unk
 }
 
 export async function saveChapterPlan(db: Db, userId: string, sessionId: string, value: unknown, expectedRevision: unknown,
-  proposal?: { taskId: string; operationId: string }) {
+  proposal?: { taskId: string; operationId: string },
+  attach?: (db: DbClient) => Promise<Pick<AgentChapterPlan, 'sourceOutline' | 'storyThreads'>>) {
   const content = parseChapterPlan(value)
   if (typeof expectedRevision !== 'number' || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0)
     throw new AiError('invalid', '请提供章节计划的当前版本', 422)
@@ -49,7 +50,8 @@ export async function saveChapterPlan(db: Db, userId: string, sessionId: string,
     if (proposal ? !active || row.active_task_id !== proposal.taskId : !!active)
       throw new AiError('conflict', proposal ? '计划所属轮次已结束，请重新提出计划' : '助手正在处理消息，请等待或停止后编辑计划', 409)
     if ((row.chapter_plan?.revision || 0) !== expectedRevision) throw new AiError('conflict', '章节计划已变化，请重新读取后编辑', 409)
-    const plan: AgentChapterPlan = { version: 1, ...content, revision: expectedRevision + 1, updatedAt: Date.now() }
+    const metadata = attach ? await attach(scoped) : { sourceOutline: row.chapter_plan?.sourceOutline, storyThreads: row.chapter_plan?.storyThreads }
+    const plan: AgentChapterPlan = { version: 1, ...content, ...metadata, revision: expectedRevision + 1, updatedAt: Date.now() }
     await query('UPDATE ai_agent_sessions SET chapter_plan=$1::jsonb,chapter_plan_operation_id=$2,updated_at=GREATEST(updated_at+1,$3) WHERE id=$4',
       [JSON.stringify(plan), proposal?.operationId || '', plan.updatedAt, sessionId])
     if (proposal) await query("UPDATE ai_tasks SET params=jsonb_set(params::jsonb,'{chapterPlanProposed}','true'::jsonb)::text WHERE id=$1", [proposal.taskId])

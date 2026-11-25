@@ -275,9 +275,14 @@ private struct AgentArtifactContent: View {
                         Label("对照原章节", systemImage: "rectangle.split.2x1")
                     }
                     .buttonStyle(AgentPanelButtonStyle())
-                    AgentPlainPreview(title: "建议正文", text: edit.after)
-                    Button("预览写回原章节") { Task { await model.prepare(.applyChapterEdit, targetID: artifact.id) } }
-                        .buttonStyle(AgentPanelButtonStyle(prominent: true)).disabled(model.working)
+                    if let revision = edit.selectionRevision, let differences = edit.differences {
+                        AgentRewriteSelectionView(model: model, artifactID: artifact.id, kind: .applyChapterEdit,
+                            revision: revision, differences: differences, before: edit.before, after: edit.after)
+                    } else {
+                        AgentPlainPreview(title: "建议正文", text: edit.after)
+                        Button("预览写回原章节") { Task { await model.prepare(.applyChapterEdit, targetID: artifact.id) } }
+                            .buttonStyle(AgentPanelButtonStyle(prominent: true)).disabled(model.working)
+                    }
                 }
             }
             ForEach(Array(artifact.covers.enumerated()), id: \.element.id) { index, cover in
@@ -312,11 +317,14 @@ private struct AgentArtifactContent: View {
             }
             .buttonStyle(AgentPanelButtonStyle())
             if let warning = rewrite.minimumLengthWarning { AgentPanelNotice(warning) }
-            AgentPlainPreview(title: "改写后", text: rewrite.after)
-            Button { Task { await model.prepare(.applyRewrite, targetID: artifact.id) } } label: {
-                Text("预览采纳")
+            if let revision = rewrite.selectionRevision, let differences = rewrite.differences {
+                AgentRewriteSelectionView(model: model, artifactID: artifact.id, kind: .applyRewrite,
+                    revision: revision, differences: differences, before: rewrite.before, after: rewrite.after)
+            } else {
+                AgentPlainPreview(title: "改写后", text: rewrite.after)
+                Button { Task { await model.prepare(.applyRewrite, targetID: artifact.id) } } label: { Text("预览采纳") }
+                    .buttonStyle(AgentPanelButtonStyle(prominent: true)).disabled(model.working)
             }
-            .buttonStyle(AgentPanelButtonStyle(prominent: true)).disabled(model.working)
         }
     }
 }

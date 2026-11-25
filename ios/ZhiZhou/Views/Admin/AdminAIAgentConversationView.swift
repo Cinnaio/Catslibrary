@@ -12,7 +12,7 @@ struct AdminAIAgentConversationView: View {
     let onOpenContinuation: (AIAgentSession) -> Void
 
     private enum Panel: Identifiable {
-        case outputs, artifact(String), settings, memory, chapterPlan, storyGraph
+        case outputs, artifact(String), settings, memory, chapterPlan, storyGraph, writingReferences
         var id: String {
             switch self {
             case .outputs: "outputs"
@@ -21,6 +21,7 @@ struct AdminAIAgentConversationView: View {
             case .memory: "memory"
             case .chapterPlan: "chapter-plan"
             case .storyGraph: "story-graph"
+            case .writingReferences: "writing-references"
             }
         }
     }
@@ -92,6 +93,7 @@ struct AdminAIAgentConversationView: View {
                         Button(model.pendingMemoryCount > 0 ? "作品记忆 · \(model.pendingMemoryCount) 条待确认" : "作品记忆",
                                systemImage: "bookmark") { panel = .memory }
                         Button("故事星图", systemImage: "point.3.connected.trianglepath.dotted") { panel = .storyGraph }
+                        if model.supportsWritingReferences { Button("写作参考", systemImage: "books.vertical") { panel = .writingReferences } }
                         Button("会话设置", systemImage: "slider.horizontal.3") { panel = .settings }
                     }
                 }
@@ -107,6 +109,7 @@ struct AdminAIAgentConversationView: View {
             case .settings: AgentSettingsSheet(model: model)
             case .memory: AgentMemoryView(model: model)
             case .chapterPlan: AgentChapterPlanSheet(model: model)
+            case .writingReferences: AgentWritingReferencesView(model: model)
             case .storyGraph:
                 NavigationStack {
                     AdminStoryGraphView(novelID: model.session.novelId, novelTitle: model.session.novelTitle,
@@ -717,6 +720,7 @@ private struct AgentComposerView: View {
     let showChapterPlan: () -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showDiscard = false
+    @State private var showReferences = false
 
     private var modelName: String {
         model.presets.first(where: { $0.id == model.localDraft.providerPresetId })?.name
@@ -759,12 +763,19 @@ private struct AgentComposerView: View {
             .padding(.horizontal, 12).padding(.top, 6).padding(.bottom, 4)
             .appGlassEffect(.regular, fallback: ReadingSpace.paper,
                             in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            if model.supportsWritingReferences {
+                Button { showReferences = true } label: {
+                    Label(model.selectedReferences.isEmpty ? "写作参考" : "写作参考 · " + model.selectedReferences.map(\.title).joined(separator: "、"), systemImage: "books.vertical")
+                        .font(.caption).lineLimit(2).frame(minHeight: 44)
+                }.disabled(!model.canChangeChapterPlan)
+            }
             if model.localDraft.input.utf16.count > 8_000 {
                 Text("消息最多 8000 字，请缩短后发送。").font(.caption).foregroundStyle(.red)
             }
         }
         .padding(.horizontal, 16).padding(.bottom, 12)
         .frame(maxWidth: 760).frame(maxWidth: .infinity)
+        .sheet(isPresented: $showReferences) { AgentWritingReferencesView(model: model) }
         .confirmationDialog("先核对消息是否已发送", isPresented: $showDiscard, titleVisibility: .visible) {
             Button(model.localDraft.pending?.chapterPlanIntent == nil ? "取回文字，结束本次重试" : "结束本次重试") {
                 model.discardPending()

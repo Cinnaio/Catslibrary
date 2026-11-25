@@ -1,3 +1,4 @@
+import AiAgentStoryThreads from './AiAgentStoryThreads'
 import { useEffect, useRef, useState } from 'react'
 import { AGENT_CHAPTER_PLAN_LIMITS, type AgentChapterPlan, type AgentChapterPlanInput } from '@shared/ai-agent'
 import { agentApi } from '@/lib/ai-agent-api'
@@ -14,8 +15,12 @@ import { chapterPlanLabels as labels, chapterPlanFields as fields } from './agen
 
 const empty: AgentChapterPlanInput = { title: '', goal: '', beats: '', characters: '', ending: '', constraints: '', targetWords: 2000 }
 
-export default function AiAgentChapterPlan({ sessionId, plan, branchesAvailable = false, outlineAvailable = false, disabled, onChanged, onStart, onDiscuss }: {
+export default function AiAgentChapterPlan({ sessionId, novelId = '', afterChapterId = '', storyThreadsAvailable = false, outlineWorkflowAvailable = false, plan, branchesAvailable = false, outlineAvailable = false, disabled, onChanged, onStart, onDiscuss }: {
   sessionId: string
+  novelId?: string
+  afterChapterId?: string
+  storyThreadsAvailable?: boolean
+  outlineWorkflowAvailable?: boolean
   plan: AgentChapterPlan | null
   branchesAvailable?: boolean
   outlineAvailable?: boolean
@@ -26,6 +31,7 @@ export default function AiAgentChapterPlan({ sessionId, plan, branchesAvailable 
 }) {
   const [open, setOpen] = useState(false)
   const [showBranches, setShowBranches] = useState(false)
+  const [showThreads, setShowThreads] = useState(false)
   const [showOutline, setShowOutline] = useState(false)
   const [editing, setEditing] = useState<{ input: AgentChapterPlanInput; revision: number } | null>(null)
   const [saved, setSaved] = useState<AgentChapterPlan | null>(null)
@@ -92,7 +98,8 @@ export default function AiAgentChapterPlan({ sessionId, plan, branchesAvailable 
   }
   return <Dialog open={open} onOpenChange={value => { if (!busy) setOpen(value) }}>
     <DialogTrigger asChild><Button type="button" size="sm" variant="ghost">章节计划{current ? ' · 第 ' + current.revision + ' 版' : ''}</Button></DialogTrigger>
-    {open && showOutline ? <AiAgentOutline sessionId={sessionId} currentPlan={current} disabled={disabled} onBack={() => setShowOutline(false)}
+    {open && showThreads ? <AiAgentStoryThreads sessionId={sessionId} novelId={novelId} afterChapterId={afterChapterId} plan={current} disabled={disabled} onBusyChange={setBusy} onBack={() => setShowThreads(false)}
+      onApplied={next => { setSaved(next); setShowThreads(false); onChanged() }} onDiscuss={async prompt => { await onDiscuss(prompt); if (alive.current) setOpen(false) }} /> : open && showOutline ? <AiAgentOutline novelId={novelId} workflowAvailable={outlineWorkflowAvailable} onDiscuss={async prompt => { await onDiscuss(prompt); if (alive.current) setOpen(false) }} sessionId={sessionId} currentPlan={current} disabled={disabled} onBack={() => setShowOutline(false)}
       onBusyChange={setBusy} onApplied={next => { setSaved(next); setShowOutline(false); setError(''); onChanged() }} />
       : open && showBranches ? <AiAgentPlanBranches sessionId={sessionId} disabled={disabled} onBusyChange={setBusy}
       onBack={() => setShowBranches(false)} onChanged={next => { setSaved(next); onChanged() }}
@@ -112,8 +119,10 @@ export default function AiAgentChapterPlan({ sessionId, plan, branchesAvailable 
         <div className={styles.discussion}>
           <p>{current ? '第 ' + current.revision + ' 版 · 可继续讨论，修改不会影响已提交任务。' : '先和助手讨论计划，也可以直接填写。'}</p>
           <Button variant="outline" size="sm" disabled={blocked || !!editing} onClick={() => void discuss()}>{current ? '请助手完善计划' : '请助手拟定计划'}</Button>
+          {storyThreadsAvailable && !editing && <Button variant="outline" size="sm" disabled={busy} onClick={() => setShowThreads(true)}>线索安排</Button>}
           {outlineAvailable && !editing && <Button variant="outline" size="sm" disabled={busy} onClick={() => setShowOutline(true)}>多章大纲</Button>}
         </div>
+        {!!current?.storyThreads?.length && <p className={styles.note}>本章已带入：{current.storyThreads.map(item => item.thread.title).join("、")}。修改线索安排后需重新保存本章选择。</p>}
         {current?.sourceBranch && <p className={styles.note}>当前走向来自分支「{current.sourceBranch.name}」。核对后仍需确认写作。</p>}
         {error && <div role="alert"><p>{error}</p><Button variant="ghost" size="sm" disabled={busy} onClick={() => { setEditing(null); setSaved(null); setError(''); onChanged() }}>放弃编辑并刷新计划</Button></div>}
         {showEditor ? <div className={styles.fields}>

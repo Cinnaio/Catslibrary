@@ -1,3 +1,4 @@
+import { compareAgentText } from '@shared/ai-text-diff'
 import { resolveRewriteSelection, rewriteSelectionRevision } from './rewrite-selection'
 import { confirmChapterAction, parseChapterEdit, prepareChapterAction } from './chapter-edit'
 import type { AgentActionKind, AgentArtifact, AgentSession } from '@shared/ai-agent'
@@ -117,6 +118,7 @@ export async function readAgentArtifact(db: Db, session: AgentSession, taskId: s
       result.rewrite = {
         draftId: params.draftId, before: params.selectedText, after: suggestion.suggestion, baseRevision: params.baseRevision,
         selectionRevision: rewriteSelectionRevision(params.selectedText, suggestion.suggestion),
+        differences: compareAgentText(params.selectedText, suggestion.suggestion),
         ...(minimumLengthWarning ? { minimumLengthWarning } : {}),
       }
     }
@@ -125,7 +127,8 @@ export async function readAgentArtifact(db: Db, session: AgentSession, taskId: s
     const edit = parseChapterEdit(task.params || '{}', task.result)
     if (edit) result.chapterEdit = { chapterId: edit.params.chapterId, chapterTitle: edit.params.chapterTitle,
       before: edit.params.selectedText, after: edit.suggestion, baseRevision: edit.params.baseRevision,
-      selectionRevision: rewriteSelectionRevision(edit.params.selectedText, edit.suggestion) }
+      selectionRevision: rewriteSelectionRevision(edit.params.selectedText, edit.suggestion),
+      differences: compareAgentText(edit.params.selectedText, edit.suggestion) }
   }
   if (task.kind === 'novel_analysis') {
     const report = await first<{ id: string; kind: AnalysisKind }>(db,

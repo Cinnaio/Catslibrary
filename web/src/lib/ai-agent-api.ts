@@ -1,6 +1,8 @@
 import type { AgentChapterEditSource, AgentChapterHistory } from '@shared/ai-agent'
 import type {
   AgentChapterPlan,
+  AgentStoryThreadState,
+  AgentStoryThreadDisposition,
   AgentChapterImpactReport,
   AgentContinuationInput,
   AgentContinuationPreview,
@@ -32,6 +34,12 @@ export const agentApi = {
     request<{ outline: AgentOutline }>('PATCH', path(id) + '/outline', { chapters, expectedRevision }, true),
   applyOutlineChapter: (id: string, index: number, expectedOutlineRevision: number, expectedPlanRevision: number) =>
     request<{ plan: AgentChapterPlan }>('POST', path(id) + '/outline/apply', { index, expectedOutlineRevision, expectedPlanRevision }, true),
+  storyThreads: (id: string) => request<AgentStoryThreadState>('GET', path(id) + '/story-threads', null, true),
+  saveStoryThread: (id: string, value: { id?: string; threadId?: string; sourceRevision?: string; expectedRevision: number; disposition: AgentStoryThreadDisposition; note: string }) =>
+    request<AgentStoryThreadState>('POST', path(id) + '/story-threads', value, true),
+  removeStoryThread: (id: string, threadId: string, expectedRevision: number) => request('DELETE', path(id) + '/story-threads/' + encodeURIComponent(threadId), { expectedRevision }, true),
+  applyStoryThreads: (id: string, ids: string[], revisions: number[], expectedPlanRevision: number) =>
+    request<{ plan: AgentChapterPlan }>('POST', path(id) + '/story-threads/apply', { ids, revisions, expectedPlanRevision }, true),
   planBranches: (id: string) => request<AgentChapterPlanBranchState>('GET', path(id) + '/chapter-plan/branches', null, true),
   savePlanBranch: (id: string, name: string, expectedRevision: number, operationId: string) =>
     request<AgentChapterPlanBranchState>('POST', path(id) + '/chapter-plan/branches', { name, expectedRevision, operationId }, true),

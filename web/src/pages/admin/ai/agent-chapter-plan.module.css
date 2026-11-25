@@ -19,3 +19,5 @@
 @keyframes outline-enter { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) { .outlineList li { animation: none; } }
 @media (max-width: 800px) { .outlineList button { min-height: 48px; } }
+
+.threadChoice { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }

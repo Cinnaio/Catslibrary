@@ -12,6 +12,8 @@ struct AgentChapterPlanSheet: View {
     @State private var error: String?
     @State private var showBranches = false
     @State private var showOutline = false
+    @State private var showThreads = false
+    @State private var threadEditing = false
     @State private var outlineEditing = false
     @State private var confirmation: Confirmation?
 
@@ -45,8 +47,10 @@ struct AgentChapterPlanSheet: View {
     var body: some View {
         NavigationStack {
             Group {
-                if showOutline {
-                    AgentOutlinePage(model: model, busy: $busy, editing: $outlineEditing) { showOutline = false }
+                if showThreads {
+                    AgentStoryThreadsPage(model: model, busy: $busy, editing: $threadEditing, onApplied: { showThreads = false }, onDiscussed: { dismiss() })
+                } else if showOutline {
+                    AgentOutlinePage(model: model, busy: $busy, editing: $outlineEditing, onDiscussed: { dismiss() }) { showOutline = false }
                 } else if showBranches {
                     AgentPlanBranchesView(model: model, busy: $busy) { showBranches = false }
                 } else {
@@ -55,9 +59,9 @@ struct AgentChapterPlanSheet: View {
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    if showOutline || showBranches {
-                        Button("返回计划", systemImage: "chevron.backward") { showOutline = false; showBranches = false }
-                            .labelStyle(.iconOnly).disabled(busy || outlineEditing)
+                    if showOutline || showBranches || showThreads {
+                        Button("返回计划", systemImage: "chevron.backward") { showOutline = false; showBranches = false; showThreads = false }
+                            .labelStyle(.iconOnly).disabled(busy || outlineEditing || threadEditing)
                     } else if editing {
                         Button("取消编辑") { confirmation = .discard }.disabled(busy)
                     } else {
@@ -65,7 +69,7 @@ struct AgentChapterPlanSheet: View {
                     }
                 }
             }
-            .interactiveDismissDisabled(busy || editing || outlineEditing)
+            .interactiveDismissDisabled(busy || editing || outlineEditing || threadEditing)
             .confirmationDialog(confirmation?.title ?? "", isPresented: Binding(
                 get: { confirmation != nil }, set: { if !$0 { confirmation = nil } }
             ), titleVisibility: .visible, presenting: confirmation) { option in
@@ -112,6 +116,9 @@ struct AgentChapterPlanSheet: View {
             } else {
                 planActions
                 if let plan = model.chapterPlan {
+                    if let threads = plan.storyThreads, !threads.isEmpty {
+                        AgentPanelNotice("本章已带入：" + threads.map { $0.thread.title }.joined(separator: "、") + "。调整安排后需重新保存本章选择。")
+                    }
                     if let branch = plan.sourceBranch {
                         AgentPanelNotice("当前走向来自分支「\(branch.name)」。")
                     }
@@ -153,6 +160,10 @@ struct AgentChapterPlanSheet: View {
                     .buttonStyle(AgentPanelButtonStyle())
                     .disabled(busy)
                 }
+            }
+            if model.supportsStoryThreads {
+                Button("线索安排", systemImage: "point.3.connected.trianglepath.dotted") { error = nil; showThreads = true }
+                    .buttonStyle(AgentPanelButtonStyle()).disabled(busy)
             }
             if model.supportsOutline {
                 Button("多章大纲", systemImage: "list.bullet.rectangle") {
@@ -260,6 +271,7 @@ private struct AgentOutlinePage: View {
     let model: AdminAIAgentConversationModel
     @Binding var busy: Bool
     @Binding var editing: Bool
+    let onDiscussed: () -> Void
     let onApplied: () -> Void
     @State private var outline: AIAgentOutline?
     @State private var draft: [AIAgentOutlineChapter] = []
@@ -306,6 +318,12 @@ private struct AgentOutlinePage: View {
     var body: some View {
         AgentPanelPage {
             AgentPanelHeading("多章大纲", detail: "按顺序安排接下来 3 至 5 章。设为章节计划后，可以继续核对和编辑。")
+            if model.supportsOutlineWorkflow && !editing {
+                Button(outline == nil ? "请助手拟定多章大纲" : "请助手核对进度并完善大纲") { Task {
+                    if await model.discussWorkflow("请先读取本书多章大纲及实际草稿、发布进度，结合我们的讨论拟定或完善未来 3 至 5 章安排。保留已有章节标识，核对实际写出的情节，指出后续哪些安排需要调整，再用 propose_outline 保存待核对大纲。只做规划，暂不生成正文。") { onDiscussed() }
+                    else { error = model.messageError }
+                } }.buttonStyle(AgentPanelButtonStyle()).disabled(busy || loading || !model.canChangeChapterPlan)
+            }
             if loading { ProgressView("正在读取作品大纲…") }
             if let error {
                 AgentPanelNotice(error, isError: true)
@@ -350,6 +368,22 @@ private struct AgentOutlinePage: View {
             ForEach(outline.chapters.indices, id: \.self) { index in
                 let chapter = outline.chapters[index]
                 AgentPanelSection("\(index + 1). \(chapter.title)") {
+                    if let progress = chapter.progress {
+                        Text(progress.label + (index == outline.chapters.firstIndex(where: { $0.progress?.status != "published" }) ? " · 下一项" : ""))
+                            .font(.caption).foregroundStyle(ReadingSpace.profileMuted)
+                        if progress.changedSinceWriting { AgentPanelNotice("大纲在写作后有更新，已有稿件仍保留当时的计划。请核对后续安排。") }
+                        ForEach(progress.drafts) { draft in
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(draft.title + " · " + (draft.status == "published" ? draft.chapterId == nil ? "正式章节已不可用" : "已发布" : "草稿")).font(.subheadline)
+                                if let chapterID = draft.chapterId {
+                                    NavigationLink("阅读已发布章节") { SavedChapterDestination(novelID: model.session.novelId, chapterID: chapterID) }
+                                }
+                                if !draft.sessionId.isEmpty {
+                                    NavigationLink("打开创作对话") { AgentOutlineConversationDestination(model: model, sessionID: draft.sessionId) }
+                                }
+                            }
+                        }
+                    }
                     AgentPanelFact(title: "本章目标", value: chapter.goal)
                     AgentPanelFact(title: "情节步骤", value: chapter.beats)
                     Button("选作章节计划") { chosen = index }
@@ -477,5 +511,25 @@ extension AIAgentChapterPlanInput {
     func displayValue(for field: PlanTextField) -> String {
         let value = self[keyPath: field.keyPath]
         return value.isEmpty ? "尚未决定" : value
+    }
+}
+
+private struct AgentOutlineConversationDestination: View {
+    let model: AdminAIAgentConversationModel
+    let sessionID: String
+    @State private var session: AIAgentSession?
+    @State private var error: String?
+    var body: some View {
+        Group {
+            if let session {
+                AdminAIAgentConversationView(session: session, userID: model.userID, token: model.api.token,
+                    onOpenContinuation: { self.session = $0 }).id(session.id)
+            } else if let error { AgentPanelNotice(error, isError: true) }
+            else { ProgressView("读取创作对话…") }
+        }.task(id: sessionID) {
+            do { let result = try await model.api.detail(sessionID)
+                if model.isCurrentAccount, !Task.isCancelled { session = result.session }
+            } catch { if model.isCurrentAccount, !Task.isCancelled { self.error = AppCopy.friendlyError(error) } }
+        }
     }
 }
