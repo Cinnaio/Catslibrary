@@ -31,8 +31,15 @@ struct SourceRankingEntry: Decodable, Hashable, Identifiable {
     let updatedAt: Int64?
     let sourceUrl: String?
     let description: String?
+    let rankingId: String?
+    let bookKey: String?
 
     var id: Int { rank }
+
+    func resourcePath(_ resource: String) -> String? {
+        guard let rankingId, let bookKey else { return nil }
+        return "/api/novels/source-rankings/\(resource)?" + ReaderQuery.encode(["ranking": rankingId, "book": bookKey])
+    }
 }
 
 struct SourceRankingsPresentation: Identifiable {
@@ -224,12 +231,7 @@ private struct SourceRankingRow: View {
             if let novelID = entry.novelId {
                 NovelCoverView(novelID: novelID, updatedAt: entry.updatedAt ?? 0, size: CGSize(width: 34, height: 48))
             } else {
-                Image(systemName: "book.closed")
-                    .font(.footnote)
-                    .foregroundStyle(ReadingSpace.profileMuted)
-                    .frame(width: 34, height: 48)
-                    .background(ReadingSpace.profileFill, in: RoundedRectangle(cornerRadius: 8))
-                    .accessibilityHidden(true)
+                SourceRankingCover(entry: entry, size: CGSize(width: 34, height: 48))
             }
             VStack(alignment: .leading, spacing: 3) {
                 Text(entry.title)
@@ -250,10 +252,54 @@ private struct SourceRankingRow: View {
     }
 }
 
+private struct SourceRankingCover: View {
+    let entry: SourceRankingEntry
+    let size: CGSize
+
+    private var url: URL? {
+        guard ContentAccessStore.shared.mode == "adult",
+              let path = entry.resourcePath("cover"), let base = ServerConfig.shared.baseURL else { return nil }
+        return APIRequestURL.resolve(ContentPolicy.readerPath(path, mode: "adult"), relativeTo: base)
+    }
+
+    var body: some View {
+        CachedAsyncImage(url: url, targetSize: size, showsRetry: false) { image in
+            image.resizable().scaledToFill()
+        } placeholder: {
+            ZStack {
+                ReadingSpace.profileFill
+                Image(systemName: "book.closed")
+                    .font(.footnote)
+                    .foregroundStyle(ReadingSpace.profileMuted)
+            }
+        }
+        .frame(width: size.width, height: size.height)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .accessibilityHidden(true)
+    }
+}
+
+private struct SourceRankingBookInfo: Decodable {
+    struct Directory: Decodable {
+        struct Chapter: Decodable {
+            let title: String
+            let `protected`: Bool
+        }
+
+        let count: Int
+        let chapters: [Chapter]
+    }
+
+    let description: String
+    let directory: Directory?
+}
+
 private struct SourceRankingDetail: View {
     let entry: SourceRankingEntry
     let didImport: () -> Void
     @State private var novel: Novel?
+    @State private var bookInfo: SourceRankingBookInfo?
+    @State private var isLoadingInfo = false
     @State private var errorMessage: String?
     @State private var importItem: DiscoverNovel?
     @State private var attempt = 0
@@ -262,34 +308,16 @@ private struct SourceRankingDetail: View {
         Group {
             if let novel {
                 NovelDetailView(novel: novel)
-            } else if let errorMessage {
-                ReaderPanelPage {
-                    LoadErrorNotice(message: errorMessage, isLoading: false) { attempt += 1 }
-                }
             } else if entry.novelId != nil {
-                ReaderPanelPage { ProgressView("正在打开作品…") }
-            } else {
                 ReaderPanelPage {
-                    ReaderPanelHeading(entry.title, detail: entry.author)
-                    ReaderPanelSection("未收录") {
-                        if let description = entry.description, !description.isEmpty {
-                            Text(description).foregroundStyle(ReadingSpace.ink)
-                        } else {
-                            Text("源站榜单暂未提供简介。")
-                                .foregroundStyle(ReadingSpace.profileMuted)
-                        }
-                        if AppState.shared.user?.isAdmin == true,
-                           ContentAccessStore.shared.mode == "adult", let url = entry.sourceUrl {
-                            Button("导入作品") {
-                                importItem = DiscoverNovel(bookId: nil, title: entry.title, author: entry.author,
-                                    coverUrl: nil, url: url, existing: false, description: entry.description,
-                                    chapterCount: nil, status: nil, source: nil, sourceName: nil)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.large)
-                        }
+                    if let errorMessage {
+                        LoadErrorNotice(message: errorMessage, isLoading: false) { attempt += 1 }
+                    } else {
+                        ProgressView("正在打开作品…")
                     }
                 }
+            } else {
+                uncollectedDetail
             }
         }
         .sheet(item: $importItem) { item in
@@ -298,17 +326,82 @@ private struct SourceRankingDetail: View {
                 if imported { didImport() }
             }
         }
-        .task(id: attempt) {
-            guard let id = entry.novelId else { return }
-            errorMessage = nil
-            do {
+        .task(id: attempt) { await load() }
+    }
+
+    private var uncollectedDetail: some View {
+        ReaderPanelPage {
+            HStack(alignment: .top, spacing: 16) {
+                SourceRankingCover(entry: entry, size: CGSize(width: 70, height: 100))
+                VStack(alignment: .leading, spacing: 8) {
+                    ReaderPanelHeading(entry.title, detail: entry.author)
+                    Text("未收录").font(.footnote).foregroundStyle(ReadingSpace.profileMuted)
+                }
+            }
+            if let errorMessage {
+                LoadErrorNotice(message: errorMessage, isLoading: isLoadingInfo) { attempt += 1 }
+            } else if isLoadingInfo {
+                ProgressView("正在读取源站简介和目录…")
+            }
+            let description = bookInfo?.description ?? entry.description ?? ""
+            if !description.isEmpty || bookInfo != nil {
+                ReaderPanelSection("作品简介") {
+                    Text(description.isEmpty ? "源站暂未提供简介。" : description)
+                        .foregroundStyle(description.isEmpty ? ReadingSpace.profileMuted : ReadingSpace.ink)
+                }
+            }
+            if let bookInfo {
+                ReaderPanelSection("目录预览") {
+                    if let directory = bookInfo.directory, directory.count > 0 {
+                        ReaderPanelNote("已识别 \(directory.count) 章 · 显示前 \(directory.chapters.count) 章")
+                        ForEach(Array(directory.chapters.enumerated()), id: \.offset) { index, chapter in
+                            AppAdaptiveRow {
+                                Text("\(index + 1). \(chapter.title)")
+                                    .foregroundStyle(ReadingSpace.ink)
+                                if chapter.protected {
+                                    Text("受限").font(.caption).foregroundStyle(ReadingSpace.profileMuted)
+                                }
+                            }
+                        }
+                    } else if bookInfo.directory == nil {
+                        ReaderPanelNote("暂时无法读取源站目录。")
+                        Button("重试读取目录") { attempt += 1 }
+                            .frame(minHeight: AppLayout.minimumTouchTarget)
+                            .disabled(isLoadingInfo)
+                    } else {
+                        ReaderPanelNote("源站目录没有可显示的章节。")
+                    }
+                }
+            }
+            if AppState.shared.user?.isAdmin == true,
+               ContentAccessStore.shared.mode == "adult", let url = entry.sourceUrl {
+                Button("导入作品") {
+                    importItem = DiscoverNovel(bookId: nil, title: entry.title, author: entry.author,
+                        coverUrl: nil, url: url, existing: false, description: description,
+                        chapterCount: bookInfo?.directory?.count, status: nil, source: nil, sourceName: nil)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+            }
+        }
+    }
+
+    private func load() async {
+        errorMessage = nil
+        do {
+            if let id = entry.novelId {
                 let response: NovelResponse = try await APIClient.shared.getReader(
                     "/api/novels/\(ReaderMediaAPI.pathSegment(id))", refresh: true
                 )
                 if !Task.isCancelled { novel = response.novel }
-            } catch {
-                if !Task.isCancelled { errorMessage = AppCopy.friendlyError(error) }
+            } else if let path = entry.resourcePath("detail") {
+                isLoadingInfo = true
+                defer { isLoadingInfo = false }
+                let response: SourceRankingBookInfo = try await APIClient.shared.getReader(path, refresh: true)
+                if !Task.isCancelled { bookInfo = response }
             }
+        } catch {
+            if !Task.isCancelled { errorMessage = AppCopy.friendlyError(error) }
         }
     }
 }

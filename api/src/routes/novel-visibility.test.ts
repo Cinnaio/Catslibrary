@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { app } from '../app'
 import { setDbForTests } from '../db/pool'
 import { createTestDb, type TestDb } from '../test/db'
@@ -8,6 +8,7 @@ import { createWebRoutes } from './web'
 import { fileURLToPath } from 'node:url'
 import { setScrapeAdaptersForTest, scrapeAdapters } from '../services/scraper/sources'
 import { refreshSourceRankings } from '../services/source-rankings'
+import * as covers from '../services/covers'
 
 let t: TestDb
 const tokens = { admin: 'a'.repeat(64), allowed: 'b'.repeat(64), other: 'c'.repeat(64) }
@@ -126,6 +127,65 @@ describe('书籍可见范围与分级独立', () => {
       setScrapeAdaptersForTest(adapters)
       await t.db.query('DELETE FROM source_ranking_snapshots WHERE ranking_id=$1', [preset.id])
       await t.db.query("UPDATE novels SET source_url='' WHERE source_url LIKE 'https://ranking.example/%'")
+    }
+  })
+
+  it('未收录榜单详情与封面仅允许发给有权限的会话，目录预览不读正文', async () => {
+    const adapters = scrapeAdapters()
+    const preset = { id: 'po18-dayvisit', label: '日点击榜', listUrl: 'https://ranking.example/top' }
+    const bookUrl = 'https://ranking.example/book/detail-fixture/'
+    const coverUrl = 'https://ranking.example/cover.jpg'
+    const ranking = encodeURIComponent(`po18:${preset.id}`)
+    const requested: string[] = []
+    const fetchCover = vi.spyOn(covers, 'fetchImage').mockResolvedValue({ data: new Uint8Array([1, 2, 3]), contentType: 'image/jpeg' })
+    try {
+      setScrapeAdaptersForTest([{
+        id: 'po18', name: '测试书源', hosts: ['ranking.example'], rankings: [preset],
+        presets: { 'ranking.example': { name: '测试书源', encoding: 'utf-8', meta: { description: '.intro', cover: '.cover' }, selectors: { chapterList: '.chapters a' } } },
+        fetch: () => async url => {
+          requested.push(url)
+          if (url !== bookUrl) throw new Error('Unexpected upstream request')
+          return { html: '<img class="cover" src="/detail.jpg"><p class="intro">作品详情里的简介</p><div class="chapters"><a href="/read/1">第一章</a></div>', encoding: 'utf-8' }
+        },
+      }])
+      await t.db.query('INSERT INTO source_ranking_snapshots VALUES ($1,$2,$3::jsonb,$4)', [
+        'po18', preset.id, JSON.stringify([{ rank: 1, title: '作品', author: '作者', url: bookUrl, description: '', coverUrl }]), Date.now(),
+      ])
+      const admin = { Authorization: `Bearer ${tokens.admin}` }
+      const root = '/api/novels/source-rankings'
+      const list = await (await app.request(`${root}?ranking=${ranking}&contentMode=adult`, { headers: admin })).json() as {
+        entries: Array<{ bookKey: string; coverUrl?: string }>
+      }
+      expect(list.entries[0]).not.toHaveProperty('coverUrl')
+      const query = `?ranking=${ranking}&book=${list.entries[0]?.bookKey}`
+      for (const resource of ['detail', 'cover']) {
+        expect((await app.request(`${root}/${resource}${query}&contentMode=safe`, { headers: admin })).status).toBe(404)
+        expect((await app.request(`${root}/${resource}${query}&contentMode=adult`)).status).toBe(404)
+        expect((await app.request(`${root}/${resource}?ranking=${ranking}&book=${'a'.repeat(64)}&contentMode=adult`, { headers: admin })).status).toBe(404)
+      }
+      expect(requested).toEqual([])
+      expect(fetchCover).not.toHaveBeenCalled()
+
+      const detail = await app.request(`${root}/detail${query}&contentMode=adult`, { headers: admin })
+      expect(detail.status).toBe(200)
+      expect(await detail.json()).toEqual({ description: '作品详情里的简介', directory: { count: 1, chapters: [{ title: '第一章', protected: false }] } })
+      expect(requested).toEqual([bookUrl])
+      const image = await app.request(`${root}/cover${query}&contentMode=adult`, { headers: admin })
+      expect(image.status).toBe(200)
+      expect(image.headers.get('Cache-Control')).toContain('no-store')
+      expect(image.headers.get('Content-Type')).toBe('image/jpeg')
+      expect(fetchCover).toHaveBeenCalledExactlyOnceWith(coverUrl)
+      expect(requested).toEqual([bookUrl])
+
+      await t.db.query("UPDATE source_ranking_snapshots SET entries=jsonb_build_array((entries->0)-'coverUrl') WHERE ranking_id=$1", [preset.id])
+      const oldSnapshot = await app.request(`${root}/cover${query}&contentMode=adult`, { headers: admin })
+      expect(oldSnapshot.status).toBe(200)
+      expect(fetchCover).toHaveBeenLastCalledWith('https://ranking.example/detail.jpg')
+      expect(requested).toEqual([bookUrl, bookUrl])
+    } finally {
+      fetchCover.mockRestore()
+      setScrapeAdaptersForTest(adapters)
+      await t.db.query('DELETE FROM source_ranking_snapshots WHERE ranking_id=$1', [preset.id])
     }
   })
 

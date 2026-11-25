@@ -297,11 +297,12 @@ export interface DetectMetaResult {
   hasMoreChapters: boolean
   /** 需订购/购买才能读取正文的章节数。 */
   protectedChapterCount: number
+  directoryPreview?: Array<{ title: string; protected: boolean }>
   encoding: string
 }
 
 /** 智能分析：预设（静态/书源）→ 抓取 → 提取元数据 → 统计章节数。 */
-export async function detectMeta(sourceUrl: string, deps: MetaDeps): Promise<DetectMetaResult> {
+export async function detectMeta(sourceUrl: string, deps: MetaDeps, directory: 'count' | 'preview' | 'skip' = 'count'): Promise<DetectMetaResult> {
   assertSourceAvailable(sourceUrl)
   const chapters = adapterForUrl(sourceUrl)?.chapters
   const preset = (await getPresetForUrl(sourceUrl, deps.store)) as (SitePreset & { source?: string }) | null
@@ -323,7 +324,8 @@ export async function detectMeta(sourceUrl: string, deps: MetaDeps): Promise<Det
   let directoryChapterCount = 0
   let hasMoreChapters = false
   let protectedChapterCount = 0
-  if (chapters) {
+  let directoryPreview: DetectMetaResult['directoryPreview']
+  if (directory !== 'skip' && chapters) {
     try {
       const list = await deps.fetchHtml(chapterListUrl, { forceEncoding: encoding })
       chapters.assertResponse(list.finalUrl || chapterListUrl, list.html, 'directory')
@@ -331,16 +333,24 @@ export async function detectMeta(sourceUrl: string, deps: MetaDeps): Promise<Det
       chapterCount = parsed.links.length
       directoryChapterCount = parsed.candidates.length
       protectedChapterCount = parsed.protectedChapterCount
+      if (directory === 'preview') {
+        directoryPreview = parsed.candidates.slice(0, 20).map(chapter => ({ title: chapter.title, protected: chapter.access === 'protected' }))
+      }
     } catch {
       /* 章节统计失败不阻断分析 */
     }
-  } else if (preset?.selectors?.chapterList) {
+  } else if (directory !== 'skip' && preset?.selectors?.chapterList) {
     try {
-      const list = await deps.fetchHtml(chapterListUrl, { forceEncoding: encoding })
-      const counted = await collectChapterLinks(list.html, preset, chapterListUrl, encoding, (url) => deps.fetchHtml(url, { forceEncoding: encoding }))
+      const listHtml = directory === 'preview' && chapterListUrl === sourceUrl
+        ? html
+        : (await deps.fetchHtml(chapterListUrl, { forceEncoding: encoding })).html
+      const counted = await collectChapterLinks(listHtml, preset, chapterListUrl, encoding, (url) => deps.fetchHtml(url, { forceEncoding: encoding }))
       chapterCount = counted.links.length
       directoryChapterCount = chapterCount
       hasMoreChapters = counted.limited
+      if (directory === 'preview') {
+        directoryPreview = counted.links.slice(0, 20).map(chapter => ({ title: chapter.text, protected: false }))
+      }
     } catch {
       /* 章节统计失败不阻断分析 */
     }
@@ -355,6 +365,7 @@ export async function detectMeta(sourceUrl: string, deps: MetaDeps): Promise<Det
     chapterCount,
     hasMoreChapters,
     protectedChapterCount,
+    ...(directoryPreview && { directoryPreview }),
     encoding: encoding || 'utf-8',
   }
 }

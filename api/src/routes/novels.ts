@@ -27,7 +27,7 @@ import { optionalUser, requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { contentPolicyHeaders, restrictedContentResponse, resolveContentAccess } from '../services/content-access'
 import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
 import { categoryAliases, canonicalCategory } from '@shared/category-aliases'
-import { readSourceRankings } from '../services/source-rankings'
+import { findUncollectedRankingEntry, readRankingBookCover, readRankingBookDetail, readSourceRankings } from '../services/source-rankings'
 
 export const novelsRoutes = new Hono<AuthEnv>()
 novelsRoutes.onError((error, c) => {
@@ -69,15 +69,37 @@ novelsRoutes.post('/export', requireAdmin(), async (c) => {
   })
 })
 
-novelsRoutes.get('/source-rankings', optionalUser(), async (c) => {
+async function rankingReadOptions(c: Context<AuthEnv>) {
   const access = await resolveContentAccess(c)
   const mode = c.req.query('contentMode')
-  return c.json(await readSourceRankings(getDb(), {
+  return {
     rankingId: c.req.query('ranking'),
     visibilitySql: visibleNovelSql(c, 'n'),
     canViewRestricted: access.canViewRestricted && mode !== 'safe',
     includeUncollected: access.canViewRestricted && mode === 'adult',
-  }), 200, contentPolicyHeaders())
+  }
+}
+
+novelsRoutes.get('/source-rankings', optionalUser(), async (c) => {
+  return c.json(await readSourceRankings(getDb(), await rankingReadOptions(c)), 200, contentPolicyHeaders())
+})
+
+novelsRoutes.get('/source-rankings/:resource{detail|cover}', optionalUser(), async (c) => {
+  const db = getDb()
+  const book = await findUncollectedRankingEntry(db, { ...await rankingReadOptions(c), entryKey: c.req.query('book') })
+  const headers = contentPolicyHeaders()
+  if (!book) return c.json({ error: '该榜单作品不可用，请返回刷新榜单' }, 404, headers)
+  const resource = c.req.param('resource')
+  if (resource === 'detail') {
+    try {
+      return c.json(await readRankingBookDetail(db, book), 200, headers)
+    } catch {
+      return c.json({ error: '暂时无法读取源站作品资料，请稍后重试' }, 502, headers)
+    }
+  }
+  const image = await readRankingBookCover(db, book).catch(() => null)
+  if (!image) return c.json({ error: '源站暂未提供可用封面' }, 404, headers)
+  return new Response(Buffer.from(image.data), { headers: { ...headers, 'Content-Type': image.contentType, 'X-Content-Type-Options': 'nosniff' } })
 })
 
 // ---------- 列表（公开） ----------
