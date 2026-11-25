@@ -260,7 +260,7 @@ final class FrontendAuditTests: XCTestCase {
 
     @MainActor
     func testIPadBookshelfReaderStaysResponsiveAcrossToolsAndRotation() throws {
-        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "覆盖 iPad 专用导航和 inspector")
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "覆盖 iPad 阅读导航及工具面板")
         executionTimeAllowance = 120
         XCUIDevice.shared.orientation = .portrait
         defer { XCUIDevice.shared.orientation = .portrait }
@@ -269,7 +269,7 @@ final class FrontendAuditTests: XCTestCase {
         let recent = app.buttons["bookshelf.recent.audit-book-1"]
         let paragraph = app.textViews["reader.paragraph.1"]
 
-        // 连续两次进入，覆盖导航目的地重建和 inspector 的呈现状态恢复。
+        // 连续两次进入，覆盖导航目的地重建与面板在旋转时切换呈现方式。
         for pageMode in [false, true] {
             selectTab("我的", app: app)
             let settings = app.buttons["阅读设置"]
@@ -386,13 +386,21 @@ final class FrontendAuditTests: XCTestCase {
         XCUIDevice.shared.orientation = .landscapeLeft
         defer { XCUIDevice.shared.orientation = .portrait }
         let app = launch()
-        tap(app.buttons["catalog.audit-book-1"])
 
-        for identifier in ["detail.read", "detail.chapter.2"] {
+        for identifier in ["detail.read", "detail.chapter.2", "detail.read"] {
+            // 个人首页会隐藏导航栏，切回发现必须恢复；返回阅读前后的路径也要完整。
+            selectTab("我的", app: app)
+            selectTab("发现", app: app)
+            tap(app.buttons["catalog.audit-book-1"])
             let entry = app.buttons[identifier]
             reveal(entry, app: app)
             tap(entry)
             assertReaderStaysOpenAndReturnToDetail(app)
+            tap(app.navigationBars.buttons.firstMatch)
+            let discoverTab = app.tabBars.buttons["发现"]
+            XCTAssertTrue(discoverTab.waitForExistence(timeout: 10))
+            XCTAssertTrue(discoverTab.isHittable, "返回首页后底部标签不能继续隐藏")
+            XCTAssertTrue(app.navigationBars.firstMatch.isHittable, "返回发现页后顶部导航必须恢复")
         }
     }
 
@@ -438,11 +446,27 @@ final class FrontendAuditTests: XCTestCase {
         disappeared.isInverted = true
         XCTAssertEqual(XCTWaiter.wait(for: [disappeared], timeout: 2), .completed, file: file, line: line)
         XCTAssertTrue(contents.isHittable, file: file, line: line)
+        let inlineTools = app.descendants(matching: .any).matching(identifier: "reader.tools.inline").firstMatch
+        XCTAssertFalse(inlineTools.exists, "打开阅读器不能自行展开工具", file: file, line: line)
         tap(contents, file: file, line: line)
+        if app.frame.width >= 960 {
+            XCTAssertTrue(inlineTools.waitForExistence(timeout: 10), file: file, line: line)
+            let viewport = app.descendants(matching: .any).matching(NSPredicate(
+                format: "identifier == %@ OR identifier == %@", "reader.body.scroll", "reader.body.pages"
+            )).firstMatch
+            XCTAssertTrue(viewport.waitForExistence(timeout: 10), file: file, line: line)
+            XCTAssertLessThanOrEqual(viewport.frame.maxX, inlineTools.frame.minX + 1,
+                                     "工具面板不得覆盖正文", file: file, line: line)
+        }
         tap(app.buttons["完成"], file: file, line: line)
         tap(app.navigationBars.buttons.firstMatch, file: file, line: line)
         XCTAssertTrue(app.buttons["detail.read"].waitForExistence(timeout: 10), file: file, line: line)
         XCTAssertFalse(contents.exists, file: file, line: line)
+        // 只看到作品正文并不够，必须能使用返回后的导航栏。
+        tap(app.buttons["正文搜索"], file: file, line: line)
+        XCTAssertTrue(app.searchFields.firstMatch.waitForExistence(timeout: 10), file: file, line: line)
+        tap(app.buttons["关闭"], file: file, line: line)
+        XCTAssertTrue(app.navigationBars.buttons.firstMatch.isHittable, file: file, line: line)
     }
 
     @MainActor

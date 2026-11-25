@@ -33,10 +33,6 @@ function Require-NavigationPattern {
 Require-NavigationPattern 'homepage stack row has a direct NovelDetailView destination' (
     $homeView -match 'NavigationStack\(path: \$navigationPath\)[\s\S]*?navigationDestination\(for: HomeRoute\.self\)[\s\S]*?case \.novel\(let novel\):[\s\S]*?NovelDetailView'
 )
-Require-NavigationPattern 'homepage stack tab bar follows navigation depth' (
-    $homeView -match '(?s)NavigationStack\(path: \$navigationPath\)[\s\S]*?\.toolbar\(navigationPath\.isEmpty \? \.visible : \.hidden, for: \.tabBar\)' -and
-    $homeView -notmatch '(?s)homeList\s*\.toolbar\(\.visible, for: \.tabBar\)'
-)
 Require-NavigationPattern 'homepage stack row has no trailing NavigationLink indicator' (
     $homeView -notmatch 'private func novelRow[\s\S]*?if usesStackNavigation[\s\S]*?NavigationLink'
 )

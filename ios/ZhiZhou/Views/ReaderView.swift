@@ -87,8 +87,9 @@ struct ReaderView: View {
     @State private var statsOwner = UUID()
     private enum ReaderTool: Equatable { case contents, search, settings, thoughts }
     @State private var activeTool: ReaderTool?
-    // inspector 会自行恢复呈现状态，必须接受系统对 true / false 的双向写入。
-    @State private var inspectorPresented = false
+    // 工具只使用页面内的独立区域或弹层，不让系统 inspector 改组阅读导航。
+    @State private var inlineToolWidth: CGFloat?
+    @State private var toolUsesSheet = false
     @State private var thoughtDrafts: [ReaderThoughtContext: String] = [:]
     @State private var submittingThoughts: Set<ReaderThoughtContext> = []
     @State private var bodySearchSnapshot: BookSearchSnapshot?
@@ -378,23 +379,7 @@ struct ReaderView: View {
     // 设备分支在旋转和窗口缩放时保持稳定；iPhone 沿用原来的四种 sheet 配置。
     @ViewBuilder private var readerWithToolPanels: some View {
         if ReadingSpaceWindowLayout.usesIPadLayout {
-            readerSurface
-            .inspector(isPresented: $inspectorPresented) {
-                readerToolContent(for: activeTool ?? .contents)
-                    .preferredColorScheme(scheme)
-                    .inspectorColumnWidth(min: 300, ideal: 360, max: 420)
-                    .presentationBackground(ReadingSpace.profilePaper)
-                    .presentationDetents(activeTool == .search || dynamicTypeSize.isAccessibilitySize
-                        ? [.large] : [.medium, .large])
-                    .presentationDragIndicator(.visible)
-            }
-            .onChange(of: inspectorPresented, initial: true) { _, presented in
-                if presented {
-                    if activeTool == nil { setTool(.contents, presented: true) }
-                } else if let activeTool {
-                    setTool(activeTool, presented: false)
-                }
-            }
+            ipadReaderWithToolPanels
             .onChange(of: activeTool) { previous, current in
                 if previous == .thoughts, current != .thoughts {
                     activeThoughtParagraph = nil
@@ -437,6 +422,44 @@ struct ReaderView: View {
         }
     }
 
+    private var ipadReaderWithToolPanels: some View {
+        GeometryReader { geometry in
+            let panelWidth = ReadingSpaceWindowLayout.readerToolWidth(
+                for: geometry.size.width, accessibility: dynamicTypeSize.isAccessibilitySize
+            )
+            // 正文始终是同一个 HStack 子节点，开关工具和改变窗口都不替换阅读器。
+            HStack(spacing: 0) {
+                readerSurface
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if let tool = activeTool, let panelWidth, !toolUsesSheet {
+                    Divider()
+                    readerToolContent(for: tool)
+                        .frame(width: panelWidth)
+                        .background(ReadingSpace.profilePaper)
+                        .accessibilityIdentifier("reader.tools.inline")
+                }
+            }
+            .onChange(of: panelWidth, initial: true) { _, width in
+                inlineToolWidth = width
+                // 缩窄时转为弹层；已打开的弹层扩宽后仍保持，避免中途关闭再呈现。
+                if width == nil, activeTool != nil { toolUsesSheet = true }
+            }
+            .sheet(isPresented: Binding(
+                get: { toolUsesSheet && activeTool != nil },
+                set: { presented in
+                    if !presented, let tool = activeTool { setTool(tool, presented: false) }
+                }
+            )) {
+                readerToolContent(for: activeTool)
+                    .preferredColorScheme(scheme)
+                    .presentationBackground(ReadingSpace.profilePaper)
+                    .presentationDetents(activeTool == .search || dynamicTypeSize.isAccessibilitySize
+                        ? [.large] : [.medium, .large])
+                    .presentationDragIndicator(.visible)
+            }
+        }
+    }
+
     private func phoneToolPresented(_ tool: ReaderTool) -> Binding<Bool> {
         Binding(get: { activeTool == tool }, set: { setTool(tool, presented: $0) })
     }
@@ -465,8 +488,10 @@ struct ReaderView: View {
         guard presented || activeTool == tool else { return }
         autoScrollPaused = true
         // 工具呈现本身不改阅读位置；实际正文宽度改变后再统一恢复。
+        if ReadingSpaceWindowLayout.usesIPadLayout, presented, activeTool == nil {
+            toolUsesSheet = inlineToolWidth == nil
+        }
         activeTool = presented ? tool : nil
-        if ReadingSpaceWindowLayout.usesIPadLayout { inspectorPresented = presented }
     }
 
     @ViewBuilder private func readerToolContent(for tool: ReaderTool?) -> some View {

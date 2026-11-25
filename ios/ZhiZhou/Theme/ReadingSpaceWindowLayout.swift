@@ -15,6 +15,12 @@ enum ReadingSpaceWindowLayout {
         return min(6, max(1, Int((contentWidth + coverSpacing) / (152 + coverSpacing))))
     }
 
+    /// 宽窗口同时保留至少约 600pt 的正文区域；窄窗口与无障碍字号使用弹层。
+    static func readerToolWidth(for width: CGFloat, accessibility: Bool) -> CGFloat? {
+        guard width >= 960, !accessibility else { return nil }
+        return min(360, width * 0.32)
+    }
+
     static func historyWidth(for width: CGFloat, accessibility: Bool) -> CGFloat {
         if width >= 820 && !accessibility { return min(320, max(280, width * 0.28)) }
         return min(340, max(0, width - (accessibility ? 52 : 76)))

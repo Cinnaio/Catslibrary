@@ -89,6 +89,8 @@ struct HomeView: View {
         if usesStackNavigation {
             NavigationStack(path: $navigationPath) {
                 homeList
+                    // 显隐跟随当前页面，返回根页直接恢复，不在整个导航栈外保留隐藏状态。
+                    .toolbar(.visible, for: .tabBar)
                     .navigationDestination(for: HomeRoute.self) { route in
                         switch route {
                         case .novel(let novel):
@@ -102,8 +104,6 @@ struct HomeView: View {
                         }
                     }
             }
-            // 标签栏属于发现页根层；进入详情或阅读器后让内容获得完整高度。
-            .toolbar(navigationPath.isEmpty ? .visible : .hidden, for: .tabBar)
         } else {
             NavigationSplitView {
                 homeList
@@ -218,6 +218,7 @@ struct HomeView: View {
         .background(ReadingSpace.profilePaper)
         .navigationTitle(usesStackNavigation ? "" : "发现")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(ReadingSpaceWindowLayout.usesIPadLayout ? .visible : .automatic, for: .navigationBar)
         .onSubmit(of: .search, submitSearch)
         .onChange(of: inlineSearchFocused) { _, focused in
             isSearchPresented = focused

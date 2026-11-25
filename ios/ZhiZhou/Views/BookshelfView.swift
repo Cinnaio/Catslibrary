@@ -128,11 +128,11 @@ struct BookshelfView: View {
                     .frame(maxWidth: .infinity)
                     .background(ReadingSpace.profilePaper)
             }
+            .toolbar(.visible, for: .navigationBar, .tabBar)
             .navigationDestination(for: BookshelfRoute.self) { route in
                 Self.destination(for: route)
             }
         }
-        .toolbar(navigationPath.isEmpty ? .visible : .hidden, for: .tabBar)
         .sheet(item: $compactDetailNovel) { novel in
             NavigationStack {
                 NovelDetailView(novel: novel, showsCloseButton: true)
