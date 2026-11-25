@@ -156,6 +156,109 @@ final class FrontendAuditTests: XCTestCase {
     }
 
     @MainActor
+    func testIPadBottomTabsAndAlignedSearchPreserveWindowLayout() throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "覆盖 iPad 底部导航与内容搜索")
+        executionTimeAllowance = 180
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = launch("ipad-bookshelf")
+        for orientation in [UIDeviceOrientation.landscapeLeft, .portrait] {
+            XCUIDevice.shared.orientation = orientation
+            for (title, searchID, heroID) in [
+                ("发现", "discovery.search", "discovery.continue-reading"),
+                ("书架", "bookshelf.search", "bookshelf.recent.audit-book-1"),
+            ] {
+                selectTab(title, app: app)
+                let search = app.searchFields[searchID]
+                let hero = app.buttons[heroID]
+                XCTAssertTrue(search.waitForExistence(timeout: 10))
+                XCTAssertTrue(hero.waitForExistence(timeout: 15))
+                XCTAssertTrue(app.tabBars.firstMatch.isHittable)
+                XCTAssertGreaterThan(app.tabBars.firstMatch.frame.minY, app.frame.midY, "主导航必须位于窗口底部")
+                XCTAssertEqual(search.frame.minX, hero.frame.minX, accuracy: 2)
+                XCTAssertEqual(search.frame.maxX, hero.frame.maxX, accuracy: 2)
+            }
+            let second = app.buttons["bookshelf.recent.audit-book-2"]
+            XCTAssertTrue(second.waitForExistence(timeout: 10))
+            XCTAssertLessThan(second.frame.width, app.searchFields["bookshelf.search"].frame.width * 0.6,
+                              "底部导航的紧凑布局不能把平板书架变成手机单列")
+        }
+
+        let search = app.searchFields["bookshelf.search"]
+        tap(search)
+        search.typeText("海边书店")
+        let filtered = app.buttons["bookshelf.favorite.audit-book-3"]
+        XCTAssertTrue(filtered.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["bookshelf.favorite.audit-book-2"].waitForNonExistence(timeout: 10))
+        tap(search.buttons.firstMatch)
+        XCTAssertTrue(app.buttons["bookshelf.recent.audit-book-2"].waitForExistence(timeout: 15))
+    }
+
+    @MainActor
+    func testIPadBookshelfTapAndContextMenuTargetIndividualBooks() throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "覆盖平板网格中不同书籍的点击与长按")
+        executionTimeAllowance = 180
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = launch("ipad-bookshelf")
+        selectTab("书架", app: app)
+        let secondRecent = app.buttons["bookshelf.recent.audit-book-2"]
+        tap(secondRecent)
+        XCTAssertTrue(app.staticTexts["长街灯火里的旧日时光 · 第 2 章"].firstMatch.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["reader.toolbar.contents"].isHittable)
+        XCTAssertFalse(app.tabBars.firstMatch.isHittable)
+        tap(app.navigationBars.buttons.firstMatch)
+
+        let thirdRecent = app.buttons["bookshelf.recent.audit-book-3"]
+        XCTAssertTrue(thirdRecent.waitForExistence(timeout: 15))
+        thirdRecent.press(forDuration: 1)
+        tap(app.buttons["书籍详情"])
+        XCTAssertTrue(app.buttons["detail.read"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["海边书店"].firstMatch.isHittable)
+        tap(app.buttons["关闭"])
+        XCTAssertTrue(secondRecent.waitForExistence(timeout: 15))
+        secondRecent.press(forDuration: 1)
+        tap(app.buttons["删除阅读记录"])
+        let recentConfirmation = app.staticTexts["将删除《长街灯火里的旧日时光》的最近阅读记录"]
+        XCTAssertTrue(recentConfirmation.waitForExistence(timeout: 10))
+        dismissIPadShelfConfirmation(app)
+        XCTAssertTrue(recentConfirmation.waitForNonExistence(timeout: 5))
+
+        tap(app.buttons["bookshelf.section.favorites"])
+        let thirdFavorite = app.buttons["bookshelf.favorite.audit-book-3"]
+        tap(thirdFavorite)
+        XCTAssertTrue(app.buttons["detail.read"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["海边书店"].firstMatch.isHittable)
+        tap(app.navigationBars.buttons.firstMatch)
+        tap(app.buttons["bookshelf.favorite.audit-book-2"])
+        XCTAssertTrue(app.staticTexts["长街灯火里的旧日时光 · 第 3 章"].firstMatch.waitForExistence(timeout: 15))
+        tap(app.navigationBars.buttons.firstMatch)
+        XCTAssertTrue(thirdFavorite.waitForExistence(timeout: 15))
+        thirdFavorite.press(forDuration: 1)
+        tap(app.buttons["移出书架"])
+        let favoriteConfirmation = app.staticTexts["将把《海边书店》移出书架"]
+        XCTAssertTrue(favoriteConfirmation.waitForExistence(timeout: 10))
+        dismissIPadShelfConfirmation(app)
+        XCTAssertTrue(favoriteConfirmation.waitForNonExistence(timeout: 5))
+
+        // 编辑模式仍使用原生列表；完成编辑返回网格后，点击仍打开同一本书。
+        tap(app.buttons["编辑"])
+        XCTAssertTrue(app.buttons["bookshelf.favorite.audit-book-2"].waitForExistence(timeout: 10))
+        tap(app.buttons["完成"])
+        tap(app.buttons["bookshelf.favorite.audit-book-3"])
+        XCTAssertTrue(app.buttons["detail.read"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["海边书店"].firstMatch.isHittable)
+    }
+
+    @MainActor
+    private func dismissIPadShelfConfirmation(_ app: XCUIApplication) {
+        if app.buttons["取消"].exists {
+            tap(app.buttons["取消"])
+        } else {
+            app.navigationBars.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap()
+        }
+    }
+
+    @MainActor
     func testIPadBookshelfReaderStaysResponsiveAcrossToolsAndRotation() throws {
         try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "覆盖 iPad 专用导航和 inspector")
         executionTimeAllowance = 120

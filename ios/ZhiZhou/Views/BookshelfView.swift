@@ -22,6 +22,7 @@ struct BookshelfView: View {
     @State private var pendingRecentRemove: RecentItem?
     @State private var requests = ListRequestGuard<[String]>()
     @State private var search = ""
+    @State private var searchFocused = false
     @State private var sort = "added"
     @State private var reading = ""
     @State private var isLoadingMore = false
@@ -68,6 +69,10 @@ struct BookshelfView: View {
 
     private var showsCoverGrid: Bool {
         usesShelfSections && dynamicTypeSize < .xxxLarge && !editMode.isEditing
+    }
+
+    private var usesAdaptiveCoverGrid: Bool {
+        ReadingSpaceWindowLayout.usesIPadLayout && showsCoverGrid
     }
 
     private var shelfQuery: [String] {
@@ -127,6 +132,7 @@ struct BookshelfView: View {
                 Self.destination(for: route)
             }
         }
+        .toolbar(navigationPath.isEmpty ? .visible : .hidden, for: .tabBar)
         .sheet(item: $compactDetailNovel) { novel in
             NavigationStack {
                 NovelDetailView(novel: novel, showsCloseButton: true)
@@ -154,15 +160,24 @@ struct BookshelfView: View {
         )
     }
 
+    @ViewBuilder
+    private func searchableBookshelfContent(columns: Int) -> some View {
+        if ReadingSpaceWindowLayout.usesIPadLayout {
+            bookshelfContent(columns: columns)
+        } else {
+            bookshelfContent(columns: columns)
+                .searchable(text: $search, prompt: "搜索收藏的书名或作者")
+        }
+    }
+
     private func bookshelfList(columns: Int) -> some View {
-        bookshelfContent(columns: columns)
+        searchableBookshelfContent(columns: columns)
             .modifier(ReadingSpaceRoomListStyle())
             .safeAreaBar(edge: .bottom, spacing: 0) {
                 AppFeedbackOverlay(center: actionFeedback, edge: .bottom)
             }
             .navigationTitle(usesShelfSections ? "" : "书架")
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $search, prompt: "搜索收藏的书名或作者")
             .navigationSplitViewColumnWidth(min: 300, ideal: 380, max: 520)
             .toolbar { bookshelfToolbar }
             .environment(\.editMode, $editMode)
@@ -224,30 +239,61 @@ struct BookshelfView: View {
             }
     }
 
-    // Give each section its own type-checking boundary as the list grows.
+    // 封面网格脱离 List 行；编辑与大字号仍保留原生列表和删除操作。
+    @ViewBuilder
     private func bookshelfContent(columns: Int) -> some View {
-        List(selection: $selection) {
-            if usesShelfSections { shelfHeading }
-            if isLoading && (response == nil || displayedQuery != shelfQuery || errorMessage != nil) {
-                ProgressView(response == nil ? "正在加载书架…" : (errorMessage == nil ? "正在载入结果…" : "正在重试…"))
-                    .font(.footnote)
-                    .frame(maxWidth: .infinity)
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-            }
-            if let errorMessage, (response == nil || displayedQuery != shelfQuery), !isLoading {
-                ContentUnavailableView {
-                    Label("加载失败", systemImage: "wifi.slash")
-                } description: {
-                    Text(errorMessage)
-                } actions: {
-                    Button("重试") { Task { await load() } }
+        if usesAdaptiveCoverGrid {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    bookshelfRows(columns: columns)
                 }
+                .padding(.horizontal, 22)
+                .padding(.bottom, 24)
+            }
+            .scrollIndicators(.hidden)
+            .scrollDismissesKeyboard(.interactively)
+        } else {
+            List(selection: $selection) {
+                bookshelfRows(columns: columns)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func bookshelfRows(columns: Int) -> some View {
+        if ReadingSpaceWindowLayout.usesIPadLayout {
+            ReadingSpaceSearchField(
+                text: $search,
+                isFocused: $searchFocused,
+                prompt: "搜索收藏的书名或作者",
+                accessibilityID: "bookshelf.search"
+            )
+            .padding(.top, 8)
+            .padding(.bottom, 16)
+            .listRowInsets(EdgeInsets(top: 0, leading: 22, bottom: 0, trailing: 22))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+        }
+        if usesShelfSections { shelfHeading }
+        if isLoading && (response == nil || displayedQuery != shelfQuery || errorMessage != nil) {
+            ProgressView(response == nil ? "正在加载书架…" : (errorMessage == nil ? "正在载入结果…" : "正在重试…"))
+                .font(.footnote)
+                .frame(maxWidth: .infinity)
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
-            } else if let response = visibleResponse, displayedQuery == shelfQuery {
-                loadedContent(response, columns: columns)
+        }
+        if let errorMessage, (response == nil || displayedQuery != shelfQuery), !isLoading {
+            ContentUnavailableView {
+                Label("加载失败", systemImage: "wifi.slash")
+            } description: {
+                Text(errorMessage)
+            } actions: {
+                Button("重试") { Task { await load() } }
             }
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+        } else if let response = visibleResponse, displayedQuery == shelfQuery {
+            loadedContent(response, columns: columns)
         }
     }
 
@@ -340,21 +386,20 @@ struct BookshelfView: View {
         }
     }
 
+    @ViewBuilder
     private func recentSection(_ recent: [RecentItem], columns: Int) -> some View {
-        Section {
-            if ReadingSpaceWindowLayout.usesIPadLayout, showsCoverGrid, columns >= 3, let first = recent.first {
+        if usesAdaptiveCoverGrid {
+            if let first = recent.first {
                 recentLink(first, featured: true)
                     .readingSpaceEntrance()
-                    .listRowInsets(EdgeInsets(top: 8, leading: 22, bottom: 8, trailing: 22))
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                    .swipeActions(edge: .trailing) {
-                        Button("删除记录", role: .destructive) { pendingRecentRemove = first }
-                    }
-                ReadingSpaceCoverRows(items: Array(recent.dropFirst()), columns: columns) { item in
-                    recentLink(item, cover: true)
-                }
-            } else {
+                    .padding(.vertical, 8)
+            }
+            ReadingSpaceCoverGrid(items: Array(recent.dropFirst()), columns: columns) { item in
+                recentLink(item, cover: true)
+            }
+            .padding(.vertical, 12)
+        } else {
+            Section {
                 ForEach(Array(recent.enumerated()), id: \.element.id) { index, item in
                     recentLink(item, featured: showsCoverGrid && index == 0)
                         .readingSpaceEntrance(index)
@@ -369,20 +414,34 @@ struct BookshelfView: View {
                     guard let index = offsets.first, recent.indices.contains(index) else { return }
                     pendingRecentRemove = recent[index]
                 }
+            } header: {
+                if !usesShelfSections { Text("最近阅读") }
             }
-        } header: {
-            if !usesShelfSections { Text("最近阅读") }
         }
     }
 
+    @ViewBuilder
     private func favoritesSection(_ response: BookshelfResponse, columns: Int) -> some View {
+        if usesAdaptiveCoverGrid {
+            Text("\(response.totals?.favorites ?? response.favorites.count) 本收藏")
+                .font(.footnote)
+                .foregroundStyle(ReadingSpace.profileMuted)
+                .accessibilityAddTraits(.isHeader)
+                .padding(.vertical, 12)
+            ReadingSpaceCoverGrid(items: response.favorites, columns: columns) { favorite in
+                favoriteLink(favorite, cover: true)
+            }
+            .padding(.bottom, 12)
+            if hasMore { loadMoreButton }
+        } else {
+            favoriteListSection(response)
+        }
+    }
+
+    private func favoriteListSection(_ response: BookshelfResponse) -> some View {
         Section("\(response.totals?.favorites ?? response.favorites.count) 本收藏") {
-            if showsCoverGrid && !ReadingSpaceWindowLayout.usesIPadLayout {
+            if showsCoverGrid {
                 phoneCoverRows(response.favorites)
-            } else if showsCoverGrid {
-                ReadingSpaceCoverRows(items: response.favorites, columns: columns) { favorite in
-                    favoriteLink(favorite, cover: true)
-                }
             } else {
                 ForEach(Array(response.favorites.enumerated()), id: \.element.id) { index, favorite in
                     favoriteLink(favorite)
@@ -515,11 +574,15 @@ struct BookshelfView: View {
     private func recentLink(_ item: RecentItem, featured: Bool = false, cover: Bool = false) -> some View {
         let route = BookshelfRoute.read(item.asLaunch)
         if ReadingSpaceWindowLayout.usesIPadLayout {
-            NavigationLink(value: BookshelfRoute.read(item.asLaunch)) {
+            Button {
+                searchFocused = false
+                navigationPath.append(route)
+            } label: {
                 if cover { recentCover(item) }
                 else { recentRow(item, featured: featured) }
             }
-            .navigationLinkIndicatorVisibility(.hidden)
+            .buttonStyle(.plain)
+            .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: featured ? ReadingSpace.panelRadius : 12))
             .contextMenu {
                 Button { compactDetailNovel = item.asNovel } label: {
                     Label("书籍详情", systemImage: "info.circle")
@@ -578,10 +641,14 @@ struct BookshelfView: View {
     private func favoriteLink(_ favorite: FavoriteItem, cover: Bool = false) -> some View {
         let route = favorite.asLaunch.map { BookshelfRoute.read($0) } ?? .detail(favorite.asNovel)
         if ReadingSpaceWindowLayout.usesIPadLayout {
-            NavigationLink(value: route) {
+            Button {
+                searchFocused = false
+                navigationPath.append(route)
+            } label: {
                 favoriteLabel(favorite, cover: cover)
             }
-            .navigationLinkIndicatorVisibility(.hidden)
+            .buttonStyle(.plain)
+            .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 12))
             .contextMenu {
                 Button { compactDetailNovel = favorite.asNovel } label: {
                     Label("书籍详情", systemImage: "info.circle")
@@ -591,6 +658,7 @@ struct BookshelfView: View {
                 }
             }
             .accessibilityHint(favorite.asLaunch == nil ? "打开书籍详情" : "打开后接着读")
+            .accessibilityIdentifier("bookshelf.favorite.\(favorite.asNovel.id)")
         } else if horizontalSizeClass != .regular {
             NavigationLink {
                 Self.destination(for: route)

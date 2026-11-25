@@ -12,6 +12,9 @@ $bookshelfView = Read-Utf8 (Join-Path $projectRoot 'ZhiZhou/Views/BookshelfView.
 $detailView = Read-Utf8 (Join-Path $projectRoot 'ZhiZhou/Views/NovelDetailView.swift')
 $adminSourcesView = Read-Utf8 (Join-Path $projectRoot 'ZhiZhou/Views/Admin/AdminScrapeSourcesView.swift')
 
+$rootView = Get-Content (Join-Path $projectRoot "ZhiZhou/Views/RootView.swift") -Raw
+$windowLayout = Get-Content (Join-Path $projectRoot "ZhiZhou/Theme/ReadingSpaceWindowLayout.swift") -Raw
+
 $failures = [System.Collections.Generic.List[string]]::new()
 
 function Require-NavigationPattern {
@@ -72,8 +75,26 @@ Require-NavigationPattern 'bookshelf recent row has a compact direct destination
 Require-NavigationPattern 'bookshelf favorite row has a compact direct destination' (
     $bookshelfView -match 'private func favoriteLink[\s\S]*?if horizontalSizeClass != \.regular[\s\S]*?NavigationLink'
 )
-Require-NavigationPattern 'iPad bookshelf value links have a destination in the same stack' (
+Require-NavigationPattern 'iPad bookshelf path has a destination in the same stack' (
     $bookshelfView -match '(?s)private var adaptiveBookshelf.*?NavigationStack\(path: \$navigationPath\).*?\.navigationDestination\(for: BookshelfRoute\.self\)'
+)
+Require-NavigationPattern 'iPad bookshelf buttons append the selected book to the navigation path' (
+    $bookshelfView -match '(?s)private func recentLink.*?if ReadingSpaceWindowLayout\.usesIPadLayout \{\s*Button \{.*?navigationPath\.append\(route\)' -and
+    $bookshelfView -match '(?s)private func favoriteLink.*?if ReadingSpaceWindowLayout\.usesIPadLayout \{\s*Button \{.*?navigationPath\.append\(route\)'
+)
+Require-NavigationPattern 'iPad cover grid is a lazy scroll surface with individual items instead of shared list rows' (
+    $bookshelfView -match '(?s)private func bookshelfContent.*?if usesAdaptiveCoverGrid \{\s*ScrollView' -and
+    $windowLayout -match '(?s)struct ReadingSpaceCoverGrid.*?LazyVGrid.*?ForEach\(Array\(items\.enumerated\(\)\), id: \\.element\.id\)' -and
+    $bookshelfView -notmatch 'ReadingSpaceCoverRows'
+)
+Require-NavigationPattern 'iPad bottom tabs restore the real window size class for all four pages' (
+    $rootView -match 'usesIPadLayout \? \.compact : windowSizeClass' -and
+    ([regex]::Matches($rootView, '\.environment\(\\.horizontalSizeClass, windowSizeClass\)').Count -eq 4)
+)
+Require-NavigationPattern 'iPad discovery and bookshelf search live inside their content bounds' (
+    $homeView -match '(?s)private var homeScrollContent.*?LazyVStack.*?ReadingSpaceSearchField.*?\.padding\(\.horizontal, 22\)' -and
+    $bookshelfView -match '(?s)private func bookshelfRows.*?ReadingSpaceSearchField' -and
+    $bookshelfView -match '(?s)private func searchableBookshelfContent.*?if ReadingSpaceWindowLayout\.usesIPadLayout.*?else \{.*?\.searchable'
 )
 Require-NavigationPattern 'reader entry links own a direct ReaderView destination' (
     $detailView -notmatch 'NavigationLink\(value: ReaderLaunch' -and

@@ -16,6 +16,7 @@ struct HomeView: View {
     @State private var navigationPath: [HomeRoute] = []
     @State private var search = ""
     @State private var isSearchPresented = false
+    @State private var inlineSearchFocused = false
     @FocusState private var searchFocused: Bool
     @State private var searchScope: SearchScope = .catalog
     @State private var searchSources: [SourceSearchOptions.Source] = []
@@ -140,9 +141,19 @@ struct HomeView: View {
         return "detail:\(selectedNovel?.id ?? "none")"
     }
 
-    private var homeList: some View {
+    private var homeScrollContent: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
+                if ReadingSpaceWindowLayout.usesIPadLayout {
+                    ReadingSpaceSearchField(
+                        text: $search,
+                        isFocused: $inlineSearchFocused,
+                        prompt: "搜索书名或作者",
+                        accessibilityID: "discovery.search",
+                        onSubmit: submitSearch
+                    )
+                    .padding(.bottom, 24)
+                }
                 if usesStackNavigation {
                     Text("发现")
                         .font(serifFont(.largeTitle, .medium))
@@ -162,6 +173,7 @@ struct HomeView: View {
                 if isSearchingSources {
                     SourceSearchResults(sources: searchSources, query: searchTerm, submission: sourceSearchSubmission, onSubmit: {
                         searchFocused = false
+                        inlineSearchFocused = false
                     }) { entry in
                         sourceSearchBook = SourceSearchBookPresentation(entry: entry, revision: ContentAccessStore.shared.revision)
                     }
@@ -176,6 +188,7 @@ struct HomeView: View {
             .frame(maxWidth: .infinity)
         }
         .scrollIndicators(.hidden)
+        .scrollDismissesKeyboard(ReadingSpaceWindowLayout.usesIPadLayout ? .interactively : .automatic)
         .scrollBounceBehavior(.always, axes: .vertical)
         // Liquid Glass TabBar floats over the scroll content on iOS 26;
         // reserve a small tail so the final row can rest clear of the bar.
@@ -183,13 +196,31 @@ struct HomeView: View {
             Color.clear
                 .frame(height: 24)
         }
+    }
+
+    @ViewBuilder
+    private var searchableHomeContent: some View {
+        if ReadingSpaceWindowLayout.usesIPadLayout {
+            homeScrollContent
+        } else {
+            homeScrollContent
+                .searchable(text: $search, isPresented: $isSearchPresented, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "搜索书名或作者")
+                .searchFocused($searchFocused)
+        }
+    }
+
+    private func submitSearch() {
+        if isSearchingSources { sourceSearchSubmission = UUID() }
+    }
+
+    private var homeList: some View {
+        searchableHomeContent
         .background(ReadingSpace.profilePaper)
         .navigationTitle(usesStackNavigation ? "" : "发现")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $search, isPresented: $isSearchPresented, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "搜索书名或作者")
-        .searchFocused($searchFocused)
-        .onSubmit(of: .search) {
-            if isSearchingSources { sourceSearchSubmission = UUID() }
+        .onSubmit(of: .search, submitSearch)
+        .onChange(of: inlineSearchFocused) { _, focused in
+            isSearchPresented = focused
         }
         .toolbar {
             if !isSearchingSources {

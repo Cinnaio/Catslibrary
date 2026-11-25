@@ -31,7 +31,7 @@ enum VisualAudit {
     }
 
     static var books: [Novel] {
-        (1...(scenario == "bookshelf-many" ? 51 : 4)).map { index in
+        (1...(scenario == "bookshelf-many" ? 51 : (scenario == "ipad-bookshelf" ? 8 : 4))).map { index in
             Novel(
                 id: "audit-book-\(index)",
                 title: index <= 4 ? ["山中来信", "长街灯火里的旧日时光", "海边书店", "春山可望"][index - 1] : "书架作品\(index)",
@@ -45,9 +45,10 @@ enum VisualAudit {
     }
 
     static func chapters(for novelID: String) -> [ChapterMeta] {
-        (1...12).map { order in
+        let bookTitle = books.first { $0.id == novelID }?.title ?? "作品"
+        return (1...12).map { order in
             ChapterMeta(id: "\(novelID)-chapter-\(order)", novelId: novelID,
-                        title: "第 \(order) 章 \(order == 1 ? "一封没有寄出的信" : "山路上的回声")",
+                        title: scenario == "ipad-bookshelf" ? "\(bookTitle) · 第 \(order) 章" : "第 \(order) 章 \(order == 1 ? "一封没有寄出的信" : "山路上的回声")",
                         order: order, wordCount: 1860, sourceUrl: "", createdAt: timestamp)
         }
     }
@@ -286,7 +287,7 @@ private final class VisualAuditProtocol: URLProtocol {
             let book = VisualAudit.books[0]
             let offset = Int(queryValue("offset") ?? "0") ?? 0
             let limit = Int(queryValue("limit") ?? "50") ?? 50
-            var favorites = VisualAudit.scenario == "bookshelf-many" ? VisualAudit.books : []
+            var favorites = ["bookshelf-many", "ipad-bookshelf"].contains(VisualAudit.scenario) ? VisualAudit.books : []
             if let id = queryValue("novelId"), !id.isEmpty { favorites = favorites.filter { $0.id == id } }
             if let search = queryValue("search"), !search.isEmpty {
                 favorites = favorites.filter { $0.title.localizedStandardContains(search) || $0.author.localizedStandardContains(search) }
@@ -295,9 +296,23 @@ private final class VisualAuditProtocol: URLProtocol {
             if queryValue("sort") == "title" { favorites.sort { $0.title < $1.title } }
             let favoriteCount = favorites.count
             let favoriteItems: [[String: Any]] = favorites.dropFirst(offset).prefix(limit).map { item in
-                ["novelId": item.id, "title": item.title, "author": item.author, "description": item.description,
+                var favorite: [String: Any] = ["novelId": item.id, "title": item.title, "author": item.author, "description": item.description,
                  "status": item.status, "chapterCount": item.chapterCount, "remoteChapterCount": item.remoteChapterCount,
                  "novelUpdatedAt": item.updatedAt]
+                if VisualAudit.scenario == "ipad-bookshelf", item.id == "audit-book-2" {
+                    favorite["chapterId"] = "\(item.id)-chapter-3"
+                    favorite["chapterTitle"] = "\(item.title) · 第 3 章"
+                    favorite["chapterOrder"] = 3
+                    favorite["scrollPercent"] = 0.2
+                }
+                return favorite
+            }
+            let recentBooks = VisualAudit.scenario == "ipad-bookshelf" ? VisualAudit.books : [book]
+            let recentItems: [[String: Any]] = recentBooks.enumerated().map { index, item in
+                let order = index + 1
+                return ["novelId": item.id, "chapterId": "\(item.id)-chapter-\(order)", "novelTitle": item.title,
+                        "chapterTitle": VisualAudit.chapters(for: item.id)[index].title, "chapterOrder": order,
+                        "scrollPercent": 0.42, "updatedAt": VisualAudit.timestamp]
             }
             let thoughtCount = VisualAudit.scenario == "parity" ? 51 : 0
             let thoughts: [[String: Any]] = (offset..<min(offset + 50, max(offset, thoughtCount))).map { index in
@@ -307,11 +322,7 @@ private final class VisualAuditProtocol: URLProtocol {
             }
             body = [
                 "favorites": favoriteItems,
-                "recent": VisualAudit.scenario == "empty" || Self.removedRecent ? [] : [[
-                    "novelId": book.id, "chapterId": "\(book.id)-chapter-1", "novelTitle": book.title,
-                    "chapterTitle": "第 1 章 一封没有寄出的信", "chapterOrder": 1,
-                    "scrollPercent": 0.42, "updatedAt": VisualAudit.timestamp,
-                ]],
+                "recent": VisualAudit.scenario == "empty" || Self.removedRecent ? [] : recentItems,
                 "thoughts": thoughts,
                 "totals": ["favorites": favoriteCount, "thoughts": thoughtCount],
             ] as [String: Any]

@@ -21,30 +21,23 @@ enum ReadingSpaceWindowLayout {
     }
 }
 
-/// 每一行交给原生 List 回收，长书架不一次创建全部封面。
-struct ReadingSpaceCoverRows<Item: Identifiable, Content: View>: View {
+/// 放在 ScrollView 中按需创建封面，每本书拥有独立点击与长按区域。
+struct ReadingSpaceCoverGrid<Item: Identifiable, Content: View>: View {
     let items: [Item]
     let columns: Int
     @ViewBuilder var content: (Item) -> Content
 
     var body: some View {
-        ForEach(Array(stride(from: 0, to: items.count, by: columns)), id: \.self) { offset in
-            HStack(alignment: .top, spacing: ReadingSpaceWindowLayout.coverSpacing) {
-                ForEach(0..<columns, id: \.self) { column in
-                    if offset + column < items.count {
-                        content(items[offset + column])
-                            .frame(minWidth: 0, maxWidth: .infinity)
-                            .readingSpaceEntrance(offset + column)
-                    } else {
-                        Color.clear.frame(minWidth: 0, maxWidth: .infinity).accessibilityHidden(true)
-                    }
-                }
+        LazyVGrid(
+            columns: Array(repeating: GridItem(.flexible(minimum: 0), spacing: ReadingSpaceWindowLayout.coverSpacing, alignment: .top), count: max(1, columns)),
+            alignment: .leading,
+            spacing: 24
+        ) {
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                content(item)
+                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .topLeading)
+                    .readingSpaceEntrance(index)
             }
-            .buttonStyle(.plain)
-            .padding(.vertical, 12)
-            .listRowInsets(EdgeInsets(top: 0, leading: 22, bottom: 0, trailing: 22))
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
         }
     }
 }

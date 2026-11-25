@@ -135,24 +135,32 @@ struct BrandMark: View {
 
 struct MainTabView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.horizontalSizeClass) private var windowSizeClass
     @State private var selectedTab = "discover"
     var body: some View {
         TabView(selection: $selectedTab) {
             Tab("发现", systemImage: "sparkle.magnifyingglass", value: "discover") {
                 HomeView()
+                    .environment(\.horizontalSizeClass, windowSizeClass)
             }
             Tab("书架", systemImage: "books.vertical", value: "shelf") {
                 BookshelfView()
+                    .environment(\.horizontalSizeClass, windowSizeClass)
             }
             if appState.user?.isAdmin == true {
                 Tab("创作", systemImage: "bubble.left.and.bubble.right", value: "create") {
                     AdminAIAgentView(isTabRoot: true)
+                        .environment(\.horizontalSizeClass, windowSizeClass)
                 }
             }
             Tab("我的", systemImage: "person", value: "profile") {
                 NavigationStack { ProfileView(openBookshelf: { selectedTab = "shelf" }) }
+                    .environment(\.horizontalSizeClass, windowSizeClass)
             }
         }
+        .tabViewStyle(.tabBarOnly)
+        // 仅标签栏使用紧凑排列以留在底部，各页面恢复窗口的真实尺寸类别。
+        .environment(\.horizontalSizeClass, ReadingSpaceWindowLayout.usesIPadLayout ? .compact : windowSizeClass)
         .tint(AppTheme.primary)
         .toolbarBackground(.visible, for: .tabBar)
         .toolbarBackground(.ultraThinMaterial, for: .tabBar)
