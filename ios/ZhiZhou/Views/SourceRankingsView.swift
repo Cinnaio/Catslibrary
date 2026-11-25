@@ -16,6 +16,11 @@ struct SourceRankingResponse: Decodable {
 
     var selected: Ranking? { rankings.first { $0.id == selectedId } }
 
+    func preview(for rankingID: String? = nil) -> Self {
+        let id = rankingID ?? selectedId
+        return Self(rankings: rankings, selectedId: id, entries: id == selectedId ? Array(entries.prefix(3)) : [])
+    }
+
     @MainActor
     static func load(rankingID: String? = nil) async throws -> Self {
         let query = rankingID.map { "?" + HomeView.query(["ranking": $0]) } ?? ""
@@ -86,6 +91,7 @@ struct SourceRankingPreview: View {
 }
 
 struct SourceRankingsView: View {
+    let updatePreview: (SourceRankingResponse) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var path: [SourceRankingEntry]
     @State private var requestedID: String
@@ -100,7 +106,8 @@ struct SourceRankingsView: View {
         let attempt: Int
     }
 
-    init(presentation: SourceRankingsPresentation) {
+    init(presentation: SourceRankingsPresentation, updatePreview: @escaping (SourceRankingResponse) -> Void) {
+        self.updatePreview = updatePreview
         _requestedID = State(initialValue: presentation.rankingID)
         _path = State(initialValue: presentation.entry.map { [$0] } ?? [])
     }
@@ -142,7 +149,9 @@ struct SourceRankingsView: View {
                     Section(source.sourceName) {
                         ForEach(boards) { board in
                             Button {
+                                guard requestedID != board.id else { return }
                                 requestedID = board.id
+                                if let response { updatePreview(response.preview(for: board.id)) }
                             } label: {
                                 if board.id == selected?.id {
                                     Label(board.label, systemImage: "checkmark")
@@ -211,6 +220,7 @@ struct SourceRankingsView: View {
             let result = try await SourceRankingResponse.load(rankingID: id)
             guard !Task.isCancelled, ticket == requestID, id == requestedID else { return }
             response = result
+            if result.selectedId == id { updatePreview(result.preview()) }
         } catch {
             guard !Task.isCancelled, ticket == requestID, id == requestedID else { return }
             errorMessage = AppCopy.friendlyError(error)

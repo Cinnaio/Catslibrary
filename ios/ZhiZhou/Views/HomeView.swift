@@ -194,7 +194,12 @@ struct HomeView: View {
             Task { await loadRankingPreview() }
         }) { presentation in
             if presentation.revision == ContentAccessStore.shared.revision {
-                SourceRankingsView(presentation: presentation)
+                SourceRankingsView(presentation: presentation) { preview in
+                    guard presentation.revision == ContentAccessStore.shared.revision else { return }
+                    rankingPreviewRequest = nil
+                    rankingPreview = preview
+                    rankingPreviewRevision = presentation.revision
+                }
             }
         }
         .task(id: ContentAccessStore.shared.mode) {
@@ -568,13 +573,19 @@ struct HomeView: View {
 
     private func loadRankingPreview() async {
         let revision = ContentAccessStore.shared.revision
+        let rankingID = rankingPreviewRevision == revision ? rankingPreview?.selectedId : nil
         let request = UUID()
         rankingPreviewRequest = request
         do {
-            let response = try await SourceRankingResponse.load()
+            var response = try await SourceRankingResponse.load(rankingID: rankingID)
             guard !Task.isCancelled, request == rankingPreviewRequest,
                   revision == ContentAccessStore.shared.revision else { return }
-            rankingPreview = response
+            if rankingID != nil, response.selectedId == nil {
+                response = try await SourceRankingResponse.load()
+                guard !Task.isCancelled, request == rankingPreviewRequest,
+                      revision == ContentAccessStore.shared.revision else { return }
+            }
+            rankingPreview = response.preview()
             rankingPreviewRevision = revision
         } catch {
             // The discovery catalog remains available on older servers and during ranking failures.
