@@ -296,7 +296,8 @@ struct ReaderView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationTitle(chapter?.title ?? "阅读")
         // 顶部系统区域保持固定占位；只切换控制内容，避免正文在收起控制时重新布局。
-        .toolbarBackground(.hidden, for: .navigationBar)
+        .toolbarBackground(paper, for: .navigationBar)
+        .toolbarBackground(ReadingSpaceWindowLayout.usesIPadLayout ? .visible : .hidden, for: .navigationBar)
         .toolbar(.visible, for: .navigationBar)
         .toolbar(.hidden, for: .bottomBar)
         .toolbar(.hidden, for: .tabBar)
@@ -911,6 +912,7 @@ struct ReaderView: View {
             // binding alone leaves the old content offset attached to the reused
             // scroll container while the next chapter is loading.
             .id(scrollIdentity)
+            .accessibilityIdentifier("reader.body.scroll")
             .scrollIndicators(.hidden)
             .ignoresSafeArea(edges: .horizontal)
             .background(paper)
@@ -1063,6 +1065,7 @@ struct ReaderView: View {
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
+                .accessibilityIdentifier("reader.body.pages")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
                 .accessibilityAction(named: showChrome ? "隐藏阅读控制" : "显示阅读控制") {
@@ -1095,6 +1098,7 @@ struct ReaderView: View {
                     attributedText: text,
                     textColor: inkUIColor,
                     isThoughtActionEnabled: !offlineOnly,
+                    accessibilityID: "reader.page.\(pageIndex)",
                     onEcho: echoEnabled && !offlineOnly ? { selectedText, selectedRange in
                         guard pageRanges.indices.contains(pageIndex) else { return }
                         let start = pageRanges[pageIndex].location + selectedRange.location

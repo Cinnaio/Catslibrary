@@ -48,6 +48,7 @@ struct NovelDetailView: View {
             let sideInset = max(22, AppLayout.readableInset(for: geometry.size.width))
             ScrollViewReader { proxy in
                 detailList(sideInset: sideInset, contentWidth: geometry.size.width - sideInset * 2)
+                    .accessibilityIdentifier("detail.chapters")
                     .onChange(of: isSelectingOffline) { _, isSelecting in
                         if isSelecting, let chapter = downloadableChapters.first {
                             withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
@@ -66,7 +67,9 @@ struct NovelDetailView: View {
         .background { ReadingSpace.profilePaper.ignoresSafeArea() }
         .refreshable { await load(refresh: true) }
         .readingSpaceNavigation()
-        .toolbar(horizontalSizeClass == .regular ? .visible : .hidden, for: .tabBar)
+        .toolbar(ReadingSpaceWindowLayout.usesIPadLayout || horizontalSizeClass != .regular ? .hidden : .visible, for: .tabBar)
+        .toolbarBackground(ReadingSpace.profilePaper, for: .navigationBar)
+        .toolbarBackground(ReadingSpaceWindowLayout.usesIPadLayout ? .visible : .hidden, for: .navigationBar)
         .toolbar {
             if appState.user != nil && !isShowingOffline {
                 ToolbarItem(placement: .topBarTrailing) {

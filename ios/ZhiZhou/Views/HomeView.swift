@@ -1,7 +1,7 @@
 import SwiftUI
 import ZhiZhouCore
 
-/// 发现页以封面浏览和分类检索组织书库，宽屏保留书单与详情分栏。
+/// 发现页以封面浏览和分类检索组织书库，iPad 使用稳定导航栈进入完整详情和阅读页面。
 struct HomeView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -58,6 +58,11 @@ struct HomeView: View {
         [searchTerm, selectedCategory ?? "", selectedStatus, selectedSort]
     }
 
+    // iPad 旋转、分屏时保留同一条导航路径，阅读器不作为发现页的侧栏详情。
+    private var usesStackNavigation: Bool {
+        ReadingSpaceWindowLayout.usesIPadLayout || horizontalSizeClass != .regular
+    }
+
     private var usesCoverGrid: Bool {
         horizontalSizeClass != .regular && dynamicTypeSize < .xxxLarge
     }
@@ -80,7 +85,7 @@ struct HomeView: View {
     }
 
     var body: some View {
-        if horizontalSizeClass != .regular {
+        if usesStackNavigation {
             NavigationStack(path: $navigationPath) {
                 homeList
                     .navigationDestination(for: HomeRoute.self) { route in
@@ -138,7 +143,7 @@ struct HomeView: View {
     private var homeList: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
-                if horizontalSizeClass != .regular {
+                if usesStackNavigation {
                     Text("发现")
                         .font(serifFont(.largeTitle, .medium))
                         .foregroundStyle(ReadingSpace.ink)
@@ -179,7 +184,7 @@ struct HomeView: View {
                 .frame(height: 24)
         }
         .background(ReadingSpace.profilePaper)
-        .navigationTitle(horizontalSizeClass == .regular ? "发现" : "")
+        .navigationTitle(usesStackNavigation ? "" : "发现")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $search, isPresented: $isSearchPresented, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "搜索书名或作者")
         .searchFocused($searchFocused)
@@ -381,12 +386,12 @@ struct HomeView: View {
         }
     }
 
-    /// 紧凑宽度直接持有导航目标；宽屏则更新分栏详情选择。
+    /// iPad 和紧凑布局直接入栈；其余分栏布局才更新详情选择。
     @ViewBuilder
     private func novelRow(_ novel: Novel) -> some View {
         Button {
             selectedReaderLaunch = nil
-            if horizontalSizeClass != .regular {
+            if usesStackNavigation {
                 navigationPath.append(.novel(novel))
             } else {
                 selectedNovel = novel
@@ -394,7 +399,7 @@ struct HomeView: View {
         } label: {
             NovelCardView(
                 novel: novel,
-                isSelected: horizontalSizeClass == .regular && selectedNovel?.id == novel.id,
+                isSelected: !usesStackNavigation && selectedNovel?.id == novel.id,
                 isCoverLayout: usesCoverGrid
             )
         }
@@ -488,6 +493,7 @@ struct HomeView: View {
         .accessibilityLabel("继续阅读《\(item.novelTitle)》")
         .accessibilityValue("第 \(item.chapterOrder) 章，本章已读 \(Int((progress * 100).rounded()))%")
         .accessibilityHint("打开并从上次位置继续")
+        .accessibilityIdentifier("discovery.continue-reading")
     }
 
     private func continueReadingChapterTitle(_ item: RecentItem) -> String? {
@@ -596,7 +602,7 @@ struct HomeView: View {
     private func openRecent(_ item: RecentItem) {
         let launch = item.asLaunch
         selectedNovel = nil
-        if horizontalSizeClass != .regular {
+        if usesStackNavigation {
             navigationPath.append(.reader(launch))
         } else {
             selectedReaderLaunch = launch

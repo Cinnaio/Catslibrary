@@ -203,6 +203,81 @@ final class FrontendAuditTests: XCTestCase {
     }
 
     @MainActor
+    func testIPadDiscoveryScrollReaderHasFullPageNavigation() throws {
+        try ipadDiscoveryReaderLayout(pageMode: false)
+    }
+
+    @MainActor
+    func testIPadDiscoveryPagedReaderHasFullPageNavigation() throws {
+        try ipadDiscoveryReaderLayout(pageMode: true)
+    }
+
+    @MainActor
+    private func ipadDiscoveryReaderLayout(pageMode: Bool) throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "覆盖 iPad 发现页与阅读器布局")
+        executionTimeAllowance = 180
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = launch(appearance: "dark")
+        selectTab("我的", app: app)
+        let settings = app.buttons["阅读设置"]
+        reveal(settings, app: app)
+        tap(settings)
+        let mode = app.buttons[pageMode ? "左右翻页" : "上下滚动"]
+        reveal(mode, app: app)
+        tap(mode)
+        tap(app.buttons["完成"])
+        selectTab("发现", app: app)
+
+        // 同时覆盖直接续读，以及详情内的开始阅读链接，防止只修书架入口。
+        for throughDetail in [false, true] {
+            if throughDetail {
+                let book = app.buttons["catalog.audit-book-1"]
+                reveal(book, app: app)
+                tap(book)
+                let read = app.buttons["detail.read"]
+                XCTAssertTrue(read.waitForExistence(timeout: 15))
+                let chapters = app.descendants(matching: .any).matching(identifier: "detail.chapters").firstMatch
+                XCTAssertTrue(chapters.waitForExistence(timeout: 10))
+                XCTAssertGreaterThan(chapters.frame.width, app.frame.width * 0.9)
+                tap(read)
+            } else {
+                tap(app.buttons["discovery.continue-reading"])
+            }
+
+            for orientation in [UIDeviceOrientation.landscapeLeft, .portrait] {
+                XCUIDevice.shared.orientation = orientation
+                let text = pageMode
+                    ? app.textViews.matching(NSPredicate(format: "identifier BEGINSWITH %@", "reader.page.")).firstMatch
+                    : app.textViews["reader.paragraph.1"]
+                XCTAssertTrue(text.waitForExistence(timeout: 15))
+                XCTAssertTrue(text.isHittable, "正文必须在当前窗口真实可见")
+                let contents = app.buttons["reader.toolbar.contents"]
+                XCTAssertTrue(contents.waitForExistence(timeout: 10))
+                XCTAssertTrue(contents.isHittable, "阅读器不能只剩底部进度条")
+                XCTAssertTrue(app.navigationBars.buttons.firstMatch.isHittable, "必须能返回发现页或详情")
+                XCTAssertFalse(app.buttons["discovery.continue-reading"].isHittable, "发现侧栏不能覆盖阅读器")
+                XCTAssertFalse(app.tabBars.firstMatch.isHittable)
+                let viewport = app.descendants(matching: .any).matching(
+                    identifier: pageMode ? "reader.body.pages" : "reader.body.scroll"
+                ).firstMatch
+                let progress = app.descendants(matching: .any).matching(identifier: "reader.progress").firstMatch
+                XCTAssertTrue(viewport.waitForExistence(timeout: 10))
+                XCTAssertTrue(progress.waitForExistence(timeout: 10))
+                XCTAssertGreaterThan(viewport.frame.width, app.frame.width * 0.9)
+                tap(contents)
+                tap(app.buttons["完成"])
+            }
+            tap(app.navigationBars.buttons.firstMatch)
+            if throughDetail {
+                XCTAssertTrue(app.buttons["detail.read"].waitForExistence(timeout: 10))
+                tap(app.navigationBars.buttons.firstMatch)
+            }
+            XCTAssertTrue(app.buttons["catalog.audit-book-1"].waitForExistence(timeout: 10))
+        }
+    }
+
+    @MainActor
     func testChapterSearchAndNumberJump() {
         let app = launch()
         tap(app.buttons["catalog.audit-book-1"])

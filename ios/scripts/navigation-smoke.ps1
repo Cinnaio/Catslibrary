@@ -25,23 +25,24 @@ function Require-NavigationPattern {
     }
 }
 
-# Compact-width entry points must own their destination so a tap cannot depend
-# on a selection binding or a destination registered on another navigation tree.
-Require-NavigationPattern 'homepage compact row has a direct NovelDetailView destination' (
+# iPad and compact-width discovery entry points share an explicit navigation path.
+# Phone-only regular layouts may retain their existing split destination.
+Require-NavigationPattern 'homepage stack row has a direct NovelDetailView destination' (
     $homeView -match 'NavigationStack\(path: \$navigationPath\)[\s\S]*?navigationDestination\(for: HomeRoute\.self\)[\s\S]*?case \.novel\(let novel\):[\s\S]*?NovelDetailView'
 )
-Require-NavigationPattern 'homepage compact tab bar follows navigation depth' (
+Require-NavigationPattern 'homepage stack tab bar follows navigation depth' (
     $homeView -match '(?s)NavigationStack\(path: \$navigationPath\)[\s\S]*?\.toolbar\(navigationPath\.isEmpty \? \.visible : \.hidden, for: \.tabBar\)' -and
     $homeView -notmatch '(?s)homeList\s*\.toolbar\(\.visible, for: \.tabBar\)'
 )
-Require-NavigationPattern 'homepage compact row has no trailing NavigationLink indicator' (
-    $homeView -notmatch 'private func novelRow[\s\S]*?if horizontalSizeClass != \.regular[\s\S]*?NavigationLink'
+Require-NavigationPattern 'homepage stack row has no trailing NavigationLink indicator' (
+    $homeView -notmatch 'private func novelRow[\s\S]*?if usesStackNavigation[\s\S]*?NavigationLink'
 )
-Require-NavigationPattern 'homepage compact row navigates through its path' (
-    $homeView -match 'private func novelRow[\s\S]*?if horizontalSizeClass != \.regular[\s\S]*?navigationPath\.append\(\.novel\(novel\)\)'
+Require-NavigationPattern 'homepage stack row navigates through its path' (
+    $homeView -match 'private func novelRow[\s\S]*?if usesStackNavigation[\s\S]*?navigationPath\.append\(\.novel\(novel\)\)'
 )
-Require-NavigationPattern 'homepage uses the standard large title' (
-    $homeView -match 'navigationTitle\("\u53d1\u73b0"\)[\s\S]*?navigationBarTitleDisplayMode\(\.large\)'
+Require-NavigationPattern 'homepage uses a paper heading and compact native navigation' (
+    $homeView -match '(?s)if usesStackNavigation \{\s*Text\("\u53d1\u73b0"\).*?serifFont\(\.largeTitle' -and
+    $homeView -match 'navigationBarTitleDisplayMode\(\.inline\)'
 )
 Require-NavigationPattern 'homepage removes the promotional header copy' (
     $homeView -notmatch '\u4e66\u6d77\u91cc\uff0c\u9047\u89c1\u597d\u6545\u4e8b'
@@ -58,8 +59,8 @@ Require-NavigationPattern 'homepage catalog rows align with the content edge' (
     $homeView -match '(?s)else \{\s*LazyVStack\(alignment: \.leading, spacing: 0\)'
 )
 Require-NavigationPattern "homepage section headers keep breathing room" (
-    $homeView -match '(?s)sectionHeader\("\u7ee7\u7eed\u9605\u8bfb"\).*?\.padding\(\.bottom, 12\)' -and
-    $homeView -match '(?s)trailing: totalNovelCount.*?\.padding\(\.bottom, 12\)'
+    $homeView -match '(?s)continueReadingHero\(recentReading\)\s*\.padding\(\.bottom, 24\)' -and
+    $homeView -match '(?s)sectionHeader\(catalogTitle, trailing:.*?\.padding\(\.bottom, 16\)'
 )
 Require-NavigationPattern 'homepage keeps one native pull-to-refresh indicator' (
     $homeView -match '\.refreshable \{[\s\S]*?await reload\(\)[\s\S]*?await loadReadingContext\(\)[\s\S]*?\}' -and
@@ -71,8 +72,8 @@ Require-NavigationPattern 'bookshelf recent row has a compact direct destination
 Require-NavigationPattern 'bookshelf favorite row has a compact direct destination' (
     $bookshelfView -match 'private func favoriteLink[\s\S]*?if horizontalSizeClass != \.regular[\s\S]*?NavigationLink'
 )
-Require-NavigationPattern 'bookshelf rows do not depend on BookshelfRoute value destinations' (
-    $bookshelfView -notmatch 'NavigationLink\(value: BookshelfRoute'
+Require-NavigationPattern 'iPad bookshelf value links have a destination in the same stack' (
+    $bookshelfView -match '(?s)private var adaptiveBookshelf.*?NavigationStack\(path: \$navigationPath\).*?\.navigationDestination\(for: BookshelfRoute\.self\)'
 )
 Require-NavigationPattern 'reader entry links own a direct ReaderView destination' (
     $detailView -notmatch 'NavigationLink\(value: ReaderLaunch' -and
@@ -90,9 +91,9 @@ Require-NavigationPattern 'novel detail keeps synopsis expansion available when 
     $detailView -notmatch 'lineLimit\(expandDescription \?' -and
     $detailView -match '(?s)private var synopsisText.*?Text\(currentNovel\.description\)'
 )
-Require-NavigationPattern 'novel detail reserves space and a scroll edge for its fixed reading or selection actions' (
-    $detailView -match '(?s)\.safeAreaBar\(edge: \.bottom, spacing: 0\)\s*\{\s*bottomBar' -and
-    $detailView -match '(?s)private var bottomBar.*?if isSelectingOffline \{\s*offlineSelectionBar\s*(?:\.transition\(selectionModeTransition\)\s*)?\} else \{\s*readingBar' -and
+Require-NavigationPattern 'novel detail reserves space for reading or selection actions' (
+    $detailView -match '(?s)\.safeAreaInset\(edge: \.bottom, spacing: 0\)\s*\{\s*bottomBar' -and
+    $detailView -match '(?s)private func bottomBar.*?if isSelectingOffline \{\s*offlineSelectionBar\s*(?:\.transition\(selectionModeTransition\)\s*)?\} else \{\s*readingBar' -and
     $detailView -match '(?s)private var readButton.*?NavigationLink\s*\{\s*ReaderView'
 )
 Require-NavigationPattern 'novel detail retains download actions in its sheet' (
