@@ -392,10 +392,14 @@ final class FrontendAuditTests: XCTestCase {
             selectTab("我的", app: app)
             selectTab("发现", app: app)
             tap(app.buttons["catalog.audit-book-1"])
+            XCTAssertTrue(app.tabBars.buttons["书架"].isHittable, "作品详情页保留底部主导航")
             let entry = app.buttons[identifier]
             reveal(entry, app: app)
             tap(entry)
             assertReaderStaysOpenAndReturnToDetail(app)
+            selectTab("书架", app: app)
+            selectTab("发现", app: app)
+            XCTAssertTrue(app.buttons["detail.read"].waitForExistence(timeout: 10), "切回发现保留原作品详情")
             tap(app.navigationBars.buttons.firstMatch)
             let discoverTab = app.tabBars.buttons["发现"]
             XCTAssertTrue(discoverTab.waitForExistence(timeout: 10))
@@ -446,6 +450,7 @@ final class FrontendAuditTests: XCTestCase {
         disappeared.isInverted = true
         XCTAssertEqual(XCTWaiter.wait(for: [disappeared], timeout: 2), .completed, file: file, line: line)
         XCTAssertTrue(contents.isHittable, file: file, line: line)
+        XCTAssertFalse(app.tabBars.firstMatch.isHittable, "阅读期间仍隐藏底部标签", file: file, line: line)
         let inlineTools = app.descendants(matching: .any).matching(identifier: "reader.tools.inline").firstMatch
         XCTAssertFalse(inlineTools.exists, "打开阅读器不能自行展开工具", file: file, line: line)
         tap(contents, file: file, line: line)
@@ -462,6 +467,9 @@ final class FrontendAuditTests: XCTestCase {
         tap(app.navigationBars.buttons.firstMatch, file: file, line: line)
         XCTAssertTrue(app.buttons["detail.read"].waitForExistence(timeout: 10), file: file, line: line)
         XCTAssertFalse(contents.exists, file: file, line: line)
+        let shelfTab = app.tabBars.buttons["书架"]
+        XCTAssertTrue(shelfTab.waitForExistence(timeout: 10), file: file, line: line)
+        XCTAssertTrue(shelfTab.isHittable, "回到作品详情就应恢复底部标签，无需再返回首页", file: file, line: line)
         // 只看到作品正文并不够，必须能使用返回后的导航栏。
         tap(app.buttons["正文搜索"], file: file, line: line)
         XCTAssertTrue(app.searchFields.firstMatch.waitForExistence(timeout: 10), file: file, line: line)

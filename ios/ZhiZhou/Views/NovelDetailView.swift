@@ -70,7 +70,6 @@ struct NovelDetailView: View {
         .background { ReadingSpace.profilePaper.ignoresSafeArea() }
         .refreshable { await load(refresh: true) }
         .readingSpaceNavigation()
-        .toolbar(ReadingSpaceWindowLayout.usesIPadLayout || horizontalSizeClass != .regular ? .hidden : .visible, for: .tabBar)
         .toolbarBackground(ReadingSpace.profilePaper, for: .navigationBar)
         .toolbarBackground(ReadingSpaceWindowLayout.usesIPadLayout ? .visible : .hidden, for: .navigationBar)
         .toolbar {
@@ -182,6 +181,8 @@ struct NovelDetailView: View {
         }
         .sensoryFeedback(.selection, trigger: interactionFeedback)
         .readerContentAccess(isRestricted: currentNovel.isRestricted)
+        // iPad 作品详情保留主导航；阅读器自行隐藏标签，返回详情后即可继续切换。
+        .toolbar(ReadingSpaceWindowLayout.usesIPadLayout || horizontalSizeClass == .regular ? .visible : .hidden, for: .tabBar)
         .toolbar(ReadingSpaceWindowLayout.usesIPadLayout ? .visible : .automatic, for: .navigationBar)
         // 注册在完整页面外层，异步详情更新或内容门禁切换都不会移除目的地注册。
         // 同时应用最新作品分级，详情异步补全不能绕过门禁；返回时由系统清除请求。
