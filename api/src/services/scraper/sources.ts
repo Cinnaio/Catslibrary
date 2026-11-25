@@ -52,6 +52,7 @@ export interface ScrapeAdapter {
   hosts: readonly string[]
   presets: Record<string, SitePreset>
   rankings?: readonly SourceRanking[]
+  rankingBookAliases?(url: URL): readonly string[]
   discover?(url: string, deps: DiscoverDeps, ranking?: SourceRanking): Promise<DiscoverResult>
   search?(query: string, type: string, page: number, deps: DiscoverDeps): Promise<DiscoverResult>
   searchTitles?(title: string, author: string, deps: DiscoverDeps): Promise<TitleSearchResult>

@@ -719,7 +719,7 @@ private enum ScrapeError: LocalizedError {
 
 // MARK: - 详情 Sheet（自加载：翻书 → 章节目录预览 → 建书抓取）
 
-private struct DiscoverDetailSheet: View {
+struct DiscoverDetailSheet: View {
     let item: DiscoverNovel
     let autoStart: Bool
     let onClose: (Bool) -> Void

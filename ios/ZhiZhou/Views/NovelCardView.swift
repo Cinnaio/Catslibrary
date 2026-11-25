@@ -71,12 +71,23 @@ struct NovelCardView: View {
 }
 
 struct NovelCoverView: View {
-    let novel: Novel
-    var size: CGSize = CGSize(width: 60, height: 86)
+    private let novelID: String
+    private let updatedAt: Int64
+    private let size: CGSize
+
+    init(novel: Novel, size: CGSize = CGSize(width: 60, height: 86)) {
+        self.init(novelID: novel.id, updatedAt: novel.updatedAt, size: size)
+    }
+
+    init(novelID: String, updatedAt: Int64, size: CGSize) {
+        self.novelID = novelID
+        self.updatedAt = updatedAt
+        self.size = size
+    }
 
     var body: some View {
         CachedAsyncImage(
-            url: APIClient.shared.coverURL(novelId: novel.id, updatedAt: novel.updatedAt),
+            url: APIClient.shared.coverURL(novelId: novelID, updatedAt: updatedAt),
             targetSize: size
         ) { image in
             image.resizable().scaledToFill()

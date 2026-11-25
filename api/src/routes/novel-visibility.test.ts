@@ -6,6 +6,8 @@ import { hashToken } from '../services/auth'
 import { loadConfig } from '../config'
 import { createWebRoutes } from './web'
 import { fileURLToPath } from 'node:url'
+import { setScrapeAdaptersForTest, scrapeAdapters } from '../services/scraper/sources'
+import { refreshSourceRankings } from '../services/source-rankings'
 
 let t: TestDb
 const tokens = { admin: 'a'.repeat(64), allowed: 'b'.repeat(64), other: 'c'.repeat(64) }
@@ -53,6 +55,80 @@ afterAll(async () => {
 })
 
 describe('书籍可见范围与分级独立', () => {
+  it('榜单后台只请求选定的预设，旧快照在源站空结果时保留', async () => {
+    const adapters = scrapeAdapters()
+    const preset = { id: 'po18-dayvisit', label: '日点击榜', listUrl: 'https://ranking.example/top' }
+    let calls = 0
+    let empty = false
+    try {
+      setScrapeAdaptersForTest([{
+        id: 'po18', name: '测试书源', hosts: ['ranking.example'], presets: {},
+        rankings: [preset, { ...preset, id: 'unused-preset' }],
+        async discover(_url, deps, ranking) {
+          expect(ranking?.id).toBe(preset.id)
+          expect(deps.includeRankingDetails).toBe(false)
+          calls++
+          return { site: '测试', total: 1, totalPages: 1, novels: empty ? [] : [{
+            bookId: '123', url: 'https://ranking.example/book/123', title: '作品', author: '作者',
+            coverUrl: '', description: '', existing: false, chapterCount: 0, status: '', categories: [],
+          }] }
+        },
+      }])
+      await refreshSourceRankings(t.db)
+      await refreshSourceRankings(t.db)
+      expect(calls).toBe(1)
+      const now = Date.now()
+      await t.db.query('UPDATE source_ranking_snapshots SET refreshed_at=$1 WHERE ranking_id=$2', [now - 3600001, preset.id])
+      empty = true
+      await refreshSourceRankings(t.db)
+      expect(calls).toBe(2)
+      const { rows } = await t.db.query('SELECT entries FROM source_ranking_snapshots WHERE ranking_id=$1', [preset.id])
+      expect(rows).toEqual([{ entries: [expect.objectContaining({ rank: 1, title: '作品' })] }])
+    } finally {
+      setScrapeAdaptersForTest(adapters)
+      await t.db.query('DELETE FROM source_ranking_snapshots WHERE ranking_id=$1', [preset.id])
+    }
+  })
+
+  it('书源榜单保留原始名次，隐藏不可读作品及其源站资料', async () => {
+    const adapters = scrapeAdapters()
+    const preset = { id: 'po18-dayvisit', label: '日点击榜', listUrl: 'https://ranking.example/top' }
+    const ranking = encodeURIComponent(`po18:${preset.id}`)
+    const path = `/api/novels/source-rankings?ranking=${ranking}`
+    const books = ['public', 'secret', 'admin-book', 'secret-r18', 'uncollected']
+    const url = (id: string) => `https://ranking.example/book/${id}/`
+    try {
+      setScrapeAdaptersForTest([{ id: 'po18', name: '测试书源', hosts: ['ranking.example'], presets: {}, rankings: [preset] }])
+      for (const id of books.slice(0, -1)) {
+        await t.db.query('UPDATE novels SET source_url=$1 WHERE id=$2', [url(id).slice(0, -1), id])
+      }
+      await t.db.query('INSERT INTO source_ranking_snapshots VALUES ($1,$2,$3::jsonb,$4)', [
+        'po18', preset.id, JSON.stringify(books.map((id, i) => ({
+          rank: i + 1, url: url(id), title: `源站标题 ${id}`, author: '作者', description: `源站简介 ${id}`,
+        }))), Date.now(),
+      ])
+      const load = async (mode: string, who: keyof typeof tokens) => {
+        const response = await app.request(`${path}&contentMode=${mode}`, { headers: { Authorization: `Bearer ${tokens[who]}` } })
+        expect(response.status).toBe(200)
+        expect(response.headers.get('Cache-Control')).toContain('no-store')
+        return response.json() as Promise<{ entries: Array<{ rank: number; novelId?: string; sourceUrl?: string }> }>
+      }
+      expect((await load('adult', 'other')).entries).toEqual([expect.objectContaining({ rank: 1, novelId: 'public' })])
+      expect((await load('safe', 'allowed')).entries.map(entry => entry.rank)).toEqual([1, 2])
+      expect((await load('safe', 'admin')).entries.map(entry => entry.rank)).toEqual([1, 2, 3])
+      const adult = await load('adult', 'admin')
+      expect(adult.entries.map(entry => entry.rank)).toEqual([1, 2, 3, 4, 5])
+      expect(adult.entries[3]).not.toHaveProperty('sourceUrl')
+      expect(adult.entries[4]?.sourceUrl).toBe(url('uncollected'))
+      const preview = await app.request('/api/novels/source-rankings?contentMode=adult', { headers: { Authorization: `Bearer ${tokens.admin}` } })
+      expect(await preview.json()).toMatchObject({ selectedId: `po18:${preset.id}`, entries: adult.entries.slice(0, 3) })
+    } finally {
+      setScrapeAdaptersForTest(adapters)
+      await t.db.query('DELETE FROM source_ranking_snapshots WHERE ranking_id=$1', [preset.id])
+      await t.db.query("UPDATE novels SET source_url='' WHERE source_url LIKE 'https://ranking.example/%'")
+    }
+  })
+
   it('游客、无授权读者的详情和正文与不存在资源返回同样 404', async () => {
     for (const who of [undefined, 'other'] as const) {
       for (const [actual, missing] of [['/novels/secret', '/novels/missing'], ['/chapters/secret-ch', '/chapters/missing']]) {

@@ -27,6 +27,10 @@ struct HomeView: View {
     @State private var requests = ListRequestGuard<[String]>()
     @State private var displayedQuery: [String]?
     @State private var interactionFeedback = 0
+    @State private var rankingPreview: SourceRankingResponse?
+    @State private var rankingPreviewRevision: UUID?
+    @State private var rankingPreviewRequest: UUID?
+    @State private var rankingsPresentation: SourceRankingsPresentation?
     @Namespace private var categoryNamespace
 
     private enum HomeRoute: Hashable {
@@ -135,6 +139,16 @@ struct HomeView: View {
                         .transition(readingContextTransition)
                 }
 
+                if !isFilteringCatalog,
+                   rankingPreviewRevision == ContentAccessStore.shared.revision,
+                   let rankingPreview, let rankingID = rankingPreview.selectedId {
+                    SourceRankingPreview(response: rankingPreview) { entry in
+                        rankingsPresentation = SourceRankingsPresentation(rankingID: rankingID, entry: entry,
+                            revision: ContentAccessStore.shared.revision)
+                    }
+                    .padding(.bottom, 24)
+                }
+
                 if !categories.isEmpty {
                     categoryChipsBar
                         .padding(.bottom, 18)
@@ -169,8 +183,19 @@ struct HomeView: View {
             }
         }
         .refreshable {
+            async let rankings: Void = loadRankingPreview()
             await reload()
             await loadReadingContext()
+            await rankings
+        }
+        .task(id: ContentAccessStore.shared.revision) { await loadRankingPreview() }
+        .onChange(of: ContentAccessStore.shared.revision) { _, _ in rankingsPresentation = nil }
+        .sheet(item: $rankingsPresentation, onDismiss: {
+            Task { await loadRankingPreview() }
+        }) { presentation in
+            if presentation.revision == ContentAccessStore.shared.revision {
+                SourceRankingsView(presentation: presentation)
+            }
         }
         .task(id: ContentAccessStore.shared.mode) {
             if ContentAccessStore.shared.mode == "safe" {
@@ -538,6 +563,21 @@ struct HomeView: View {
             }
         } catch {
             // 阅读入口不是发现页的阻塞条件，书架请求失败时继续展示目录。
+        }
+    }
+
+    private func loadRankingPreview() async {
+        let revision = ContentAccessStore.shared.revision
+        let request = UUID()
+        rankingPreviewRequest = request
+        do {
+            let response = try await SourceRankingResponse.load()
+            guard !Task.isCancelled, request == rankingPreviewRequest,
+                  revision == ContentAccessStore.shared.revision else { return }
+            rankingPreview = response
+            rankingPreviewRevision = revision
+        } catch {
+            // The discovery catalog remains available on older servers and during ranking failures.
         }
     }
 

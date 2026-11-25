@@ -27,6 +27,7 @@ import { optionalUser, requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { contentPolicyHeaders, restrictedContentResponse, resolveContentAccess } from '../services/content-access'
 import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
 import { categoryAliases, canonicalCategory } from '@shared/category-aliases'
+import { readSourceRankings } from '../services/source-rankings'
 
 export const novelsRoutes = new Hono<AuthEnv>()
 novelsRoutes.onError((error, c) => {
@@ -66,6 +67,17 @@ novelsRoutes.post('/export', requireAdmin(), async (c) => {
       'X-Content-Type-Options': 'nosniff',
     },
   })
+})
+
+novelsRoutes.get('/source-rankings', optionalUser(), async (c) => {
+  const access = await resolveContentAccess(c)
+  const mode = c.req.query('contentMode')
+  return c.json(await readSourceRankings(getDb(), {
+    rankingId: c.req.query('ranking'),
+    visibilitySql: visibleNovelSql(c, 'n'),
+    canViewRestricted: access.canViewRestricted && mode !== 'safe',
+    includeUncollected: access.canViewRestricted && mode === 'adult',
+  }), 200, contentPolicyHeaders())
 })
 
 // ---------- 列表（公开） ----------

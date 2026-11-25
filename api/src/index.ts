@@ -25,6 +25,7 @@ import { stopBackupCommands } from './services/backups/process'
 import { runMailTick, pruneSecurity } from './services/mail-worker'
 import { reconcileDeliveryEvents } from './services/mail-webhook'
 import { buildInfo } from './services/build-info'
+import { refreshSourceRankings } from './services/source-rankings'
 
 async function resumeInterruptedCoverPromptTasks() {
   const db = getDb()
@@ -153,6 +154,18 @@ async function start() {
   }, 60000)
   followupTimer.unref()
   void checkFollowups()
+  let rankingsRunning = false
+  const checkRankings = () => {
+    if (rankingsRunning || !loadConfig().configured) return
+    rankingsRunning = true
+    const db = getDb()
+    void withBusinessActivity(db, () => refreshSourceRankings(db))
+      .catch(() => console.error('[source-rankings] scheduling failed'))
+      .finally(() => { rankingsRunning = false })
+  }
+  const rankingTimer = setInterval(checkRankings, 15 * 60_000)
+  rankingTimer.unref()
+  checkRankings()
   // 书源自带的后台维护（会话保活、自动重登）：只在 API 进程里跑，不依赖后台页面是否打开。
   if (config.configured) {
     for (const adapter of scrapeAdapters()) {
@@ -206,6 +219,7 @@ async function start() {
     stopBackupCommands()
     clearInterval(importPruneTimer)
     clearInterval(followupTimer)
+    clearInterval(rankingTimer)
     clearInterval(supplementaryTimer)
     clearInterval(backupTimer)
     if (aiTaskReclaimTimer) clearInterval(aiTaskReclaimTimer)

@@ -13,6 +13,7 @@ export interface DiscoverDeps {
   db: Db
   fetchHtml: HtmlFetcher
   getPreset?: (url: string) => Promise<Record<string, unknown> | null>
+  includeRankingDetails?: boolean
 }
 
 export interface DiscoverResult {
