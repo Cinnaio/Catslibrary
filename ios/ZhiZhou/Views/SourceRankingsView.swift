@@ -297,12 +297,22 @@ private struct SourceRankingBookInfo: Decodable {
 private struct SourceRankingDetail: View {
     let entry: SourceRankingEntry
     let didImport: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .caption) private var chapterNumberWidth: CGFloat = 24
     @State private var novel: Novel?
     @State private var bookInfo: SourceRankingBookInfo?
     @State private var isLoadingInfo = false
     @State private var errorMessage: String?
     @State private var importItem: DiscoverNovel?
     @State private var attempt = 0
+    @State private var showsAllChapters = false
+
+    private enum SectionAnchor: Hashable { case synopsis, directory }
+
+    private var description: String {
+        (bookInfo?.description ?? entry.description ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     var body: some View {
         Group {
@@ -330,60 +340,146 @@ private struct SourceRankingDetail: View {
     }
 
     private var uncollectedDetail: some View {
-        ReaderPanelPage {
-            HStack(alignment: .top, spacing: 16) {
-                SourceRankingCover(entry: entry, size: CGSize(width: 70, height: 100))
-                VStack(alignment: .leading, spacing: 8) {
-                    ReaderPanelHeading(entry.title, detail: entry.author)
-                    Text("未收录").font(.footnote).foregroundStyle(ReadingSpace.profileMuted)
+        ScrollViewReader { scroll in
+            ReaderPanelPage {
+                bookHeader
+                if let errorMessage {
+                    LoadErrorNotice(message: errorMessage, isLoading: isLoadingInfo) { attempt += 1 }
+                } else if isLoadingInfo, bookInfo == nil {
+                    ProgressView("正在读取源站简介和目录…")
+                        .font(.footnote)
+                        .foregroundStyle(ReadingSpace.profileMuted)
                 }
-            }
-            if let errorMessage {
-                LoadErrorNotice(message: errorMessage, isLoading: isLoadingInfo) { attempt += 1 }
-            } else if isLoadingInfo {
-                ProgressView("正在读取源站简介和目录…")
-            }
-            let description = bookInfo?.description ?? entry.description ?? ""
-            if !description.isEmpty || bookInfo != nil {
-                ReaderPanelSection("作品简介") {
-                    Text(description.isEmpty ? "源站暂未提供简介。" : description)
-                        .foregroundStyle(description.isEmpty ? ReadingSpace.profileMuted : ReadingSpace.ink)
-                }
-            }
-            if let bookInfo {
-                ReaderPanelSection("目录预览") {
-                    if let directory = bookInfo.directory, directory.count > 0 {
-                        ReaderPanelNote("已识别 \(directory.count) 章 · 显示前 \(directory.chapters.count) 章")
-                        ForEach(Array(directory.chapters.enumerated()), id: \.offset) { index, chapter in
-                            AppAdaptiveRow {
-                                Text("\(index + 1). \(chapter.title)")
-                                    .foregroundStyle(ReadingSpace.ink)
-                                if chapter.protected {
-                                    Text("受限").font(.caption).foregroundStyle(ReadingSpace.profileMuted)
-                                }
-                            }
-                        }
-                    } else if bookInfo.directory == nil {
-                        ReaderPanelNote("暂时无法读取源站目录。")
-                        Button("重试读取目录") { attempt += 1 }
-                            .frame(minHeight: AppLayout.minimumTouchTarget)
-                            .disabled(isLoadingInfo)
-                    } else {
-                        ReaderPanelNote("源站目录没有可显示的章节。")
+                if !description.isEmpty || bookInfo != nil {
+                    SourceRankingSynopsis(text: description) {
+                        scroll.scrollTo(SectionAnchor.synopsis, anchor: .top)
                     }
+                    .id(SectionAnchor.synopsis)
                 }
-            }
-            if AppState.shared.user?.isAdmin == true,
-               ContentAccessStore.shared.mode == "adult", let url = entry.sourceUrl {
-                Button("导入作品") {
-                    importItem = DiscoverNovel(bookId: nil, title: entry.title, author: entry.author,
-                        coverUrl: nil, url: url, existing: false, description: description,
-                        chapterCount: bookInfo?.directory?.count, status: nil, source: nil, sourceName: nil)
+                if let bookInfo {
+                    directorySection(bookInfo.directory) {
+                        scroll.scrollTo(SectionAnchor.directory, anchor: .top)
+                    }
+                    .id(SectionAnchor.directory)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
             }
         }
+    }
+
+    private var bookHeader: some View {
+        let layout = dynamicTypeSize >= .xxxLarge
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 16))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: 17))
+        return layout {
+            SourceRankingCover(entry: entry, size: CGSize(width: 88, height: 124))
+                .shadow(color: AppTheme.cardShadow, radius: 7, y: 4)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(entry.title)
+                    .font(serifFont(.title2, .medium))
+                    .foregroundStyle(ReadingSpace.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                if !entry.author.isEmpty {
+                    Text(entry.author)
+                        .font(.subheadline)
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                }
+                Text("未收录")
+                    .font(.caption)
+                    .foregroundStyle(ReadingSpace.profileMuted)
+                if AppState.shared.user?.isAdmin == true,
+                   ContentAccessStore.shared.mode == "adult", let url = entry.sourceUrl {
+                    Button {
+                        importItem = DiscoverNovel(bookId: nil, title: entry.title, author: entry.author,
+                            coverUrl: nil, url: url, existing: false, description: description,
+                            chapterCount: bookInfo?.directory?.count, status: nil, source: nil, sourceName: nil)
+                    } label: {
+                        Label("导入作品", systemImage: "square.and.arrow.down")
+                            .font(.footnote.weight(.semibold))
+                            .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .foregroundStyle(AppTheme.primary)
+                    .buttonStyle(.plain)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(ReadingSpace.profileFill.opacity(0.55), in: RoundedRectangle(cornerRadius: 18))
+    }
+
+    private func directorySection(_ directory: SourceRankingBookInfo.Directory?, onCollapse: @escaping () -> Void) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            AppAdaptiveRow {
+                Text("目录预览")
+                    .font(serifFont(.title3, .medium))
+                    .foregroundStyle(ReadingSpace.ink)
+                    .accessibilityAddTraits(.isHeader)
+                if let directory, directory.count > 0 {
+                    if dynamicTypeSize < .xxxLarge { Spacer(minLength: 0) }
+                    Text("已识别 \(directory.count) 章")
+                        .font(.footnote.monospacedDigit())
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                }
+            }
+            if let directory, !directory.chapters.isEmpty {
+                let visibleChapters = directory.chapters.prefix(showsAllChapters ? directory.chapters.count : 5)
+                VStack(spacing: 0) {
+                    ForEach(Array(visibleChapters.enumerated()), id: \.offset) { index, chapter in
+                        Rectangle()
+                            .fill(ReadingSpace.profileLine)
+                            .frame(height: 1)
+                            .accessibilityHidden(true)
+                        chapterRow(chapter, number: index + 1)
+                    }
+                }
+                if directory.chapters.count > 5 {
+                    SourceRankingDisclosure(title: showsAllChapters ? "收起目录" : "查看前 \(directory.chapters.count) 章",
+                                            isExpanded: showsAllChapters) {
+                        withAnimation(reduceMotion ? nil : AppMotion.structural) {
+                            showsAllChapters.toggle()
+                            if !showsAllChapters { onCollapse() }
+                        }
+                    }
+                }
+            } else if directory == nil {
+                ReaderPanelNote("暂时无法读取源站目录。")
+                Button(isLoadingInfo ? "正在读取目录…" : "重试读取目录") { attempt += 1 }
+                    .font(.subheadline.weight(.medium))
+                    .frame(minHeight: AppLayout.minimumTouchTarget)
+                    .disabled(isLoadingInfo)
+            } else {
+                ReaderPanelNote("源站目录没有可显示的章节。")
+            }
+        }
+    }
+
+    private func chapterRow(_ chapter: SourceRankingBookInfo.Directory.Chapter, number: Int) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text("\(number)")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(ReadingSpace.profileMuted)
+                .frame(minWidth: chapterNumberWidth, alignment: .leading)
+                .accessibilityLabel("第 \(number) 项")
+            AppAdaptiveRow(spacing: 8) {
+                Text(chapter.title.isEmpty ? "未命名章节" : chapter.title)
+                    .font(serifFont(.subheadline))
+                    .foregroundStyle(ReadingSpace.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                if chapter.protected {
+                    if dynamicTypeSize < .xxxLarge { Spacer(minLength: 0) }
+                    Label("受限", systemImage: "lock")
+                        .font(.caption)
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                        .fixedSize()
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.vertical, 11)
+        .accessibilityElement(children: .combine)
     }
 
     private func load() async {
@@ -403,5 +499,82 @@ private struct SourceRankingDetail: View {
         } catch {
             if !Task.isCancelled { errorMessage = AppCopy.friendlyError(error) }
         }
+    }
+}
+
+private struct SourceRankingSynopsis: View {
+    let text: String
+    let onCollapse: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isExpanded = false
+    @State private var fullHeight: CGFloat = 0
+    @State private var previewHeight: CGFloat = 0
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("作品简介")
+                .font(serifFont(.title3, .medium))
+                .foregroundStyle(ReadingSpace.ink)
+                .accessibilityAddTraits(.isHeader)
+            if text.isEmpty {
+                ReaderPanelNote("源站暂未提供简介。")
+            } else {
+                synopsisText
+                    .lineLimit(isExpanded ? nil : 4)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(alignment: .topLeading) {
+                        if !isExpanded {
+                            synopsisText
+                                .fixedSize(horizontal: false, vertical: true)
+                                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { fullHeight = $0 }
+                                .hidden()
+                                .accessibilityHidden(true)
+                        }
+                    }
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                        if !isExpanded { previewHeight = $0 }
+                    }
+                if isExpanded || (previewHeight > 0 && fullHeight > previewHeight + 1) {
+                    SourceRankingDisclosure(title: isExpanded ? "收起简介" : "展开简介", isExpanded: isExpanded) {
+                        withAnimation(reduceMotion ? nil : AppMotion.structural) {
+                            isExpanded.toggle()
+                            if !isExpanded { onCollapse() }
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var synopsisText: some View {
+        Text(text)
+            .font(.subheadline)
+            .foregroundStyle(ReadingSpace.ink)
+            .lineSpacing(6)
+    }
+}
+
+private struct SourceRankingDisclosure: View {
+    let title: String
+    let isExpanded: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 7) {
+                Text(title)
+                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .accessibilityHidden(true)
+            }
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(AppTheme.primary)
+            .frame(minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
