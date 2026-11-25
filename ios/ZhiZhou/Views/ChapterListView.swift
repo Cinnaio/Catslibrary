@@ -10,6 +10,7 @@ struct ChapterListView: View {
     let directorySort: Binding<Bool>?
     let onSelect: (Int) -> Void
 
+    private let onClose: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(OfflineReadingStore.self) private var offlineStore
@@ -30,6 +31,7 @@ struct ChapterListView: View {
         initialChapters: [ChapterMeta] = [],
         offlineOnly: Bool = false,
         directorySort: Binding<Bool>? = nil,
+        onClose: (() -> Void)? = nil,
         onSelect: @escaping (Int) -> Void
     ) {
         self.novel = novel
@@ -37,6 +39,7 @@ struct ChapterListView: View {
         self.initialChapters = initialChapters
         self.offlineOnly = offlineOnly
         self.directorySort = directorySort
+        self.onClose = onClose
         self.onSelect = onSelect
         _searchPresented = State(initialValue: directorySort != nil)
     }
@@ -60,6 +63,11 @@ struct ChapterListView: View {
 
     private var currentChapter: ChapterMeta? {
         availableChapters.first { $0.order == currentOrder }
+    }
+
+    private func closePanel() {
+        if let onClose { onClose() }
+        else { dismiss() }
     }
 
     var body: some View {
@@ -141,7 +149,7 @@ struct ChapterListView: View {
                     .disabled(availableChapters.isEmpty)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(directorySort == nil ? "完成" : "关闭") { dismiss() }
+                    Button(directorySort == nil ? "完成" : "关闭") { closePanel() }
                 }
             }
             .task(id: ContentAccessStore.shared.mode) {
@@ -151,7 +159,7 @@ struct ChapterListView: View {
                 TextField("章号", text: $jumpOrder).keyboardType(.numberPad)
                 Button("开始阅读") {
                     guard let chapter = jumpTarget else { return }
-                    dismiss()
+                    closePanel()
                     onSelect(chapter.order)
                 }
                 .disabled(jumpTarget == nil)
@@ -220,7 +228,7 @@ struct ChapterListView: View {
         let isCurrent = chapter.order == currentOrder
 
         return Button {
-            dismiss()
+            closePanel()
             onSelect(chapter.order)
         } label: {
             HStack(spacing: 14) {

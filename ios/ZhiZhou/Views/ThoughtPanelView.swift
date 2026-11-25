@@ -10,6 +10,7 @@ struct ThoughtPanelView: View {
     let currentUserID: String?
     let defaultDisplayName: String
     let isLoading: Bool
+    let isSubmitting: Bool
     let loadError: String?
     let canCompose: Bool
     let onRetry: () -> Void
@@ -17,11 +18,11 @@ struct ThoughtPanelView: View {
     let onDelete: (String) async throws -> Void
     let panelTitle: String
 
+    private let onClose: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @State private var draft = ""
-    @State private var isSubmitting = false
+    @Binding private var draft: String
     @State private var submitError: String?
     @State private var pendingDelete: Thought?
     @State private var deletingIDs: Set<String> = []
@@ -31,30 +32,41 @@ struct ThoughtPanelView: View {
         chapterTitle: String,
         paragraphExcerpt: String,
         selectedText: String,
+        draft: Binding<String>,
         thoughts: [Thought],
         currentUserID: String?,
         defaultDisplayName: String,
         isLoading: Bool,
+        isSubmitting: Bool,
         loadError: String?,
         canCompose: Bool,
         onRetry: @escaping () -> Void,
         onSubmit: @escaping (String, String) async throws -> Void,
         onDelete: @escaping (String) async throws -> Void,
-        panelTitle: String = "本段段评"
+        panelTitle: String = "本段段评",
+        onClose: (() -> Void)? = nil
     ) {
         self.chapterTitle = chapterTitle
         self.paragraphExcerpt = paragraphExcerpt
         self.selectedText = selectedText
+        self._draft = draft
         self.thoughts = thoughts
         self.currentUserID = currentUserID
         self.defaultDisplayName = defaultDisplayName
         self.isLoading = isLoading
+        self.isSubmitting = isSubmitting
         self.loadError = loadError
         self.canCompose = canCompose
         self.onRetry = onRetry
         self.onSubmit = onSubmit
         self.onDelete = onDelete
         self.panelTitle = panelTitle
+        self.onClose = onClose
+    }
+
+    private func closePanel() {
+        if let onClose { onClose() }
+        else { dismiss() }
     }
 
     var body: some View {
@@ -81,7 +93,7 @@ struct ThoughtPanelView: View {
             .readingSpaceNavigation()
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("完成") { dismiss() }
+                    Button("完成") { closePanel() }
                 }
             }
         }
@@ -385,7 +397,7 @@ struct ThoughtPanelView: View {
     }
 
     private func submit() async {
-        guard canCompose else { return }
+        guard canCompose, !isSubmitting else { return }
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else {
             submitError = "写点内容再发布。"
@@ -393,9 +405,7 @@ struct ThoughtPanelView: View {
             return
         }
 
-        isSubmitting = true
         submitError = nil
-        defer { isSubmitting = false }
 
         do {
             try await onSubmit(

@@ -6,6 +6,15 @@ private final class ReaderPercentBox {
     var value: Double = 0
 }
 
+/// 段评草稿绑定原章节与原选段，侧栏切换、窗口缩放时不会挪到另一段正文。
+private struct ReaderThoughtContext: Hashable {
+    let accessRevision: UUID
+    let chapterID: String
+    let paragraphIndex: Int
+    let paragraphHash: String
+    let selection: String
+}
+
 /// Caches the expensive text-to-NSAttributedString conversion for each
 /// paragraph. Scroll progress updates the reader chrome frequently, but does
 /// not change the paragraph's visual content.
@@ -77,8 +86,10 @@ struct ReaderView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var statsOwner = UUID()
-    @State private var showTOC = false
-    @State private var showBodySearch = false
+    private enum ReaderTool: Equatable { case contents, search, settings, thoughts }
+    @State private var activeTool: ReaderTool?
+    @State private var thoughtDrafts: [ReaderThoughtContext: String] = [:]
+    @State private var submittingThoughts: Set<ReaderThoughtContext> = []
     @State private var bodySearchSnapshot: BookSearchSnapshot?
     @State private var searchQuery: String
     @State private var requestedChapterID: String
@@ -86,7 +97,6 @@ struct ReaderView: View {
     @State private var echoNavigationRevision = 0
     @State private var pendingSearchCharacter: Int?
     @State private var searchLocationMissing = false
-    @State private var showSettings = false
     @State private var showEdge = false
     @State private var edgeStore = ReaderEdgeStore()
     @State private var showChrome = true
@@ -132,7 +142,6 @@ struct ReaderView: View {
     @State private var thoughtsError: String?
     @State private var activeThoughtParagraph: Int?
     @State private var activeThoughtSelection = ""
-    @State private var showThoughtPanel = false
     @State private var chapterSwipeProgress: CGFloat = 0
     @State private var hasFiredSwipeHaptic = false
     @State private var isSelectingBodyText = false
@@ -318,7 +327,7 @@ struct ReaderView: View {
     }
 
     private var readerWithPanels: some View {
-        readerSurface
+        readerWithToolPanels
         .sheet(isPresented: $showBookmark) {
             if let chapter {
                 BookmarkEditorView(novelID: novel.id, chapterID: chapter.id, chapterTitle: chapter.title)
@@ -355,21 +364,124 @@ struct ReaderView: View {
                 ReaderRecapView(source: .chapter(id: previousChapter.id, title: previousChapter.title))
             }
         }
-        .sheet(isPresented: $showTOC) {
+        .sheet(isPresented: $showEdge) {
+            ReaderEdgeSheet(store: edgeStore)
+                .preferredColorScheme(scheme)
+                .presentationBackground(ReadingSpace.profilePaper)
+                .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+    }
+
+    // 设备分支在旋转和窗口缩放时保持稳定；iPhone 沿用原来的四种 sheet 配置。
+    @ViewBuilder private var readerWithToolPanels: some View {
+        if ReadingSpaceWindowLayout.usesIPadLayout {
+            readerSurface
+            .inspector(isPresented: readerToolPresented) {
+                readerToolContent(for: activeTool)
+                    .preferredColorScheme(scheme)
+                    .inspectorColumnWidth(min: 300, ideal: 360, max: 420)
+                    .presentationBackground(ReadingSpace.profilePaper)
+                    .presentationDetents(activeTool == .search || dynamicTypeSize.isAccessibilitySize
+                        ? [.large] : [.medium, .large])
+                    .presentationDragIndicator(.visible)
+            }
+            .onChange(of: activeTool) { previous, current in
+                if previous == .thoughts, current != .thoughts {
+                    activeThoughtParagraph = nil
+                    activeThoughtSelection = ""
+                }
+            }
+        } else {
+            readerSurface
+                .sheet(isPresented: phoneToolPresented(.contents)) {
+                    readerToolContent(for: .contents)
+                        .preferredColorScheme(scheme)
+                        .presentationBackground(ReadingSpace.profilePaper)
+                        .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
+                }
+                .sheet(isPresented: phoneToolPresented(.search)) {
+                    readerToolContent(for: .search)
+                        .preferredColorScheme(scheme)
+                }
+                .sheet(isPresented: phoneToolPresented(.settings)) {
+                    readerToolContent(for: .settings)
+                        .preferredColorScheme(scheme)
+                        .presentationBackground(ReadingSpace.profilePaper)
+                        .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
+                        .presentationDragIndicator(.visible)
+                }
+                .sheet(isPresented: phoneToolPresented(.thoughts), onDismiss: {
+                    activeThoughtParagraph = nil
+                    activeThoughtSelection = ""
+                }) {
+                    if let index = activeThoughtParagraph, paragraphs.indices.contains(index), chapter != nil {
+                        readerThoughtPanel
+                            .preferredColorScheme(scheme)
+                            .presentationBackground(ReadingSpace.profilePaper)
+                            .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
+                            .presentationDragIndicator(.visible)
+                    } else {
+                        readerThoughtPanel
+                    }
+                }
+        }
+    }
+
+    private func phoneToolPresented(_ tool: ReaderTool) -> Binding<Bool> {
+        Binding(get: { activeTool == tool }, set: { setTool(tool, presented: $0) })
+    }
+
+    private var showTOC: Bool {
+        get { activeTool == .contents }
+        nonmutating set { setTool(.contents, presented: newValue) }
+    }
+
+    private var showBodySearch: Bool {
+        get { activeTool == .search }
+        nonmutating set { setTool(.search, presented: newValue) }
+    }
+
+    private var showSettings: Bool {
+        get { activeTool == .settings }
+        nonmutating set { setTool(.settings, presented: newValue) }
+    }
+
+    private var showThoughtPanel: Bool {
+        get { activeTool == .thoughts }
+        nonmutating set { setTool(.thoughts, presented: newValue) }
+    }
+
+    private var readerToolPresented: Binding<Bool> {
+        Binding(get: { activeTool != nil }, set: { presented in
+            if !presented, let tool = activeTool { setTool(tool, presented: false) }
+        })
+    }
+
+    private func setTool(_ tool: ReaderTool, presented: Bool) {
+        guard presented || activeTool == tool else { return }
+        autoScrollPaused = true
+        if ReadingSpaceWindowLayout.usesIPadLayout, progressRestored, pendingScrollRestore == nil {
+            preserveScrollPosition()
+        }
+        activeTool = presented ? tool : nil
+    }
+
+    @ViewBuilder private func readerToolContent(for tool: ReaderTool?) -> some View {
+        switch tool {
+        case .contents:
             ChapterListView(
                 novel: novel,
                 currentOrder: chapterOrder,
                 initialChapters: chapterMetas,
-                offlineOnly: offlineOnly
+                offlineOnly: offlineOnly,
+                onClose: { showTOC = false }
             ) { order in
                 go(to: order)
             }
-            .preferredColorScheme(scheme)
-            .presentationBackground(ReadingSpace.profilePaper)
-            .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
-        }
-        .sheet(isPresented: $showBodySearch) {
-            BookSearchView(novel: novel, state: $bodySearchSnapshot, initialQuery: searchQuery) { hit, query in
+        case .search:
+            BookSearchView(novel: novel, state: $bodySearchSnapshot, initialQuery: searchQuery,
+                           onClose: { showBodySearch = false }) { hit, query in
                 autoScrollPaused = true
                 saveProgressNow()
                 echoTarget = nil
@@ -383,66 +495,67 @@ struct ReaderView: View {
                     chapterOrder = hit.chapterOrder
                 }
             }
-            .preferredColorScheme(scheme)
+        case .settings:
+            ReaderSettingsView(previewTitle: chapter?.title, previewParagraphs: Array(paragraphs.prefix(2)),
+                               onClose: { showSettings = false })
+        case .thoughts:
+            readerThoughtPanel
+        case nil:
+            EmptyView()
         }
-        .sheet(isPresented: $showSettings) {
-            ReaderSettingsView(previewTitle: chapter?.title, previewParagraphs: Array(paragraphs.prefix(2)))
-                .preferredColorScheme(scheme)
-                .presentationBackground(ReadingSpace.profilePaper)
-                .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
-                .presentationDragIndicator(.visible)
+    }
+
+    @ViewBuilder private var readerThoughtPanel: some View {
+        if let index = activeThoughtParagraph,
+           paragraphs.indices.contains(index),
+           let chapter {
+            let context = ReaderThoughtContext(
+                accessRevision: ContentAccessStore.shared.revision,
+                chapterID: chapter.id, paragraphIndex: index,
+                paragraphHash: Self.paragraphHash(paragraphs[index]), selection: activeThoughtSelection
+            )
+            ThoughtPanelView(
+                chapterTitle: chapter.title,
+                paragraphExcerpt: paragraphExcerpt(for: paragraphs[index]),
+                selectedText: context.selection,
+                draft: thoughtDraft(for: context),
+                thoughts: thoughtsByParagraph[index] ?? [],
+                currentUserID: appState.user?.id,
+                defaultDisplayName: currentDisplayName,
+                isLoading: isLoadingThoughts,
+                isSubmitting: submittingThoughts.contains(context),
+                loadError: thoughtsError,
+                canCompose: !offlineOnly && appState.user != nil,
+                onRetry: { loadThoughts(for: chapter.id) },
+                onSubmit: { text, displayName in
+                    try await submitThought(text: text, displayName: displayName, context: context)
+                },
+                onDelete: { id in try await deleteThought(id: id) },
+                onClose: { showThoughtPanel = false }
+            )
+            .id(context)
+        } else if let chapter, let unmatched = thoughtsByParagraph[-1], !unmatched.isEmpty {
+            ThoughtPanelView(
+                chapterTitle: chapter.title, paragraphExcerpt: "原段落已变更或暂时无法定位，以下想法保留供查看。",
+                selectedText: "", draft: .constant(""), thoughts: unmatched, currentUserID: appState.user?.id,
+                defaultDisplayName: currentDisplayName, isLoading: isLoadingThoughts, isSubmitting: false,
+                loadError: thoughtsError, canCompose: false,
+                onRetry: { loadThoughts(for: chapter.id) },
+                onSubmit: { _, _ in throw APIError.invalidResponse },
+                onDelete: { try await deleteThought(id: $0) },
+                panelTitle: "原段落已变更的想法",
+                onClose: { showThoughtPanel = false }
+            )
+        } else {
+            Color.clear
         }
-        .sheet(isPresented: $showEdge) {
-            ReaderEdgeSheet(store: edgeStore)
-                .preferredColorScheme(scheme)
-                .presentationBackground(ReadingSpace.profilePaper)
-                .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
-                .presentationDragIndicator(.visible)
-        }
-        .sheet(isPresented: $showThoughtPanel, onDismiss: {
-            activeThoughtParagraph = nil
-            activeThoughtSelection = ""
-        }) {
-            if let index = activeThoughtParagraph,
-               paragraphs.indices.contains(index),
-               let chapter {
-                ThoughtPanelView(
-                    chapterTitle: chapter.title,
-                    paragraphExcerpt: paragraphExcerpt(for: paragraphs[index]),
-                    selectedText: activeThoughtSelection,
-                    thoughts: thoughtsByParagraph[index] ?? [],
-                    currentUserID: appState.user?.id,
-                    defaultDisplayName: currentDisplayName,
-                    isLoading: isLoadingThoughts,
-                    loadError: thoughtsError,
-                    canCompose: !offlineOnly && appState.user != nil,
-                    onRetry: { loadThoughts(for: chapter.id) },
-                    onSubmit: { text, displayName in
-                        try await submitThought(text: text, displayName: displayName)
-                    },
-                    onDelete: { id in
-                        try await deleteThought(id: id)
-                    }
-                )
-                .preferredColorScheme(scheme)
-                .presentationBackground(ReadingSpace.profilePaper)
-                .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
-                .presentationDragIndicator(.visible)
-            } else if let chapter, let unmatched = thoughtsByParagraph[-1], !unmatched.isEmpty {
-                ThoughtPanelView(
-                    chapterTitle: chapter.title, paragraphExcerpt: "原段落已变更或暂时无法定位，以下想法保留供查看。",
-                    selectedText: "", thoughts: unmatched, currentUserID: appState.user?.id,
-                    defaultDisplayName: currentDisplayName, isLoading: isLoadingThoughts,
-                    loadError: thoughtsError, canCompose: false,
-                    onRetry: { loadThoughts(for: chapter.id) },
-                    onSubmit: { _, _ in throw APIError.invalidResponse },
-                    onDelete: { try await deleteThought(id: $0) },
-                    panelTitle: "原段落已变更的想法"
-                )
-            } else {
-                Color.clear
-            }
-        }
+    }
+
+    private func thoughtDraft(for context: ReaderThoughtContext) -> Binding<String> {
+        Binding(get: { thoughtDrafts[context] ?? "" }, set: { text in
+            if text.isEmpty { thoughtDrafts.removeValue(forKey: context) }
+            else { thoughtDrafts[context] = text }
+        })
     }
 
     var body: some View {
@@ -461,6 +574,8 @@ struct ReaderView: View {
             visible: statisticsVisible))
         .task(id: "\(novel.id)-\(chapterOrder)-\(requestedChapterID)-\(ContentAccessStore.shared.mode)-\(echoNavigationRevision)") { await load() }
         .task(id: ContentAccessStore.shared.revision) {
+            thoughtDrafts.removeAll()
+            showThoughtPanel = false
             recapEnabled = false
             echoEnabled = false
             characterCardsEnabled = false
@@ -820,7 +935,12 @@ struct ReaderView: View {
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 readerChrome
             }
-            .scrollPosition(id: $scrolledParagraph)
+            .scrollPosition(id: $scrolledParagraph, anchor: ReadingSpaceWindowLayout.usesIPadLayout ? .top : nil)
+            .onChange(of: geo.size.width) { previous, current in
+                guard ReadingSpaceWindowLayout.usesIPadLayout, abs(previous - current) >= 1 else { return }
+                autoScrollPaused = true
+                if progressRestored, pendingScrollRestore == nil { preserveScrollPosition() }
+            }
             .overlay(alignment: chapterSwipeProgress < 0 ? .trailing : .leading) {
                 if chapterSwipeProgress != 0 {
                     let isReady = abs(chapterSwipeProgress) >= 1.0
@@ -1919,13 +2039,20 @@ struct ReaderView: View {
         })
     }
 
-    private func submitThought(text: String, displayName: String) async throws {
+    private func submitThought(text: String, displayName: String, context: ReaderThoughtContext) async throws {
+        let index = context.paragraphIndex
         guard let currentChapter = chapter,
-              let index = activeThoughtParagraph,
-              paragraphs.indices.contains(index)
+              ContentAccessStore.shared.revision == context.accessRevision,
+              currentChapter.id == context.chapterID,
+              paragraphs.indices.contains(index),
+              Self.paragraphHash(paragraphs[index]) == context.paragraphHash
         else {
             throw APIError.invalidResponse
         }
+
+        guard !submittingThoughts.contains(context) else { throw APIError.invalidResponse }
+        submittingThoughts.insert(context)
+        defer { submittingThoughts.remove(context) }
 
         thoughtsLoadTask?.cancel()
         isLoadingThoughts = false
@@ -1935,12 +2062,13 @@ struct ReaderView: View {
             chapterId: currentChapter.id,
             paragraphIndex: index,
             paragraphHash: Self.paragraphHash(paragraphs[index]),
-            selectedText: String(activeThoughtSelection.prefix(200)),
+            selectedText: String(context.selection.prefix(200)),
             thoughtText: String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(300)),
             displayName: String(displayName.trimmingCharacters(in: .whitespacesAndNewlines).prefix(20))
         )
         let thought = try await ThoughtsAPI.create(payload: payload)
-        guard self.chapter?.id == currentChapter.id else { return }
+        guard ContentAccessStore.shared.revision == context.accessRevision,
+              self.chapter?.id == currentChapter.id else { return }
         chapterThoughts.removeAll { $0.id == thought.id }
         chapterThoughts.append(thought)
         relocateThoughts()

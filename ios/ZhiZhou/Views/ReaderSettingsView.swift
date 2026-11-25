@@ -4,6 +4,7 @@ import SwiftUI
 struct ReaderSettingsView: View {
     var previewTitle: String? = nil
     var previewParagraphs: [String] = []
+    var onClose: (() -> Void)? = nil
     @Environment(ReaderSettingsStore.self) private var settings
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -15,6 +16,11 @@ struct ReaderSettingsView: View {
         ("eye", "护眼", Color(hex: "E7EBD9")),
         ("paper", "羊皮", Color(hex: "F2E3C6")),
     ]
+
+    private func closePanel() {
+        if let onClose { onClose() }
+        else { dismiss() }
+    }
 
     var body: some View {
         NavigationStack {
@@ -107,7 +113,7 @@ struct ReaderSettingsView: View {
             .sensoryFeedback(.selection, trigger: interactionFeedback)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { dismiss() }
+                    Button("完成") { closePanel() }
                 }
             }
         }

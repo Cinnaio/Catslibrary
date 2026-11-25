@@ -82,6 +82,7 @@ struct BookSearchView: View {
     let onSelect: (BookSearchHit, String) -> Void
     @Binding private var snapshot: BookSearchSnapshot?
     @Environment(AppState.self) private var appState
+    private let onClose: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var queryFocused: Bool
@@ -103,8 +104,9 @@ struct BookSearchView: View {
     private static let topAnchorID = "book-search-top"
 
     init(novel: Novel, state: Binding<BookSearchSnapshot?>, initialQuery: String = "",
-         onSelect: @escaping (BookSearchHit, String) -> Void) {
+         onClose: (() -> Void)? = nil, onSelect: @escaping (BookSearchHit, String) -> Void) {
         self.novel = novel
+        self.onClose = onClose
         self.onSelect = onSelect
         _snapshot = state
         let context = BookSearchScope.current(novelID: novel.id)
@@ -127,6 +129,11 @@ struct BookSearchView: View {
     private var queryTooLong: Bool { trimmedQuery.utf16.count > 80 }
     private var canSearch: Bool { !busy && !trimmedQuery.isEmpty && !queryTooLong }
     private var searchAnimation: Animation? { reduceMotion ? nil : AppMotion.micro }
+
+    private func closePanel() {
+        if let onClose { onClose() }
+        else { dismiss() }
+    }
 
     var body: some View {
         NavigationStack {
@@ -159,7 +166,7 @@ struct BookSearchView: View {
             .onSubmit(of: .search) { search() }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭", systemImage: "xmark") { dismiss() }
+                    Button("关闭", systemImage: "xmark") { closePanel() }
                         .labelStyle(.iconOnly)
                 }
             }
@@ -241,7 +248,7 @@ struct BookSearchView: View {
             queryFocused = false
             saveSnapshot()
             onSelect(hit, searched)
-            dismiss()
+            closePanel()
         } label: {
             VStack(alignment: .leading, spacing: 10) {
                 AppAdaptiveRow(spacing: 8) {

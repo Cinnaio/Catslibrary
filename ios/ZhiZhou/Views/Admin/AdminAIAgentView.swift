@@ -70,7 +70,16 @@ struct AdminAIAgentView: View {
         }
     }
 
+    @ViewBuilder
     private var workspace: some View {
+        if ReadingSpaceWindowLayout.usesIPadLayout {
+            iPadWorkspace
+        } else {
+            phoneWorkspace
+        }
+    }
+
+    private var phoneWorkspace: some View {
         GeometryReader { geometry in
             let isWide = geometry.size.width >= 820 && !dynamicTypeSize.isAccessibilitySize
             let drawerOpen = showHistory && !isWide
@@ -154,6 +163,86 @@ struct AdminAIAgentView: View {
         }
     }
 
+    private var iPadWorkspace: some View {
+        GeometryReader { geometry in
+            let isWide = geometry.size.width >= 820 && !dynamicTypeSize.isAccessibilitySize
+            let drawerOpen = showHistory && !isWide
+            let historyVisible = isWide ? sidebarExpanded : drawerOpen
+            let historyWidth = ReadingSpaceWindowLayout.historyWidth(
+                for: geometry.size.width, accessibility: dynamicTypeSize.isAccessibilitySize
+            )
+            ZStack(alignment: .leading) {
+                // 一份历史视图同时承载宽屏侧栏与窄屏抽屉，跨断点不重置搜索和滚动。
+                historySidebar(isPresented: historyVisible)
+                    .animation(nil, value: historyVisible)
+                    .geometryGroup()
+                    .frame(width: historyWidth)
+                    .frame(width: isWide && !sidebarExpanded ? 0 : historyWidth, alignment: .leading)
+                    .mask { Rectangle().ignoresSafeArea(.container, edges: .vertical) }
+                    .disabled(!historyVisible)
+                    .allowsHitTesting(historyVisible)
+                    .accessibilityHidden(!historyVisible)
+                    .accessibilityAction(.escape) {
+                        if isWide { sidebarExpanded = false }
+                        else { setHistoryVisible(false) }
+                    }
+
+                navigationPane(
+                    isWide: isWide, historyVisible: historyVisible, drawerOpen: drawerOpen,
+                    showsCreationPortrait: geometry.size.height >= 540 && !dynamicTypeSize.isAccessibilitySize
+                )
+                    .disabled(drawerOpen)
+                    .allowsHitTesting(!drawerOpen)
+                    .accessibilityHidden(drawerOpen)
+                    .animation(nil, value: historyVisible)
+                    // Resolve the slide on the pane so native navigation and content move together.
+                    .geometryGroup()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .background(ReadingSpace.profilePaper)
+                    // Round the full paper, including the status and home-indicator areas.
+                    // Clipping at the layout bounds would cut off the transparent navigation underlap.
+                    .mask {
+                        UnevenRoundedRectangle(
+                            topLeadingRadius: drawerOpen || (isWide && sidebarExpanded) ? 32 : 0,
+                            bottomLeadingRadius: drawerOpen || (isWide && sidebarExpanded) ? 32 : 0
+                        )
+                        .ignoresSafeArea(.container, edges: .vertical)
+                    }
+                    .shadow(color: .black.opacity(drawerOpen ? 0.10 : 0), radius: 12, x: -4, y: 0)
+                    .overlay {
+                        Button { setHistoryVisible(false) } label: {
+                            Color.clear.contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("关闭对话历史")
+                        .accessibilityIdentifier("agent.history.dismiss")
+                        .allowsHitTesting(drawerOpen)
+                        .accessibilityHidden(!drawerOpen)
+                    }
+                    .padding(.leading, isWide && sidebarExpanded ? historyWidth : 0)
+                    .offset(x: drawerOpen ? historyWidth : 0)
+            }
+            .animation(reduceMotion ? nil : AppMotion.state, value: historyVisible)
+            // Contain the horizontal slide without cutting off drawing in the vertical safe areas.
+            // Only the mask expands; navigation controls and keyboard avoidance keep their safe areas.
+            .mask {
+                Rectangle().ignoresSafeArea(.container, edges: .vertical)
+            }
+            .background(ReadingSpace.canvas.ignoresSafeArea(.container))
+            // Drawer visibility must not change the tab bar's safe-area height during the slide.
+            .toolbar(activeSession != nil ? .hidden : (isTabRoot ? .visible : .automatic), for: .tabBar)
+            .onChange(of: isWide) { _, wide in
+                if wide { showHistory = false }
+            }
+        }
+        .alert("删除对话？", isPresented: $showDelete, presenting: deleteTarget) { session in
+            Button("取消", role: .cancel) { deleteTarget = nil }
+            Button("删除", role: .destructive) { Task { await remove(session) } }
+        } message: { session in
+            Text("将永久删除「\(session.title)」的消息和摘要。已生成的产出和作品记忆会保留。")
+        }
+    }
+
     // The tab owns its navigation inside the moving pane. Pushed entries retain their parent stack and back button.
     @ViewBuilder private func navigationPane(
         isWide: Bool, historyVisible: Bool, drawerOpen: Bool, showsCreationPortrait: Bool
@@ -172,7 +261,8 @@ struct AdminAIAgentView: View {
                     }
             }
         } else {
-            mainWorkspace(historyPresented: drawerOpen)
+            mainWorkspace(historyPresented: drawerOpen,
+                          showsCreationPortrait: ReadingSpaceWindowLayout.usesIPadLayout && showsCreationPortrait)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
                         historyToggle(isWide: isWide, historyVisible: historyVisible)
@@ -254,7 +344,7 @@ struct AdminAIAgentView: View {
                 .padding(.horizontal, 22)
                 .padding(.top, 32)
                 .padding(.bottom, 32)
-                .frame(maxWidth: 560)
+                .frame(maxWidth: ReadingSpaceWindowLayout.usesIPadLayout ? ReadingSpaceWindowLayout.creationWidth : 560)
                 .frame(maxWidth: .infinity, alignment: .top)
             }
             .scrollDismissesKeyboard(.interactively)
