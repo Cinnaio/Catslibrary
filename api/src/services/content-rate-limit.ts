@@ -10,7 +10,7 @@ import { resolveContentAccess } from './content-access'
 import { recordChapterRateLimit } from './reading-access'
 import { getReadingAccessSettings } from './reading-access-settings'
 
-const OTHER_LIMITS = { unlock: { account: 5, ip: 20 }, 'book-search': { account: 30, ip: 60 }, 'reading-stats': { account: 60, ip: 120 } }
+const OTHER_LIMITS = { unlock: { account: 5, ip: 20 }, 'book-search': { account: 30, ip: 60 }, 'source-search': { account: 30, ip: 60 }, 'reading-stats': { account: 60, ip: 120 } }
 
 /** PG 原子计数，多个 API 实例共享。未知 IP 不以可伪造头部代替。 */
 export async function checkContentRate(c: Context<AuthEnv>, action: 'chapter' | keyof typeof OTHER_LIMITS, policy?: ReadingAccessPolicy) {

@@ -56,6 +56,67 @@ afterAll(async () => {
 })
 
 describe('书籍可见范围与分级独立', () => {
+  it('发现页书源搜索按来源分页并过滤不可读作品，详情凭证绑定账号与内容模式', async () => {
+    const adapters = scrapeAdapters()
+    const origin = 'https://search-fixture.example'
+    const sourcePath = '/api/novels/source-search'
+    const requests: Array<{ query: string; type: string; page: number }> = []
+    const book = (id: string) => ({
+      bookId: id, url: `${origin}/books/${id}`, title: `源站${id}`, author: '作者', coverUrl: '',
+      description: '', existing: false, chapterCount: 0, status: '', categories: [],
+    })
+    const admin = { Authorization: `Bearer ${tokens.admin}` }
+    const other = { Authorization: `Bearer ${tokens.other}` }
+    try {
+      setScrapeAdaptersForTest([{
+        id: 'po18', name: '测试书源', hosts: ['search-fixture.example'],
+        presets: { 'search-fixture.example': { name: '测试书源', encoding: 'utf-8', meta: { description: '.intro' } } },
+        async search(query, type, page) {
+          requests.push({ query, type, page })
+          return { site: '测试书源', total: 4, totalPages: 2, novels: ['public', 'secret', 'secret-r18', 'new'].map(book) }
+        },
+        fetch: () => async url => {
+          expect(url).toBe(book('new').url)
+          return { html: '<p class="intro">新书简介</p>', encoding: 'utf-8' }
+        },
+      }, {
+        id: 'unlisted', name: '其他书源', hosts: ['unlisted.example'], presets: {},
+        async search() { throw new Error('不应请求其他书源') },
+      }])
+      for (const id of ['public', 'secret', 'secret-r18']) {
+        await t.db.query('UPDATE novels SET source_url=$1 WHERE id=$2', [book(id).url + '/', id])
+      }
+
+      const options = await app.request(`${sourcePath}/sources`, { headers: admin })
+      expect(await options.json()).toEqual({ sources: [{ id: 'po18', name: '测试书源' }] })
+      const query = `${sourcePath}?source=po18&q=%E4%BD%9C%E8%80%85&type=author`
+      expect((await app.request(query)).status).toBe(401)
+      expect((await app.request(query + '&page=0', { headers: admin })).status).toBe(400)
+      expect((await app.request(`${sourcePath}?source=unlisted&q=book`, { headers: admin })).status).toBe(404)
+      const safe = await app.request(query + '&contentMode=safe', { headers: other })
+      expect(await safe.json()).toEqual({ entries: [expect.objectContaining({ novelId: 'public' })], hasMore: true })
+      const adult = await app.request(query + '&contentMode=adult&page=2', { headers: admin })
+      expect(adult.headers.get('Cache-Control')).toContain('no-store')
+      const result = await adult.json() as { entries: Array<{ novelId?: string; searchBookKey?: string }>; hasMore: boolean }
+      expect(result.entries.map(entry => entry.novelId)).toEqual(['public', 'secret', 'secret-r18', undefined])
+      expect(result.hasMore).toBe(false)
+      expect(requests).toEqual([{ query: '作者', type: 'author', page: 1 }, { query: '作者', type: 'author', page: 2 }])
+
+      const key = result.entries[3]!.searchBookKey!
+      const detail = `${sourcePath}/detail?book=${key}`
+      expect((await app.request(detail + '&contentMode=safe', { headers: admin })).status).toBe(404)
+      expect((await app.request(detail + '&contentMode=adult', { headers: other })).status).toBe(404)
+      expect((await app.request(`${sourcePath}/detail?book=x${key}&contentMode=adult`, { headers: admin })).status).toBe(404)
+      const preview = await app.request(detail + '&contentMode=adult', { headers: admin })
+      expect(await preview.json()).toEqual({ description: '新书简介', directory: null })
+      await t.db.query('UPDATE novels SET source_url=$1 WHERE id=$2', [book('new').url, 'secret'])
+      expect((await app.request(detail + '&contentMode=adult', { headers: admin })).status).toBe(404)
+    } finally {
+      setScrapeAdaptersForTest(adapters)
+      await t.db.query("UPDATE novels SET source_url='' WHERE source_url LIKE 'https://search-fixture.example/%'")
+    }
+  })
+
   it('榜单后台只请求选定的预设，旧快照在源站空结果时保留', async () => {
     const adapters = scrapeAdapters()
     const preset = { id: 'po18-dayvisit', label: '日点击榜', listUrl: 'https://ranking.example/top' }

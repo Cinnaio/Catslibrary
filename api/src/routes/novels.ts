@@ -23,11 +23,13 @@ import { cacheCoverForNovel } from '../services/covers'
 import { newId } from '../services/auth'
 import { simplifyNovelForSource } from '../services/zh-convert'
 import { escapeLike } from '../services/text'
-import { optionalUser, requireAdmin, type AuthEnv } from '../middlewares/auth'
+import { optionalUser, requireAdmin, requireUser, type AuthEnv } from '../middlewares/auth'
 import { contentPolicyHeaders, restrictedContentResponse, resolveContentAccess } from '../services/content-access'
 import { idempotencyKeyFromRequest, withIdempotency } from '../services/idempotency'
 import { categoryAliases, canonicalCategory } from '@shared/category-aliases'
 import { findUncollectedRankingEntry, readRankingBookCover, readRankingBookDetail, readSourceRankings } from '../services/source-rankings'
+import { findSourceSearchBook, searchDiscoverySource, sourceSearchOptions, SOURCE_SEARCH_MAX_PAGE } from '../services/source-search'
+import { checkContentRate } from '../services/content-rate-limit'
 
 export const novelsRoutes = new Hono<AuthEnv>()
 novelsRoutes.onError((error, c) => {
@@ -69,11 +71,10 @@ novelsRoutes.post('/export', requireAdmin(), async (c) => {
   })
 })
 
-async function rankingReadOptions(c: Context<AuthEnv>) {
+async function sourceBookAccess(c: Context<AuthEnv>) {
   const access = await resolveContentAccess(c)
   const mode = c.req.query('contentMode')
   return {
-    rankingId: c.req.query('ranking'),
     visibilitySql: visibleNovelSql(c, 'n'),
     canViewRestricted: access.canViewRestricted && mode !== 'safe',
     includeUncollected: access.canViewRestricted && mode === 'adult',
@@ -81,14 +82,49 @@ async function rankingReadOptions(c: Context<AuthEnv>) {
 }
 
 novelsRoutes.get('/source-rankings', optionalUser(), async (c) => {
-  return c.json(await readSourceRankings(getDb(), await rankingReadOptions(c)), 200, contentPolicyHeaders())
+  return c.json(await readSourceRankings(getDb(), { ...await sourceBookAccess(c), rankingId: c.req.query('ranking') }), 200, contentPolicyHeaders())
 })
 
 novelsRoutes.get('/source-rankings/:resource{detail|cover}', optionalUser(), async (c) => {
   const db = getDb()
-  const book = await findUncollectedRankingEntry(db, { ...await rankingReadOptions(c), entryKey: c.req.query('book') })
+  const book = await findUncollectedRankingEntry(db, { ...await sourceBookAccess(c), rankingId: c.req.query('ranking'), entryKey: c.req.query('book') })
+  if (!book) return c.json({ error: '该榜单作品不可用，请返回刷新榜单' }, 404, contentPolicyHeaders())
+  return sourceBookResource(c, db, book)
+})
+
+novelsRoutes.get('/source-search/sources', requireUser(), (c) => c.json({ sources: sourceSearchOptions() }, 200, contentPolicyHeaders()))
+
+novelsRoutes.get('/source-search', requireUser(), async (c) => {
   const headers = contentPolicyHeaders()
-  if (!book) return c.json({ error: '该榜单作品不可用，请返回刷新榜单' }, 404, headers)
+  const sourceId = c.req.query('source') || ''
+  const query = (c.req.query('q') || '').trim()
+  const type = c.req.query('type') || 'title'
+  const page = Number(c.req.query('page') ?? '1')
+  if (!query || query.length > 100 || (type !== 'title' && type !== 'author') ||
+      !Number.isInteger(page) || page < 1 || page > SOURCE_SEARCH_MAX_PAGE) {
+    return c.json({ error: '请输入 1–100 个字符并检查搜索条件' }, 400, headers)
+  }
+  const limited = await checkContentRate(c, 'source-search')
+  if (limited) return limited
+  const access = await sourceBookAccess(c)
+  try {
+    const result = await searchDiscoverySource(getDb(), { sourceId, query, type, page, userId: c.get('user').id }, access)
+    if (!result) return c.json({ error: '该书源当前不可用' }, 404, headers)
+    return c.json(result, 200, headers)
+  } catch {
+    return c.json({ error: '暂时无法搜索该书源，请稍后重试' }, 502, headers)
+  }
+})
+
+novelsRoutes.get('/source-search/:resource{detail|cover}', requireUser(), async (c) => {
+  const db = getDb()
+  const book = await findSourceSearchBook(db, c.req.query('book'), c.get('user').id, await sourceBookAccess(c))
+  if (!book) return c.json({ error: '该作品资料已失效，请重新搜索' }, 404, contentPolicyHeaders())
+  return sourceBookResource(c, db, book)
+})
+
+async function sourceBookResource(c: Context<AuthEnv>, db: ReturnType<typeof getDb>, book: Parameters<typeof readRankingBookDetail>[1]) {
+  const headers = contentPolicyHeaders()
   const resource = c.req.param('resource')
   if (resource === 'detail') {
     try {
@@ -100,7 +136,7 @@ novelsRoutes.get('/source-rankings/:resource{detail|cover}', optionalUser(), asy
   const image = await readRankingBookCover(db, book).catch(() => null)
   if (!image) return c.json({ error: '源站暂未提供可用封面' }, 404, headers)
   return new Response(Buffer.from(image.data), { headers: { ...headers, 'Content-Type': image.contentType, 'X-Content-Type-Options': 'nosniff' } })
-})
+}
 
 // ---------- 列表（公开） ----------
 

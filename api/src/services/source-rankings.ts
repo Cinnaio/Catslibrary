@@ -14,6 +14,8 @@ const featuredRankings = {
   po18tw: ['popo-sex-weekly', 'popo-sex-monthly', 'popo-pearl-weekly'],
 }
 
+export const discoverySourceIDs = Object.keys(featuredRankings)
+
 interface SnapshotEntry {
   rank: number
   url: string
@@ -131,27 +133,19 @@ function sourceUrlVariants(value: string) {
   })
 }
 
-interface RankingReadOptions {
-  rankingId: string | undefined
+export interface SourceBookAccess {
   visibilitySql: string
   canViewRestricted: boolean
   includeUncollected: boolean
+}
+
+interface RankingReadOptions extends SourceBookAccess {
+  rankingId: string | undefined
   entryKey?: string
 }
 
-export async function readSourceRankings(db: Db, options: RankingReadOptions) {
-  const rankings = configuredRankings().filter(ranking => !options.entryKey || ranking.id === options.rankingId)
-  if (!rankings.length) return { rankings: [], selectedId: null, entries: [] }
-  const snapshots = await readSnapshots(db, options.entryKey ? rankings[0] : undefined)
-  const variants = new Map<string, string[]>()
-  const entriesFor = (id: string) => (snapshots.get(id)?.entries ?? [])
-    .filter(entry => !options.entryKey || rankingBookKey(entry.url) === options.entryKey)
-  for (const ranking of rankings) {
-    for (const entry of entriesFor(ranking.id)) {
-      if (!variants.has(entry.url)) variants.set(entry.url, sourceUrlVariants(entry.url))
-    }
-  }
-
+export async function matchSourceBooks(db: Db, bookURLs: string[], access: SourceBookAccess) {
+  const variants = new Map([...new Set(bookURLs)].map(url => [url, sourceUrlVariants(url)]))
   const urls = [...new Set([...variants.values()].flat())]
   const linked = new Map<string, LinkedNovel[]>()
   if (urls.length) {
@@ -162,26 +156,37 @@ export async function readSourceRankings(db: Db, options: RankingReadOptions) {
       UNION SELECT source_url, novel_id FROM scrape_configs WHERE source_url=ANY($1::text[])
     )
     SELECT m.source_url, n.id, n.title, n.author, n.updated_at,
-      (${options.visibilitySql} AND ($2::boolean OR COALESCE(n.content_rating, 'unknown') <> 'restricted')) AS readable
-    FROM matching_urls m JOIN novels n ON n.id=m.novel_id`, [urls, options.canViewRestricted])
+      (${access.visibilitySql} AND ($2::boolean OR COALESCE(n.content_rating, 'unknown') <> 'restricted')) AS readable
+    FROM matching_urls m JOIN novels n ON n.id=m.novel_id`, [urls, access.canViewRestricted])
     for (const row of rows) {
       const matches = linked.get(row.source_url) ?? []
       matches.push(row)
       linked.set(row.source_url, matches)
     }
   }
+  return new Map([...variants].map(([url, aliases]) => [url,
+    [...new Map(aliases.flatMap(alias => linked.get(alias) ?? []).map(novel => [novel.id, novel])).values()],
+  ]))
+}
+
+export async function readSourceRankings(db: Db, options: RankingReadOptions) {
+  const rankings = configuredRankings().filter(ranking => !options.entryKey || ranking.id === options.rankingId)
+  if (!rankings.length) return { rankings: [], selectedId: null, entries: [] }
+  const snapshots = await readSnapshots(db, options.entryKey ? rankings[0] : undefined)
+  const entriesFor = (id: string) => (snapshots.get(id)?.entries ?? [])
+    .filter(entry => !options.entryKey || rankingBookKey(entry.url) === options.entryKey)
+  const linked = await matchSourceBooks(db, rankings.flatMap(ranking => entriesFor(ranking.id).map(entry => entry.url)), options)
 
   const available = rankings.flatMap(ranking => {
     const snapshot = snapshots.get(ranking.id)
     const entries = entriesFor(ranking.id).flatMap((entry): RankingEntry[] => {
-      const matches = new Map((variants.get(entry.url) ?? []).flatMap(url => linked.get(url) ?? [])
-        .map(novel => [novel.id, novel]))
-      if (matches.size === 1) {
-        const novel = matches.values().next().value!
+      const matches = linked.get(entry.url) ?? []
+      const [novel] = matches
+      if (matches.length === 1 && novel) {
         if (!novel.readable) return []
         return [{ rank: entry.rank, title: novel.title, author: novel.author, novelId: novel.id, updatedAt: novel.updated_at }]
       }
-      if (matches.size || !options.includeUncollected) return []
+      if (matches.length || !options.includeUncollected) return []
       return [{
         rank: entry.rank, title: entry.title, author: entry.author, sourceUrl: entry.url, description: entry.description,
         rankingId: ranking.id, bookKey: rankingBookKey(entry.url),
@@ -209,11 +214,11 @@ export async function findUncollectedRankingEntry(db: Db, options: RankingReadOp
   return { ...entry, sourceUrl: entry.sourceUrl }
 }
 
-type RankingBook = NonNullable<Awaited<ReturnType<typeof findUncollectedRankingEntry>>>
+type SourceBook = { sourceUrl: string; description?: string; coverUrl?: string }
 
 const bookMetaCache = new Map<string, { expiresAt: number; result: Promise<DetectMetaResult> }>()
 
-function readRankingBookMeta(db: Db, book: RankingBook, directory: 'preview' | 'skip') {
+function readRankingBookMeta(db: Db, book: SourceBook, directory: 'preview' | 'skip') {
   const key = `${directory}:${book.sourceUrl}`
   const cached = bookMetaCache.get(key)
   if (cached && cached.expiresAt > Date.now()) return cached.result
@@ -228,7 +233,7 @@ function readRankingBookMeta(db: Db, book: RankingBook, directory: 'preview' | '
   return result
 }
 
-export async function readRankingBookDetail(db: Db, book: RankingBook) {
+export async function readRankingBookDetail(db: Db, book: SourceBook) {
   const meta = await readRankingBookMeta(db, book, 'preview')
   return {
     description: meta.novel.description.trim() || book.description || '',
@@ -236,7 +241,7 @@ export async function readRankingBookDetail(db: Db, book: RankingBook) {
   }
 }
 
-export async function readRankingBookCover(db: Db, book: RankingBook) {
+export async function readRankingBookCover(db: Db, book: SourceBook) {
   const coverUrl = rankingCoverUrl(book.coverUrl, book.sourceUrl)
   const listed = coverUrl ? await fetchImage(coverUrl) : null
   if (listed && isRankingCoverImage(listed.contentType)) return listed

@@ -15,6 +15,12 @@ struct HomeView: View {
     @State private var selectedReaderLaunch: ReaderLaunch?
     @State private var navigationPath: [HomeRoute] = []
     @State private var search = ""
+    @State private var isSearchPresented = false
+    @FocusState private var searchFocused: Bool
+    @State private var searchScope: SearchScope = .catalog
+    @State private var searchSources: [SourceSearchOptions.Source] = []
+    @State private var sourceSearchSubmission: UUID?
+    @State private var sourceSearchBook: SourceSearchBookPresentation?
     @State private var page = 1
     @State private var totalPages = 1
     @State private var totalNovelCount = 0
@@ -38,12 +44,18 @@ struct HomeView: View {
         case reader(ReaderLaunch)
     }
 
+    private enum SearchScope: Hashable { case catalog, sources }
+
+    private var searchTerm: String { search.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var showsSearchScopes: Bool { !searchSources.isEmpty && (isSearchPresented || !searchTerm.isEmpty) }
+    private var isSearchingSources: Bool { showsSearchScopes && searchScope == .sources }
+
     private var recentReading: RecentItem? {
         bookshelf?.recent.first { ContentAccessStore.shared.mode == "adult" || !$0.asNovel.isRestricted }
     }
 
     private var catalogQuery: [String] {
-        [search.trimmingCharacters(in: .whitespacesAndNewlines), selectedCategory ?? "", selectedStatus, selectedSort]
+        [searchTerm, selectedCategory ?? "", selectedStatus, selectedSort]
     }
 
     private var usesCoverGrid: Bool {
@@ -133,31 +145,24 @@ struct HomeView: View {
                         .accessibilityAddTraits(.isHeader)
                         .padding(.bottom, 20)
                 }
-                if !isFilteringCatalog, let recentReading {
-                    continueReadingHero(recentReading)
-                        .padding(.bottom, 24)
-                        .transition(readingContextTransition)
-                }
-
-                if !isFilteringCatalog,
-                   rankingPreviewRevision == ContentAccessStore.shared.revision,
-                   let rankingPreview, let rankingID = rankingPreview.selectedId {
-                    SourceRankingPreview(response: rankingPreview) { entry in
-                        rankingsPresentation = SourceRankingsPresentation(rankingID: rankingID, entry: entry,
-                            revision: ContentAccessStore.shared.revision)
+                if showsSearchScopes {
+                    Picker("搜索范围", selection: $searchScope) {
+                        Text("书库").tag(SearchScope.catalog)
+                        Text("书源").tag(SearchScope.sources)
                     }
-                    .padding(.bottom, 24)
+                    .pickerStyle(.segmented)
+                    .padding(.bottom, 18)
                 }
 
-                if !categories.isEmpty {
-                    categoryChipsBar
-                        .padding(.bottom, 18)
+                if isSearchingSources {
+                    SourceSearchResults(sources: searchSources, query: searchTerm, submission: sourceSearchSubmission, onSubmit: {
+                        searchFocused = false
+                    }) { entry in
+                        sourceSearchBook = SourceSearchBookPresentation(entry: entry, revision: ContentAccessStore.shared.revision)
+                    }
+                } else {
+                    catalogSections
                 }
-
-                sectionHeader(catalogTitle, trailing: displayedQuery == catalogQuery ? "\(totalNovelCount) 本" : nil)
-                    .padding(.bottom, 16)
-
-                catalogContent
             }
             .padding(.horizontal, 22)
             .padding(.top, 16)
@@ -176,20 +181,51 @@ struct HomeView: View {
         .background(ReadingSpace.profilePaper)
         .navigationTitle(horizontalSizeClass == .regular ? "发现" : "")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "搜索书名或作者")
+        .searchable(text: $search, isPresented: $isSearchPresented, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "搜索书名或作者")
+        .searchFocused($searchFocused)
+        .onSubmit(of: .search) {
+            if isSearchingSources { sourceSearchSubmission = UUID() }
+        }
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                categoryMenu
+            if !isSearchingSources {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    categoryMenu
+                }
             }
         }
         .refreshable {
-            async let rankings: Void = loadRankingPreview()
-            await reload()
-            await loadReadingContext()
-            await rankings
+            if isSearchingSources {
+                sourceSearchSubmission = UUID()
+            } else {
+                async let rankings: Void = loadRankingPreview()
+                async let sources: Void = loadSearchSources()
+                await reload()
+                await loadReadingContext()
+                await rankings
+                await sources
+            }
         }
+        .task { await loadSearchSources() }
         .task(id: ContentAccessStore.shared.revision) { await loadRankingPreview() }
-        .onChange(of: ContentAccessStore.shared.revision) { _, _ in rankingsPresentation = nil }
+        .onChange(of: ContentAccessStore.shared.revision) { _, _ in
+            rankingsPresentation = nil
+            sourceSearchBook = nil
+        }
+        .sheet(item: $sourceSearchBook) { presentation in
+            if presentation.revision == ContentAccessStore.shared.revision {
+                NavigationStack {
+                    SourceRankingDetail(entry: presentation.entry) {
+                        sourceSearchBook = nil
+                        sourceSearchSubmission = UUID()
+                    }
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("关闭") { sourceSearchBook = nil }
+                        }
+                    }
+                }
+            }
+        }
         .sheet(item: $rankingsPresentation, onDismiss: {
             Task { await loadRankingPreview() }
         }) { presentation in
@@ -211,8 +247,15 @@ struct HomeView: View {
             await reload()
             await readingContext
         }
-        .onChange(of: search) { _, _ in
-            scheduleReload()
+        .onChange(of: searchTerm) { _, _ in
+            if !isSearchingSources { scheduleReload() }
+        }
+        .onChange(of: isSearchingSources) { _, searchesSources in
+            if searchesSources { reloadTask?.cancel() }
+            else if catalogQuery != displayedQuery { scheduleReload() }
+        }
+        .onChange(of: isSearchPresented) { _, isPresented in
+            if !isPresented && searchTerm.isEmpty { searchScope = .catalog }
         }
         .onChange(of: selectedCategory) { _, _ in
             scheduleReload()
@@ -224,6 +267,35 @@ struct HomeView: View {
             Task { await loadReadingContext() }
         }
         .sensoryFeedback(.selection, trigger: interactionFeedback)
+    }
+
+    @ViewBuilder
+    private var catalogSections: some View {
+        if !isFilteringCatalog, let recentReading {
+            continueReadingHero(recentReading)
+                .padding(.bottom, 24)
+                .transition(readingContextTransition)
+        }
+
+        if !isFilteringCatalog,
+           rankingPreviewRevision == ContentAccessStore.shared.revision,
+           let rankingPreview, let rankingID = rankingPreview.selectedId {
+            SourceRankingPreview(response: rankingPreview) { entry in
+                rankingsPresentation = SourceRankingsPresentation(rankingID: rankingID, entry: entry,
+                    revision: ContentAccessStore.shared.revision)
+            }
+            .padding(.bottom, 24)
+        }
+
+        if !categories.isEmpty {
+            categoryChipsBar
+                .padding(.bottom, 18)
+        }
+
+        sectionHeader(catalogTitle, trailing: displayedQuery == catalogQuery ? "\(totalNovelCount) 本" : nil)
+            .padding(.bottom, 16)
+
+        catalogContent
     }
 
     private var readingContextTransition: AnyTransition {
@@ -589,6 +661,16 @@ struct HomeView: View {
             rankingPreviewRevision = revision
         } catch {
             // The discovery catalog remains available on older servers and during ranking failures.
+        }
+    }
+
+    private func loadSearchSources() async {
+        do {
+            let options = try await SourceSearchOptions.load()
+            guard !Task.isCancelled else { return }
+            searchSources = options.sources
+        } catch {
+            // The discovery catalog still works with a server that has no source search endpoint.
         }
     }
 

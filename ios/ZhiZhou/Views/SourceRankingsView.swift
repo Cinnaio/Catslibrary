@@ -28,7 +28,7 @@ struct SourceRankingResponse: Decodable {
     }
 }
 
-struct SourceRankingEntry: Decodable, Hashable, Identifiable {
+struct SourceRankingEntry: Decodable, Hashable, Identifiable, Sendable {
     let rank: Int
     let title: String
     let author: String
@@ -38,10 +38,14 @@ struct SourceRankingEntry: Decodable, Hashable, Identifiable {
     let description: String?
     let rankingId: String?
     let bookKey: String?
+    let searchBookKey: String?
 
     var id: Int { rank }
 
     func resourcePath(_ resource: String) -> String? {
+        if let searchBookKey {
+            return "/api/novels/source-search/\(resource)?" + ReaderQuery.encode(["book": searchBookKey])
+        }
         guard let rankingId, let bookKey else { return nil }
         return "/api/novels/source-rankings/\(resource)?" + ReaderQuery.encode(["ranking": rankingId, "book": bookKey])
     }
@@ -228,16 +232,20 @@ struct SourceRankingsView: View {
     }
 }
 
-private struct SourceRankingRow: View {
+struct SourceRankingRow: View {
     let entry: SourceRankingEntry
+    var showsRank = true
 
     var body: some View {
+        let collectionStatus = entry.novelId == nil ? "未收录" : (showsRank ? "" : "已收录")
         HStack(alignment: .center, spacing: 10) {
-            Text("\(entry.rank)")
-                .font(.footnote.weight(.semibold).monospacedDigit())
-                .foregroundStyle(entry.rank <= 3 ? AppTheme.primary : ReadingSpace.profileMuted)
-                .frame(minWidth: 24, alignment: .leading)
-                .accessibilityLabel("第 \(entry.rank) 名")
+            if showsRank {
+                Text("\(entry.rank)")
+                    .font(.footnote.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(entry.rank <= 3 ? AppTheme.primary : ReadingSpace.profileMuted)
+                    .frame(minWidth: 24, alignment: .leading)
+                    .accessibilityLabel("第 \(entry.rank) 名")
+            }
             if let novelID = entry.novelId {
                 NovelCoverView(novelID: novelID, updatedAt: entry.updatedAt ?? 0, size: CGSize(width: 34, height: 48))
             } else {
@@ -248,8 +256,8 @@ private struct SourceRankingRow: View {
                     .font(serifFont(.subheadline, .medium))
                     .foregroundStyle(ReadingSpace.ink)
                     .fixedSize(horizontal: false, vertical: true)
-                if !entry.author.isEmpty || entry.novelId == nil {
-                    Text([entry.author, entry.novelId == nil ? "未收录" : ""].filter { !$0.isEmpty }.joined(separator: " · "))
+                if !entry.author.isEmpty || !collectionStatus.isEmpty {
+                    Text([entry.author, collectionStatus].filter { !$0.isEmpty }.joined(separator: " · "))
                         .font(.caption)
                         .foregroundStyle(ReadingSpace.profileMuted)
                 }
@@ -304,7 +312,7 @@ private struct SourceRankingBookInfo: Decodable {
     let directory: Directory?
 }
 
-private struct SourceRankingDetail: View {
+struct SourceRankingDetail: View {
     let entry: SourceRankingEntry
     let didImport: () -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -321,7 +329,8 @@ private struct SourceRankingDetail: View {
     private enum SectionAnchor: Hashable { case synopsis, directory }
 
     private var description: String {
-        (bookInfo?.description ?? entry.description ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let detail = bookInfo?.description.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return detail.isEmpty ? (entry.description ?? "").trimmingCharacters(in: .whitespacesAndNewlines) : detail
     }
 
     var body: some View {
