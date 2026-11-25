@@ -381,6 +381,71 @@ final class FrontendAuditTests: XCTestCase {
     }
 
     @MainActor
+    func testIPadDetailReadAndChapterEntriesRemainOpen() throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "覆盖 iPad 详情阅读入口")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = launch()
+        tap(app.buttons["catalog.audit-book-1"])
+
+        for identifier in ["detail.read", "detail.chapter.2"] {
+            let entry = app.buttons[identifier]
+            reveal(entry, app: app)
+            tap(entry)
+            assertReaderStaysOpenAndReturnToDetail(app)
+        }
+    }
+
+    @MainActor
+    func testIPadDetailSearchDismissalKeepsReaderOpen() throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "覆盖 iPad 弹层关闭后进入阅读器")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = launch()
+        tap(app.buttons["catalog.audit-book-1"])
+
+        let directorySearch = app.buttons["detail.chapterSearch"]
+        reveal(directorySearch, app: app)
+        tap(directorySearch)
+        tap(app.buttons["目录选项"])
+        tap(app.buttons["跳转章节"])
+        let number = app.alerts.textFields.firstMatch
+        tap(number)
+        number.typeText("6")
+        tap(app.alerts.buttons["开始阅读"])
+        assertReaderStaysOpenAndReturnToDetail(app)
+
+        tap(app.buttons["正文搜索"])
+        let search = app.searchFields.firstMatch
+        tap(search)
+        search.typeText("信纸\n")
+        tap(app.buttons["bookSearch.hit.audit-book-1-chapter-1"])
+        assertReaderStaysOpenAndReturnToDetail(app)
+    }
+
+    @MainActor
+    private func assertReaderStaysOpenAndReturnToDetail(
+        _ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line
+    ) {
+        let contents = app.buttons["reader.toolbar.contents"]
+        XCTAssertTrue(contents.waitForExistence(timeout: 15), file: file, line: line)
+        let text = app.textViews.matching(NSPredicate(
+            format: "identifier BEGINSWITH %@ OR identifier BEGINSWITH %@", "reader.paragraph.", "reader.page."
+        )).firstMatch
+        XCTAssertTrue(text.waitForExistence(timeout: 15), file: file, line: line)
+        // 不能只检查打开的一帧：弹层动画结束后阅读器也必须继续留在栈中。
+        let disappeared = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: contents)
+        disappeared.isInverted = true
+        XCTAssertEqual(XCTWaiter.wait(for: [disappeared], timeout: 2), .completed, file: file, line: line)
+        XCTAssertTrue(contents.isHittable, file: file, line: line)
+        tap(contents, file: file, line: line)
+        tap(app.buttons["完成"], file: file, line: line)
+        tap(app.navigationBars.buttons.firstMatch, file: file, line: line)
+        XCTAssertTrue(app.buttons["detail.read"].waitForExistence(timeout: 10), file: file, line: line)
+        XCTAssertFalse(contents.exists, file: file, line: line)
+    }
+
+    @MainActor
     func testChapterSearchAndNumberJump() {
         let app = launch()
         tap(app.buttons["catalog.audit-book-1"])

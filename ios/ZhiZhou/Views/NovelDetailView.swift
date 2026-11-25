@@ -7,7 +7,6 @@ struct NovelDetailView: View {
     var showsCloseButton = false
     @Environment(AppState.self) private var appState
     @Environment(OfflineReadingStore.self) private var offlineStore
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -37,6 +36,9 @@ struct NovelDetailView: View {
     @State private var showBodySearch = false
     @State private var bodySearchSnapshot: BookSearchSnapshot?
     @State private var searchLaunch: BookSearchLaunch?
+    // 阅读目标属于详情页面，不依附会刷新、复用或离屏的按钮和章节行。
+    @State private var readerRequest: DetailReaderRequest?
+    @State private var pendingReaderRequest: DetailReaderRequest?
     @State private var isSelectingOffline = false
     @State private var selectedChapterIDs: Set<String> = []
     @State private var selectionRowFrames: [String: CGRect] = [:]
@@ -44,6 +46,7 @@ struct NovelDetailView: View {
     @State private var selectionDragLastIndex: Int?
 
     var body: some View {
+        let isRestricted = currentNovel.isRestricted
         GeometryReader { geometry in
             let sideInset = max(22, AppLayout.readableInset(for: geometry.size.width))
             ScrollViewReader { proxy in
@@ -90,9 +93,7 @@ struct NovelDetailView: View {
             }
             if showsCloseButton {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭", systemImage: "xmark") { dismiss() }
-                        .labelStyle(.iconOnly)
-                        .help("关闭详情")
+                    NovelDetailCloseButton()
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -107,16 +108,25 @@ struct NovelDetailView: View {
         .sheet(isPresented: $showKeepsakes) {
             ReadingKeepsakesView(novelId: currentNovel.id)
         }
-        .sheet(isPresented: $showBodySearch) {
+        .sheet(isPresented: $showBodySearch, onDismiss: presentPendingReader) {
             BookSearchView(novel: currentNovel, state: $bodySearchSnapshot) { hit, query in
-                searchLaunch = BookSearchLaunch(hit: hit, query: query)
+                if ReadingSpaceWindowLayout.usesIPadLayout {
+                    pendingReaderRequest = DetailReaderRequest(
+                        launch: ReaderLaunch(novel: currentNovel, chapterOrder: hit.chapterOrder),
+                        searchQuery: query, initialChapterID: hit.chapterId,
+                        searchSnapshot: bodySearchSnapshot
+                    )
+                    showBodySearch = false
+                } else {
+                    searchLaunch = BookSearchLaunch(hit: hit, query: query)
+                }
             }
         }
         .navigationDestination(item: $searchLaunch) { launch in
             ReaderView(novel: currentNovel, chapterOrder: launch.hit.chapterOrder, searchQuery: launch.query,
                        initialChapterID: launch.hit.chapterId, searchSnapshot: bodySearchSnapshot)
         }
-        .sheet(isPresented: $showChapterSearch) {
+        .sheet(isPresented: $showChapterSearch, onDismiss: presentPendingReader) {
             ChapterListView(
                 novel: currentNovel,
                 currentOrder: chapters.first { $0.id == progress?.chapterId }?.order,
@@ -124,7 +134,15 @@ struct NovelDetailView: View {
                 offlineOnly: isShowingOffline,
                 directorySort: $chaptersDescending
             ) { order in
-                selectedSearchChapter = chapters.first { $0.order == order }
+                guard let chapter = chapters.first(where: { $0.order == order }) else { return }
+                if ReadingSpaceWindowLayout.usesIPadLayout {
+                    pendingReaderRequest = DetailReaderRequest(
+                        launch: ReaderLaunch(novel: currentNovel, chapterOrder: chapter.order, preloadedChapters: chapters)
+                    )
+                    showChapterSearch = false
+                } else {
+                    selectedSearchChapter = chapter
+                }
             }
         }
         .navigationDestination(item: $selectedSearchChapter) { chapter in
@@ -164,6 +182,24 @@ struct NovelDetailView: View {
         }
         .sensoryFeedback(.selection, trigger: interactionFeedback)
         .readerContentAccess(isRestricted: currentNovel.isRestricted)
+        // 注册在完整页面外层，异步详情更新或内容门禁切换都不会移除目的地注册。
+        // 同时应用最新作品分级，详情异步补全不能绕过门禁；返回时由系统清除请求。
+        .navigationDestination(item: $readerRequest) { request in
+            DetailReaderDestination(request: request)
+                .readerContentAccess(isRestricted: isRestricted)
+        }
+    }
+
+    private func presentPendingReader() {
+        guard let request = pendingReaderRequest else { return }
+        pendingReaderRequest = nil
+        readerRequest = request
+    }
+
+    private func openReader(_ chapter: ChapterMeta) {
+        readerRequest = DetailReaderRequest(
+            launch: ReaderLaunch(novel: currentNovel, chapterOrder: chapter.order, preloadedChapters: chapters)
+        )
     }
 
     private func detailList(sideInset: CGFloat, contentWidth: CGFloat) -> some View {
@@ -420,19 +456,30 @@ struct NovelDetailView: View {
             let entryIndex = chaptersDescending
                 ? (chapters.last?.order ?? chapter.order) - chapter.order
                 : chapter.order - (chapters.first?.order ?? chapter.order)
-            NavigationLink {
-                ReaderView(
-                    novel: currentNovel,
-                    chapterOrder: chapter.order,
-                    preloadedChapters: chapters
-                )
-            } label: {
-                chapterRowLabel(chapter, selectionMode: false)
-                    .readingSpaceEntrance(max(0, entryIndex))
-                    .id(chaptersDescending)
+            if ReadingSpaceWindowLayout.usesIPadLayout {
+                Button { openReader(chapter) } label: {
+                    chapterRowLabel(chapter, selectionMode: false)
+                        .readingSpaceEntrance(max(0, entryIndex))
+                        .id(chaptersDescending)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("点按进入阅读")
+                .accessibilityIdentifier("detail.chapter.\(chapter.order)")
+            } else {
+                NavigationLink {
+                    ReaderView(
+                        novel: currentNovel,
+                        chapterOrder: chapter.order,
+                        preloadedChapters: chapters
+                    )
+                } label: {
+                    chapterRowLabel(chapter, selectionMode: false)
+                        .readingSpaceEntrance(max(0, entryIndex))
+                        .id(chaptersDescending)
+                }
+                .navigationLinkIndicatorVisibility(.hidden)
+                .accessibilityHint("点按进入阅读")
             }
-            .navigationLinkIndicatorVisibility(.hidden)
-            .accessibilityHint("点按进入阅读")
         }
     }
 
@@ -767,6 +814,14 @@ struct NovelDetailView: View {
         }
     }
 
+    private func continueReadingLabel(_ chapter: ChapterMeta) -> some View {
+        readingActionLabel(
+            continueTitle,
+            subtitle: isLoadingProgress ? "正在读取阅读位置…" : readingSubtitle(for: chapter),
+            enabled: !isLoadingProgress
+        )
+    }
+
     private func readingSubtitle(for chapter: ChapterMeta) -> String {
         let chapterLabel = "第 \(chapter.order) 章"
         guard let progress, progress.chapterId == chapter.id, progress.scrollPercent.isFinite else {
@@ -779,18 +834,22 @@ struct NovelDetailView: View {
     @ViewBuilder
     private var readButton: some View {
         if let chapter = continueChapter {
-            NavigationLink {
-                ReaderView(
-                    novel: currentNovel,
-                    chapterOrder: chapter.order,
-                    preloadedChapters: chapters
-                )
-            } label: {
-                readingActionLabel(
-                    continueTitle,
-                    subtitle: isLoadingProgress ? "正在读取阅读位置…" : readingSubtitle(for: chapter),
-                    enabled: !isLoadingProgress
-                )
+            Group {
+                if ReadingSpaceWindowLayout.usesIPadLayout {
+                    Button { openReader(chapter) } label: {
+                        continueReadingLabel(chapter)
+                    }
+                } else {
+                    NavigationLink {
+                        ReaderView(
+                            novel: currentNovel,
+                            chapterOrder: chapter.order,
+                            preloadedChapters: chapters
+                        )
+                    } label: {
+                        continueReadingLabel(chapter)
+                    }
+                }
             }
             .buttonStyle(ScaleButtonStyle())
             .accessibilityHint("从第 \(chapter.order) 章开始，\(chapter.title)")
@@ -1172,6 +1231,51 @@ struct NovelDetailView: View {
         ) {
             inBookshelf = b.favorites.contains { $0.novelId == novel.id }
         }
+    }
+}
+
+/// 一次点击保存一份不可变阅读参数，列表与详情刷新不改变已打开的阅读目标。
+private struct DetailReaderRequest: Hashable {
+    let id = UUID()
+    let launch: ReaderLaunch
+    let searchQuery: String
+    let initialChapterID: String
+    let searchSnapshot: BookSearchSnapshot?
+
+    init(launch: ReaderLaunch, searchQuery: String = "", initialChapterID: String = "", searchSnapshot: BookSearchSnapshot? = nil) {
+        self.launch = launch
+        self.searchQuery = searchQuery
+        self.initialChapterID = initialChapterID
+        self.searchSnapshot = searchSnapshot
+    }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+}
+
+/// 目的地仅接收打开时的参数，不捕获详情页面的状态或 dismiss 环境。
+private struct DetailReaderDestination: View {
+    let request: DetailReaderRequest
+
+    var body: some View {
+        ReaderView(
+            novel: request.launch.novel,
+            chapterOrder: request.launch.chapterOrder,
+            preloadedChapters: request.launch.preloadedChapters,
+            searchQuery: request.searchQuery,
+            initialChapterID: request.initialChapterID,
+            searchSnapshot: request.searchSnapshot
+        )
+    }
+}
+
+private struct NovelDetailCloseButton: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        Button("关闭", systemImage: "xmark") { dismiss() }
+            .labelStyle(.iconOnly)
+            .help("关闭详情")
     }
 }
 
