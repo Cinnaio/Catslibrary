@@ -96,9 +96,11 @@ struct SourceAccountSheet: View {
                         .disabled(isLoading || status?.configured != true)
                 }
             }
+            .disabled(isLoading)
+            .interactiveDismissDisabled(isLoading)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") { dismiss() }
+                    Button("关闭") { dismiss() }.disabled(isLoading)
                 }
             }
             .task { await loadStatus() }
@@ -152,6 +154,7 @@ struct SourceAccountSheet: View {
     }
 
     private func loadStatus() async {
+        guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
         do {
@@ -164,12 +167,13 @@ struct SourceAccountSheet: View {
     }
 
     private func saveAccount() async {
+        guard !isLoading else { return }
         let name = username.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
         isLoading = true
         defer { isLoading = false }
         do {
-            status = try await AdminAPI.saveSourceAccount(sourceId: source.id, username: name, password: password.trimmingCharacters(in: .whitespacesAndNewlines))
+            status = try await AdminAPI.saveSourceAccount(sourceId: source.id, username: name, password: password)
             password = ""
             errorMessage = nil
         } catch {
@@ -178,6 +182,7 @@ struct SourceAccountSheet: View {
     }
 
     private func saveCookie() async {
+        guard !isLoading else { return }
         let name = username.trimmingCharacters(in: .whitespacesAndNewlines)
         let cookie = sessionCookie.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty, !cookie.isEmpty else { return }
@@ -193,6 +198,7 @@ struct SourceAccountSheet: View {
     }
 
     private func loadCaptcha() async {
+        guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
         do {
@@ -205,6 +211,7 @@ struct SourceAccountSheet: View {
     }
 
     private func login() async {
+        guard !isLoading else { return }
         guard let challenge else { return }
         isLoading = true
         defer { isLoading = false }
@@ -220,6 +227,7 @@ struct SourceAccountSheet: View {
     }
 
     private func testSession() async {
+        guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
         do {
@@ -232,6 +240,7 @@ struct SourceAccountSheet: View {
     }
 
     private func clearAccount() async {
+        guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
         do {

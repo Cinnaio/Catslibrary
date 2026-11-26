@@ -101,12 +101,12 @@ struct PrivateBookshelfView: View {
                 Button {
                     if selected.contains(book.id) { selected.remove(book.id) }
                     else if selected.count < 100 { selected.insert(book.id) }
-                } label: { Image(systemName: selected.contains(book.id) ? "checkmark.circle.fill" : "circle").frame(minWidth: 36, minHeight: 36) }
+                } label: { Image(systemName: selected.contains(book.id) ? "checkmark.circle.fill" : "circle").frame(minWidth: AppLayout.minimumTouchTarget, minHeight: AppLayout.minimumTouchTarget) }
                 .accessibilityLabel("选择《\(book.title)》")
                 .accessibilityAddTraits(selected.contains(book.id) ? .isSelected : [])
                 VStack(alignment: .leading, spacing: 4) {
                     Text(book.title).font(serifFont(.headline, .semibold))
-                    if let note = book.note, !note.isEmpty { Text(note).font(.subheadline).foregroundStyle(.secondary).lineLimit(3) }
+                    if let note = book.note, !note.isEmpty { Text(note).font(.subheadline).foregroundStyle(.secondary).appTextLineLimit(3) }
                     let names = groups.filter { (book.groupIds ?? []).contains($0.id) }.map(\.name)
                     if !names.isEmpty { Text(names.joined(separator: " · ")).font(.caption).foregroundStyle(AppTheme.primary) }
                 }
@@ -122,7 +122,7 @@ struct PrivateBookshelfView: View {
                         .disabled(index == 0 || visible[index - 1].pinned != book.pinned)
                     Button("下移", systemImage: "arrow.down") { move(book, direction: "down") }
                         .disabled(index == visible.count - 1 || visible[index + 1].pinned != book.pinned)
-                } label: { Image(systemName: "ellipsis").frame(minWidth: 44, minHeight: 36) }
+                } label: { Image(systemName: "ellipsis").frame(minWidth: AppLayout.minimumTouchTarget, minHeight: AppLayout.minimumTouchTarget) }
                 .accessibilityLabel("整理《\(book.title)》")
             }.font(.subheadline)
         }.buttonStyle(.borderless).padding(.vertical, 6)
@@ -143,7 +143,12 @@ struct PrivateBookshelfView: View {
                 Section {
                     TextEditor(text: $note).frame(minHeight: 120)
                         .accessibilityLabel("我的收藏理由")
-                    Text("\(note.count) / 500").font(.caption).foregroundStyle(.secondary)
+                    Text("\(note.utf16.count) / 500").font(.caption)
+                        .foregroundStyle(note.utf16.count > 500 ? AppTheme.danger : ReadingSpace.profileMuted)
+                    if note.utf16.count > 500 {
+                        Text("收藏理由超过 500 字，请缩短后保存。表情等字符可能占用多个字数。")
+                            .font(.footnote).foregroundStyle(AppTheme.danger)
+                    }
                 } header: { Text("我的收藏理由") } footer: { Text("只有你自己可见，换一台设备也能接着整理。") }
             }
             .scrollContentBackground(.hidden).background(ReadingSpace.profilePaper)
@@ -179,7 +184,7 @@ struct PrivateBookshelfView: View {
                             Menu {
                                 Button("改名") { renameID = g.id; groupName = g.name }
                                 Button("删除分组", role: .destructive) { deleting = g }
-                            } label: { Image(systemName: "ellipsis").frame(minWidth: 44, minHeight: 36) }
+                            } label: { Image(systemName: "ellipsis").frame(minWidth: AppLayout.minimumTouchTarget, minHeight: AppLayout.minimumTouchTarget) }
                         }
                     }
                 } footer: { Text("删除分组仅解除归类，书籍与收藏理由都会保留。最多 40 个分组。") }

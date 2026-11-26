@@ -70,7 +70,7 @@ Require-Contract 'XcodeGen target uses the associated domains entitlement' (
     $project.Contains('CODE_SIGN_ENTITLEMENTS: ZhiZhou/Support/ZhiZhou.entitlements')
 )
 Require-Contract 'entitlement points at the official relying-party domain' (
-    $entitlements.plist.dict.array.string -eq 'webcredentials:catrr.uk'
+    @($entitlements.SelectNodes("/plist/dict/key[.='com.apple.developer.associated-domains']/following-sibling::*[1]/string") | ForEach-Object { $_.InnerText }) -contains 'webcredentials:catrr.uk'
 )
 Require-Contract 'release documentation keeps AASA Team ID as an explicit gate' (
     $documentation.Contains('<APPLE_TEAM_ID>.com.zhizhou.app')

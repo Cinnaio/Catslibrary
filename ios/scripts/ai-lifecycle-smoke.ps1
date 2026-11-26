@@ -25,34 +25,24 @@ function Require-LifecyclePattern {
     }
 }
 
-# A profile refresh must survive a transient background/network interruption and
-# must not let a best-effort status read erase the successful POST response.
-Require-LifecyclePattern "writing screen reloads profiles after becoming active" (
-    $writing -match 'private func refreshAfterBecomingActive\(\) async' -and
-    $writing -match 'await loadProfileStatuses\(novelID: novelId'
+# Native writing now consumes completed analysis reports; the old profile POST
+# workflow lives outside this screen. Verify the current task recovery contract.
+Require-LifecyclePattern "writing screen resumes tasks after becoming active" (
+    $writing -match '(?s)private func refreshAfterBecomingActive\(\) async.*?await resumeWritingTask\(\)' -and
+    $writing -match '(?s)onChange\(of: scenePhase\).*?phase == \.active.*?refreshAfterBecomingActive'
 )
 Require-LifecyclePattern "writing screen only tears down polling in the background" (
     $writing -match 'else if phase == \.background' -and
     $writing -notmatch 'else \{\s*pollTask\?\.cancel\(\)'
 )
-Require-LifecyclePattern "profile GETs apply only successful, current-or-newer responses" (
-    $writing -match 'if let style,\s*shouldApplyProfileResponse' -and
-    $writing -match 'if let plot,\s*shouldApplyProfileResponse' -and
-    $writing -match 'if let relation,\s*shouldApplyProfileResponse'
+Require-LifecyclePattern "task recovery is bounded and excludes duplicate resumption" (
+    $writing.Contains('guard pollTask == nil, !isResumingWritingTask else') -and
+    $writing.Contains('recoveryAttempts: 5') -and
+    $writing.Contains('pollWritingTask(task.id)')
 )
-Require-LifecyclePattern "style POST and memory background submissions reconcile status independently" (
-    $writing -match 'applyStyleRefreshResponse\(r\)' -and
-    $writing -match 'AdminAPI\.aiStartMemoryProfile\(' -and
-    $writing.Contains('plotMemoryTask = result.task') -and
-    $writing.Contains('relationshipMemoryTask = result.task')
-)
-Require-LifecyclePattern "interrupted profile refresh is reconciled by bounded foreground reads" (
-    $writing.Contains('pendingProfileRefreshScope') -and
-    $writing.Contains('recoverProfileRefreshAfterBecomingActive()') -and
-    $writing.Contains('for attempt in 0..<8')
-)
-Require-LifecyclePattern "pending profile refresh cannot be submitted twice" (
-    $writing -match 'guard pendingProfileRefreshScope\.isEmpty else'
+Require-LifecyclePattern "writing drafts survive leaving the page and backgrounding" (
+    $writing -match '(?s)\.onDisappear.*?saveInputDraft\(\)' -and
+    $writing -match '(?s)phase == \.background.*?saveInputDraft\(\)'
 )
 Require-LifecyclePattern "transient writing resume errors do not become failure alerts" (
     $writing.Contains('isTransientTaskError(error)') -and
@@ -86,4 +76,4 @@ if ($failures.Count -gt 0) {
     throw "AI lifecycle smoke failed:`n - $($failures -join "`n - ")"
 }
 
-Write-Output "AI lifecycle smoke passed (background recovery, profile reconciliation, and model timeout budget)."
+Write-Output "AI lifecycle smoke passed (background recovery, draft preservation, and model timeout budget)."

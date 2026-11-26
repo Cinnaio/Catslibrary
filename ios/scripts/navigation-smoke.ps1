@@ -28,19 +28,18 @@ function Require-NavigationPattern {
     }
 }
 
-# iPad and compact-width discovery entry points share an explicit navigation path.
-# Phone-only regular layouts may retain their existing split destination.
+# Rotation and window resizing must not replace the navigation tree on any device.
 Require-NavigationPattern 'homepage stack row has a direct NovelDetailView destination' (
     $homeView -match 'NavigationStack\(path: \$navigationPath\)[\s\S]*?navigationDestination\(for: HomeRoute\.self\)[\s\S]*?case \.novel\(let novel\):[\s\S]*?NovelDetailView'
 )
 Require-NavigationPattern 'homepage stack row has no trailing NavigationLink indicator' (
-    $homeView -notmatch 'private func novelRow[\s\S]*?if usesStackNavigation[\s\S]*?NavigationLink'
+    $homeView -notmatch 'private func novelRow[\s\S]*?NavigationLink'
 )
 Require-NavigationPattern 'homepage stack row navigates through its path' (
-    $homeView -match 'private func novelRow[\s\S]*?if usesStackNavigation[\s\S]*?navigationPath\.append\(\.novel\(novel\)\)'
+    $homeView -match 'private func novelRow[\s\S]*?navigationPath\.append\(\.novel\(novel\)\)'
 )
 Require-NavigationPattern 'homepage uses a paper heading and compact native navigation' (
-    $homeView -match '(?s)if usesStackNavigation \{\s*Text\("\u53d1\u73b0"\).*?serifFont\(\.largeTitle' -and
+    $homeView -match '(?s)Text\("\u53d1\u73b0"\).*?serifFont\(\.largeTitle' -and
     $homeView -match 'navigationBarTitleDisplayMode\(\.inline\)'
 )
 Require-NavigationPattern 'homepage removes the promotional header copy' (
@@ -65,18 +64,14 @@ Require-NavigationPattern 'homepage keeps one native pull-to-refresh indicator' 
     $homeView -match '\.refreshable \{[\s\S]*?await reload\(\)[\s\S]*?await loadReadingContext\(\)[\s\S]*?\}' -and
     $homeView -notmatch '\.toolbar[\s\S]*?isLoading && !novels\.isEmpty[\s\S]*?ProgressView'
 )
-Require-NavigationPattern 'bookshelf recent row has a compact direct destination' (
-    $bookshelfView -match 'private func recentLink[\s\S]*?if horizontalSizeClass != \.regular[\s\S]*?NavigationLink'
-)
-Require-NavigationPattern 'bookshelf favorite row has a compact direct destination' (
-    $bookshelfView -match 'private func favoriteLink[\s\S]*?if horizontalSizeClass != \.regular[\s\S]*?NavigationLink'
-)
-Require-NavigationPattern 'iPad bookshelf path has a destination in the same stack' (
+Require-NavigationPattern 'discovery and bookshelf retain one path across width classes' (
+    $homeView -notmatch 'NavigationSplitView|usesStackNavigation|selectedReaderLaunch' -and
+    $bookshelfView -notmatch 'NavigationSplitView|phoneBookshelf|horizontalSizeClass' -and
     $bookshelfView -match '(?s)private var adaptiveBookshelf.*?NavigationStack\(path: \$navigationPath\).*?\.navigationDestination\(for: BookshelfRoute\.self\)'
 )
-Require-NavigationPattern 'iPad bookshelf buttons append the selected book to the navigation path' (
-    $bookshelfView -match '(?s)private func recentLink.*?if ReadingSpaceWindowLayout\.usesIPadLayout \{\s*Button \{.*?navigationPath\.append\(route\)' -and
-    $bookshelfView -match '(?s)private func favoriteLink.*?if ReadingSpaceWindowLayout\.usesIPadLayout \{\s*Button \{.*?navigationPath\.append\(route\)'
+Require-NavigationPattern 'bookshelf buttons append selected books on every device' (
+    $bookshelfView -match '(?s)private func recentLink.*?Button \{.*?navigationPath\.append\(route\)' -and
+    $bookshelfView -match '(?s)private func favoriteLink.*?Button \{.*?navigationPath\.append\(route\)'
 )
 Require-NavigationPattern 'iPad cover grid is a lazy scroll surface with individual items instead of shared list rows' (
     $bookshelfView -match '(?s)private func bookshelfContent.*?if usesAdaptiveCoverGrid \{\s*ScrollView' -and

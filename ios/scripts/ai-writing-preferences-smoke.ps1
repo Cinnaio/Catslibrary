@@ -28,7 +28,8 @@ Require-PreferencePattern "adult character confirmation is fixed by explicit mod
     $writingView -match '"adultCharactersConfirmed": adultContentMode == \.explicit'
 )
 Require-PreferencePattern "explicit mode displays automatic adult confirmation" (
-    $writingView -match 'adultCharactersConfirmed: true'
+    $writingView -match 'adultContentMode == \.explicit' -and
+    $writingView.Contains('LabeledContent("成年人确认", value: "本次任务已确认")')
 )
 Require-PreferencePattern "content preference section is rendered separately" ($writingView -match 'private var contentPreferencesSection')
 Require-PreferencePattern "invalid preference combinations block submit" ($writingView -match 'guard contentPreferencesValidationError == nil else')

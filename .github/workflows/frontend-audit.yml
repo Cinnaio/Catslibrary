@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        device: [phone, tablet]
+        device: [phone, phone-large, tablet]
     env:
       AUDIT_DEVICE: ${{ matrix.device }}
     steps:
@@ -35,6 +35,8 @@ jobs:
           RUNTIME=$(xcrun simctl list runtimes --json | jq -r '.runtimes[] | select(.isAvailable and (.identifier | contains("iOS-26"))) | .identifier' | tail -n 1)
           if [ "$AUDIT_DEVICE" = phone ]; then
             DEVICE_TYPE=com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation
+          elif [ "$AUDIT_DEVICE" = phone-large ]; then
+            DEVICE_TYPE=com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro-Max
           else
             DEVICE_TYPE=$(xcrun simctl list devicetypes --json | jq -r '.devicetypes[] | select(.name | contains("iPad Pro 11-inch")) | .identifier' | tail -n 1)
           fi

@@ -15,6 +15,13 @@ private struct MessageConfiguration: Decodable { let settings: MessagePreference
 private struct MessagePreferencesResult: Decodable { let settings: MessagePreferences }
 struct MessageSettingsView: View {
     @Environment(AppState.self) private var appState
+    var body: some View {
+        MessageSettingsContent()
+            .id("\(appState.user?.id ?? "")|\(APIClient.shared.token ?? "")|\(ServerConfig.serverURL)")
+    }
+}
+private struct MessageSettingsContent: View {
+    @Environment(AppState.self) private var appState
     @State private var form: MessagePreferences?
     @State private var devices: [MessageDevice] = []
     @State private var error: String?
@@ -23,6 +30,7 @@ struct MessageSettingsView: View {
     private var scope: String { "\(appState.user?.id ?? "")|\(APIClient.shared.token ?? "")|\(ServerConfig.serverURL)" }
     var body: some View {
         Form {
+            if form == nil && busy { ProgressView("正在读取设置…") }
             if form != nil {
                 Section("推送种类") {
                     Toggle("评论回复", isOn: binding(\.replies))
@@ -35,12 +43,12 @@ struct MessageSettingsView: View {
                         TextField("开始，例如 22:00", text: binding(\.quietStart)).keyboardType(.numbersAndPunctuation)
                         TextField("结束，例如 08:00", text: binding(\.quietEnd)).keyboardType(.numbersAndPunctuation)
                         TextField("时区", text: binding(\.timeZone)).textInputAutocapitalization(.never).autocorrectionDisabled()
-                        Button("使用本机时区") { form?.timeZone = TimeZone.current.identifier }
+                        Button("使用本机时区") { form?.timeZone = TimeZone.current.identifier; message = nil }
                     }
-                    Button("保存设置") { Task { await save() } }.disabled(busy)
+                    Button(busy ? "正在保存…" : "保存设置") { Task { await save() } }.disabled(busy)
                 } header: { Text("免打扰") } footer: { Text("设置在账号间同步。消息始终保存在消息中心；免打扰结束后发送仍未读的新消息。") }
             }
-            if let error { Section { Text(error).foregroundStyle(.red); Button("重新载入设置") { Task { await load() } }.disabled(busy) } }
+            if let error { Section { Text(error).foregroundStyle(.red); if form == nil { Button("重新载入设置") { Task { await load() } }.disabled(busy) } } }
             if let message { Text(message).foregroundStyle(.secondary).accessibilityAddTraits(.updatesFrequently) }
             Section { NavigationLink("书架追更提醒") { MessageBookSubscriptionsView() } }
             if let userID = appState.user?.id { Section { NavigationLink("本机阅读提醒") { ReadingReminderView(userID: userID).id(userID) } } }
@@ -52,16 +60,17 @@ struct MessageSettingsView: View {
                 ForEach(devices) { device in
                     HStack { Text(device.name); Spacer(); Button("移除", role: .destructive) { Task { await remove(device.id) } }.disabled(busy) }
                 }
-                if devices.isEmpty { Text("还没有接收推送的设备。").foregroundStyle(.secondary) }
+                if devices.isEmpty && form != nil { Text("还没有接收推送的设备。").foregroundStyle(.secondary) }
             }
         }.navigationTitle("通知设置").readingSpaceNavigation().disabled(busy)
-            .task(id: scope) { form = nil; devices = []; await load() }
+            .task { if form == nil { await load() } }
     }
     private func binding<T>(_ path: WritableKeyPath<MessagePreferences, T>) -> Binding<T> {
         let fallback = form![keyPath: path]
-        return Binding(get: { form?[keyPath: path] ?? fallback }, set: { form?[keyPath: path] = $0 })
+        return Binding(get: { form?[keyPath: path] ?? fallback }, set: { form?[keyPath: path] = $0; message = nil })
     }
     private func load() async {
+        guard !busy else { return }
         let owner = scope; busy = true
         defer { if owner == scope { busy = false } }
         do {

@@ -23,7 +23,7 @@ private struct MessageRead: Encodable { var id: String? = nil; var all: Bool? = 
 struct MessageCenterView: View {
     @Environment(AppState.self) private var appState
     var body: some View {
-        MessageInboxView().id("\(appState.user?.id ?? "")|\(ServerConfig.serverURL)|\(ContentAccessStore.shared.mode)")
+        MessageInboxView().id("\(appState.user?.id ?? "")|\(APIClient.shared.token ?? "")|\(ServerConfig.serverURL)|\(ContentAccessStore.shared.mode)")
     }
 }
 private struct MessageInboxView: View {
@@ -33,17 +33,31 @@ private struct MessageInboxView: View {
     @State private var unread = 0
     @State private var onlyUnread = false
     @State private var hasMore = false
-    @State private var busy = false
-    @State private var generation = 0
+    @State private var requests = ListRequestGuard<Query>()
+    @State private var displayedQuery: Query?
+    @State private var isUpdating = false
     @State private var error: String?
     private var scope: String { "\(APIClient.shared.token ?? "")|\(ServerConfig.serverURL)|\(ContentAccessStore.shared.mode)" }
+    private struct Query: Hashable {
+        let scope: String
+        let onlyUnread: Bool
+    }
+    private var query: Query { Query(scope: scope, onlyUnread: onlyUnread) }
+    private var busy: Bool { requests.isLoading || isUpdating }
+    private var resultsCurrent: Bool { displayedQuery == query }
+    private var canUseResults: Bool { resultsCurrent && !busy }
     var body: some View {
         List {
             Section {
                 Picker("消息筛选", selection: $onlyUnread) { Text("全部").tag(false); Text("未读 \(unread)").tag(true) }.pickerStyle(.segmented)
                 NavigationLink { MessageSettingsView() } label: { Label("通知设置", systemImage: "bell.badge") }
             }
-            if let error { Section { Text(error).foregroundStyle(.red); Button("重试") { Task { await load() } } } }
+            if requests.isLoading { ProgressView(items.isEmpty ? "正在读取消息…" : "正在更新消息…") }
+            if !items.isEmpty && !resultsCurrent {
+                Text("当前显示上次载入的消息，筛选成功后可继续操作。")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            if let error { Section { Text(error).foregroundStyle(.red); Button("重试") { Task { await load() } }.disabled(busy) } }
             Section {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                     NavigationLink { MessageDetailView(id: item.id) } label: {
@@ -56,41 +70,69 @@ private struct MessageInboxView: View {
                             }
                         }.padding(.vertical, 6)
                     }.accessibilityLabel("\(item.readAt == nil ? "未读，" : "")\(item.title)，\(item.body)")
-                        .modifier(MessageRowEntrance(index: index, identity: String(onlyUnread)))
+                        .modifier(MessageRowEntrance(index: index, identity: String(displayedQuery?.onlyUnread ?? false)))
+                        .opacity(resultsCurrent ? 1 : 0.5)
+                        .disabled(!canUseResults)
                 }
-                if items.isEmpty { Text(busy ? "正在读取消息…" : "这里会收下新的评论回复和任务结果。").foregroundStyle(.secondary) }
-                if hasMore { Button("加载更多") { Task { await load(more: true) } }.disabled(busy) }
+                if items.isEmpty && resultsCurrent && !busy {
+                    Text(onlyUnread ? "暂时没有未读消息。" : "这里会收下新的评论回复和任务结果。")
+                        .foregroundStyle(.secondary)
+                }
+                if hasMore { Button("加载更多") { Task { await load(more: true) } }.disabled(!canUseResults) }
             }
         }
         .navigationTitle("消息中心").readingSpaceNavigation().scrollContentBackground(.hidden).background(ReadingSpace.profilePaper)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("全部已读") { Task { await markAll() } }.disabled(busy || unread == 0) } }
         .refreshable { await load() }
-        .task(id: onlyUnread) { await load() }
+        .task(id: query) { await load() }
         .onChange(of: scenePhase) { _, value in if value == .active { Task { await load() } } }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: onlyUnread)
-        .onDisappear { generation += 1 }
+        .onDisappear { requests.invalidate() }
     }
     private func load(more: Bool = false) async {
-        generation += 1; let expected = generation, owner = scope
-        busy = true
-        defer { if expected == generation { busy = false } }
-        var parameters = ["unread": onlyUnread ? "1" : "0"]
-        if more, let last = items.last { parameters["before"] = String(Int64(last.createdAt)); parameters["beforeId"] = last.id }
+        let current = query
+        let ticket: ListRequestGuard<Query>.Ticket
+        if more {
+            guard canUseResults, hasMore, let next = requests.beginNext(current) else { return }
+            ticket = next
+        } else {
+            ticket = requests.begin(current)
+        }
+        error = nil
+        defer { requests.finish(ticket) }
+        var parameters = ["unread": current.onlyUnread ? "1" : "0"]
+        if more, let last = items.last {
+            parameters["before"] = String(Int64(last.createdAt))
+            parameters["beforeId"] = last.id
+        }
         do {
             let result: LibraryMessagePage = try await APIClient.shared.get("/api/notifications?" + ReaderQuery.encode(parameters), auth: true)
-            guard owner == scope, expected == generation, !Task.isCancelled else { return }
+            guard requests.accepts(ticket, query: query), !Task.isCancelled else { return }
             items = more ? items + result.items.filter { next in !items.contains { $0.id == next.id } } : result.items
-            unread = result.unread; hasMore = result.hasMore; error = nil
-        } catch { if owner == scope, expected == generation, !Task.isCancelled { self.error = AppCopy.friendlyError(error) } }
+            unread = result.unread
+            hasMore = result.hasMore
+            displayedQuery = current
+            requests.finish(ticket, succeeded: true)
+        } catch {
+            guard requests.accepts(ticket, query: query), !Task.isCancelled else { return }
+            self.error = AppCopy.friendlyError(error)
+        }
     }
+
     private func markAll() async {
-        guard !busy else { return }; busy = true
+        guard !busy else { return }
         let owner = scope
+        isUpdating = true
+        defer { if owner == scope { isUpdating = false } }
         do {
             try await APIClient.shared.requestVoid("POST", "/api/notifications/read", body: JSONEncoder().encode(MessageRead(all: true)), auth: true)
             guard owner == scope, !Task.isCancelled else { return }
+            unread = 0
+            displayedQuery = nil
             await load()
-        } catch { if owner == scope { self.error = AppCopy.friendlyError(error); busy = false } }
+        } catch {
+            if owner == scope, !Task.isCancelled { self.error = AppCopy.friendlyError(error) }
+        }
     }
 }
 struct MessageRowEntrance: ViewModifier {

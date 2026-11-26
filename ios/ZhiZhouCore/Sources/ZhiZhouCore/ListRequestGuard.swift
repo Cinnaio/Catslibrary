@@ -12,6 +12,12 @@ public struct ListRequestGuard<Query: Equatable> {
     public init() {}
     public var isLoading: Bool { active != nil }
 
+    /// Invalidates work when its page disappears without recycling ticket identities.
+    public mutating func invalidate() {
+        generation &+= 1
+        active = nil
+    }
+
     public mutating func begin(_ query: Query) -> Ticket {
         generation &+= 1
         let ticket = Ticket(generation: generation, query: query)

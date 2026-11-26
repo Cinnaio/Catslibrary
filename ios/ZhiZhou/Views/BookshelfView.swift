@@ -1,9 +1,8 @@
 import SwiftUI
 import ZhiZhouCore
 
-/// iPhone 保留既有书架；iPad 在同一导航栈中按窗口宽度扩展暖纸封面布局。
+/// iPhone 与 iPad 共用稳定导航栈，内容按窗口宽度扩展暖纸布局。
 struct BookshelfView: View {
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var editMode: EditMode = .inactive
@@ -15,7 +14,6 @@ struct BookshelfView: View {
     @State private var actionError: String?
     @State private var isPerformingAction = false
     @State private var actionFeedback = AppFeedbackCenter()
-    @State private var selection: BookshelfRoute?
     @State private var navigationPath: [BookshelfRoute] = []
     @State private var compactDetailNovel: Novel?
     @State private var pendingRemove: FavoriteItem?
@@ -45,10 +43,6 @@ struct BookshelfView: View {
         }
     }
 
-    private var usesShelfSections: Bool {
-        ReadingSpaceWindowLayout.usesIPadLayout || horizontalSizeClass != .regular
-    }
-
     private var searchTerm: String { search.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     private var filtersFavorites: Bool { !searchTerm.isEmpty || !reading.isEmpty || !groupID.isEmpty }
@@ -62,8 +56,8 @@ struct BookshelfView: View {
         return .recent
     }
 
-    private var showsRecent: Bool { !filtersFavorites && (!usesShelfSections || visibleSection == .recent) }
-    private var showsFavorites: Bool { !usesShelfSections || visibleSection == .favorites }
+    private var showsRecent: Bool { !filtersFavorites && visibleSection == .recent }
+    private var showsFavorites: Bool { visibleSection == .favorites }
 
     private var hasEditableItems: Bool {
         guard displayedQuery == shelfQuery, let response = visibleResponse else { return false }
@@ -71,7 +65,7 @@ struct BookshelfView: View {
     }
 
     private var showsCoverGrid: Bool {
-        usesShelfSections && dynamicTypeSize < .xxxLarge && !editMode.isEditing
+        dynamicTypeSize < .xxxLarge && !editMode.isEditing
     }
 
     private var usesAdaptiveCoverGrid: Bool {
@@ -82,48 +76,15 @@ struct BookshelfView: View {
         [searchTerm, sort, reading, ContentAccessStore.shared.mode, groupID]
     }
 
-    @ViewBuilder
     var body: some View {
-        Group {
-            if ReadingSpaceWindowLayout.usesIPadLayout { adaptiveBookshelf }
-            else { phoneBookshelf }
-        }
-        .sheet(isPresented: $showOrganizer, onDismiss: { shelfSection = .favorites; Task { await load(); await loadPrivateGroups() } }) {
-            PrivateBookshelfView()
-        }
-        .task(id: ContentAccessStore.shared.mode) { await loadPrivateGroups() }
-    }
-
-    @ViewBuilder
-    private var phoneBookshelf: some View {
-        if usesShelfSections {
-            NavigationStack {
-                bookshelfList(columns: 2)
+        adaptiveBookshelf
+            .sheet(isPresented: $showOrganizer, onDismiss: {
+                shelfSection = .favorites
+                Task { await load(); await loadPrivateGroups() }
+            }) {
+                PrivateBookshelfView()
             }
-            .sheet(item: $compactDetailNovel) { novel in
-                NavigationStack {
-                    NovelDetailView(novel: novel, showsCloseButton: true)
-                }
-            }
-        } else {
-            NavigationSplitView {
-                bookshelfList(columns: 2)
-            } detail: {
-                NavigationStack {
-                    bookshelfDetail
-                }
-                .id(splitDestinationID)
-            }
-            .navigationSplitViewStyle(.balanced)
-        }
-    }
-
-    private var splitDestinationID: String {
-        switch selection {
-        case .read(let launch): return "reader:\(launch.novel.id):\(launch.chapterOrder)"
-        case .detail(let novel): return "detail:\(novel.id)"
-        case nil: return "none"
-        }
+            .task(id: ContentAccessStore.shared.mode) { await loadPrivateGroups() }
     }
 
     private var adaptiveBookshelf: some View {
@@ -182,9 +143,8 @@ struct BookshelfView: View {
             .safeAreaBar(edge: .bottom, spacing: 0) {
                 AppFeedbackOverlay(center: actionFeedback, edge: .bottom)
             }
-            .navigationTitle(usesShelfSections ? "" : "书架")
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationSplitViewColumnWidth(min: 300, ideal: 380, max: 520)
             .toolbar { bookshelfToolbar }
             .environment(\.editMode, $editMode)
             .refreshable { await load() }
@@ -193,16 +153,6 @@ struct BookshelfView: View {
                 if mode == "safe" { response = nil }
             }
             .onDisappear { actionFeedback.dismiss() }
-            .task(id: shelfQuery) {
-                guard !ReadingSpaceWindowLayout.usesIPadLayout else { return }
-                await load(debounce: true)
-            }
-            .onChange(of: selection) { oldSelection, newSelection in
-                // 应用内从阅读器返回时 selection 才会归零；scenePhase 不会变化。
-                if oldSelection != nil, newSelection == nil {
-                    Task { await load() }
-                }
-            }
             .confirmationDialog(
                 "从书架移除这本书？",
                 isPresented: Binding(
@@ -259,7 +209,7 @@ struct BookshelfView: View {
             .scrollIndicators(.hidden)
             .scrollDismissesKeyboard(.interactively)
         } else {
-            List(selection: $selection) {
+            List {
                 bookshelfRows(columns: columns)
             }
         }
@@ -280,7 +230,7 @@ struct BookshelfView: View {
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
         }
-        if usesShelfSections { shelfHeading }
+        shelfHeading
         if isLoading && (response == nil || displayedQuery != shelfQuery || errorMessage != nil) {
             ProgressView(response == nil ? "正在加载书架…" : (errorMessage == nil ? "正在载入结果…" : "正在重试…"))
                 .font(.footnote)
@@ -383,7 +333,7 @@ struct BookshelfView: View {
         if filtersFavorites {
             ContentUnavailableView("没有匹配的收藏", systemImage: "books.vertical",
                                    description: Text("换个关键词或筛选条件试试"))
-        } else if usesShelfSections && visibleSection == .recent {
+        } else if visibleSection == .recent {
             ContentUnavailableView("还没有阅读记录", systemImage: "book.pages",
                                    description: Text("打开一本书，阅读记录会出现在这里"))
         } else {
@@ -420,8 +370,6 @@ struct BookshelfView: View {
                     guard let index = offsets.first, recent.indices.contains(index) else { return }
                     pendingRecentRemove = recent[index]
                 }
-            } header: {
-                if !usesShelfSections { Text("最近阅读") }
             }
         }
     }
@@ -552,19 +500,6 @@ struct BookshelfView: View {
         }
     }
 
-    @ViewBuilder
-    private var bookshelfDetail: some View {
-        if let selection {
-            Self.destination(for: selection)
-        } else {
-            ContentUnavailableView(
-                "选择一本书",
-                systemImage: "books.vertical",
-                description: Text("点最近阅读即可接着读")
-            )
-        }
-    }
-
     // 目的地只依赖路由，避免闭包捕获整个书架及其动态环境和状态。
     @ViewBuilder
     private static func destination(for route: BookshelfRoute) -> some View {
@@ -585,133 +520,48 @@ struct BookshelfView: View {
     @ViewBuilder
     private func recentLink(_ item: RecentItem, featured: Bool = false, cover: Bool = false) -> some View {
         let route = BookshelfRoute.read(item.asLaunch)
-        if ReadingSpaceWindowLayout.usesIPadLayout {
-            Button {
-                searchFocused = false
-                navigationPath.append(route)
-            } label: {
-                if cover { recentCover(item) }
-                else { recentRow(item, featured: featured) }
-            }
-            .buttonStyle(.plain)
-            .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: featured ? ReadingSpace.panelRadius : 12))
-            .contextMenu {
-                Button { compactDetailNovel = item.asNovel } label: {
-                    Label("书籍详情", systemImage: "info.circle")
-                }
-                Button(role: .destructive) { pendingRecentRemove = item } label: {
-                    Label("删除阅读记录", systemImage: "trash")
-                }
-            }
-            .accessibilityHint("打开后接着读")
-            .accessibilityIdentifier("bookshelf.recent.\(item.novelId)")
-        } else if horizontalSizeClass != .regular {
-            NavigationLink {
-                Self.destination(for: route)
-            } label: {
-                recentRow(item, featured: featured)
-            }
-            .navigationLinkIndicatorVisibility(.hidden)
-            .contextMenu {
-                Button {
-                    compactDetailNovel = item.asNovel
-                } label: {
-                    Label("书籍详情", systemImage: "info.circle")
-                }
-                Button(role: .destructive) {
-                    pendingRecentRemove = item
-                } label: {
-                    Label("删除阅读记录", systemImage: "trash")
-                }
-            }
-            .accessibilityHint("打开后接着读")
-        } else {
-            Button {
-                selection = route
-            } label: {
-                recentRow(item, featured: featured)
-            }
-            .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
-            .tag(route)
-            .contextMenu {
-                Button {
-                    selection = .detail(item.asNovel)
-                } label: {
-                    Label("书籍详情", systemImage: "info.circle")
-                }
-                Button(role: .destructive) {
-                    pendingRecentRemove = item
-                } label: {
-                    Label("删除阅读记录", systemImage: "trash")
-                }
-            }
-            .accessibilityHint("打开后接着读")
+        Button {
+            searchFocused = false
+            navigationPath.append(route)
+        } label: {
+            if cover { recentCover(item) }
+            else { recentRow(item, featured: featured) }
         }
+        .buttonStyle(.plain)
+        .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: featured ? ReadingSpace.panelRadius : 12))
+        .contextMenu {
+            Button { compactDetailNovel = item.asNovel } label: {
+                Label("书籍详情", systemImage: "info.circle")
+            }
+            Button(role: .destructive) { pendingRecentRemove = item } label: {
+                Label("删除阅读记录", systemImage: "trash")
+            }
+        }
+        .accessibilityHint("打开后接着读")
+        .accessibilityIdentifier("bookshelf.recent.\(item.novelId)")
     }
 
     @ViewBuilder
     private func favoriteLink(_ favorite: FavoriteItem, cover: Bool = false) -> some View {
         let route = favorite.asLaunch.map { BookshelfRoute.read($0) } ?? .detail(favorite.asNovel)
-        if ReadingSpaceWindowLayout.usesIPadLayout {
-            Button {
-                searchFocused = false
-                navigationPath.append(route)
-            } label: {
-                favoriteLabel(favorite, cover: cover)
+        Button {
+            searchFocused = false
+            navigationPath.append(route)
+        } label: {
+            favoriteLabel(favorite, cover: cover)
+        }
+        .buttonStyle(.plain)
+        .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 12))
+        .contextMenu {
+            Button { compactDetailNovel = favorite.asNovel } label: {
+                Label("书籍详情", systemImage: "info.circle")
             }
-            .buttonStyle(.plain)
-            .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 12))
-            .contextMenu {
-                Button { compactDetailNovel = favorite.asNovel } label: {
-                    Label("书籍详情", systemImage: "info.circle")
-                }
-                Button(role: .destructive) { pendingRemove = favorite } label: {
-                    Label("移出书架", systemImage: "trash")
-                }
-            }
-            .accessibilityHint(favorite.asLaunch == nil ? "打开书籍详情" : "打开后接着读")
-            .accessibilityIdentifier("bookshelf.favorite.\(favorite.asNovel.id)")
-        } else if horizontalSizeClass != .regular {
-            NavigationLink {
-                Self.destination(for: route)
-            } label: {
-                favoriteLabel(favorite, cover: cover)
-            }
-            .navigationLinkIndicatorVisibility(.hidden)
-            .contextMenu {
-                Button {
-                    compactDetailNovel = favorite.asNovel
-                } label: {
-                    Label("书籍详情", systemImage: "info.circle")
-                }
-                Button(role: .destructive) {
-                    pendingRemove = favorite
-                } label: {
-                    Label("移出书架", systemImage: "trash")
-                }
-            }
-            .accessibilityHint(favorite.asLaunch == nil ? "打开书籍详情" : "打开后接着读")
-        } else {
-            Button {
-                selection = route
-            } label: {
-                favoriteLabel(favorite, cover: cover)
-            }
-            .buttonStyle(ScaleButtonStyle(pressedScale: 0.985))
-            .tag(route)
-            .contextMenu {
-                Button {
-                    selection = .detail(favorite.asNovel)
-                } label: {
-                    Label("书籍详情", systemImage: "info.circle")
-                }
-                Button(role: .destructive) {
-                    pendingRemove = favorite
-                } label: {
-                    Label("移出书架", systemImage: "trash")
-                }
+            Button(role: .destructive) { pendingRemove = favorite } label: {
+                Label("移出书架", systemImage: "trash")
             }
         }
+        .accessibilityHint(favorite.asLaunch == nil ? "打开书籍详情" : "打开后接着读")
+        .accessibilityIdentifier("bookshelf.favorite.\(favorite.asNovel.id)")
     }
 
     private func recentCover(_ item: RecentItem) -> some View {
@@ -971,12 +821,6 @@ struct BookshelfView: View {
             let _: OkEnvelope = try await APIClient.shared.delete(
                 "/api/bookshelf?novelId=\(favorite.novelId)", auth: true
             )
-            if case .read(let launch) = selection, launch.novel.id == favorite.novelId {
-                selection = nil
-            }
-            if case .detail(let novel) = selection, novel.id == favorite.novelId {
-                selection = nil
-            }
             await load(animate: true)
             AppFeedback.success("已移出书架", using: actionFeedback)
         } catch {

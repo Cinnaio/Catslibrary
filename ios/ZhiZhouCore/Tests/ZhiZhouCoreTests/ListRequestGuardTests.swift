@@ -64,4 +64,16 @@ final class ListRequestGuardTests: XCTestCase {
         requests.finish(retry, succeeded: true)
         XCTAssertNotNil(requests.beginNext("completed"))
     }
+    func testLeavingAndReturningRejectsPreviousPageRequest() {
+        var requests = ListRequestGuard<String>()
+        let previousVisit = requests.begin("unread")
+        requests.invalidate()
+        XCTAssertFalse(requests.isLoading)
+        let currentVisit = requests.begin("unread")
+        XCTAssertFalse(requests.accepts(previousVisit, query: "unread"))
+        requests.finish(previousVisit, succeeded: true)
+        XCTAssertTrue(requests.accepts(currentVisit, query: "unread"))
+        XCTAssertTrue(requests.isLoading)
+    }
+
 }

@@ -11,8 +11,6 @@ struct HomeView: View {
     @State private var selectedCategory: String?
     @State private var selectedStatus = ""
     @State private var selectedSort = "updated_at"
-    @State private var selectedNovel: Novel?
-    @State private var selectedReaderLaunch: ReaderLaunch?
     @State private var navigationPath: [HomeRoute] = []
     @State private var search = ""
     @State private var isSearchPresented = false
@@ -59,11 +57,6 @@ struct HomeView: View {
         [searchTerm, selectedCategory ?? "", selectedStatus, selectedSort]
     }
 
-    // iPad 旋转、分屏时保留同一条导航路径，阅读器不作为发现页的侧栏详情。
-    private var usesStackNavigation: Bool {
-        ReadingSpaceWindowLayout.usesIPadLayout || horizontalSizeClass != .regular
-    }
-
     private var usesCoverGrid: Bool {
         horizontalSizeClass != .regular && dynamicTypeSize < .xxxLarge
     }
@@ -85,60 +78,24 @@ struct HomeView: View {
         }
     }
 
+    // 所有设备共用稳定路径，旋转和窗口变化只影响内容布局。
     var body: some View {
-        if usesStackNavigation {
-            NavigationStack(path: $navigationPath) {
-                homeList
-                    // 显隐跟随当前页面，返回根页直接恢复，不在整个导航栈外保留隐藏状态。
-                    .toolbar(.visible, for: .tabBar)
-                    .navigationDestination(for: HomeRoute.self) { route in
-                        switch route {
-                        case .novel(let novel):
-                            NovelDetailView(novel: novel)
-                        case .reader(let launch):
-                            ReaderView(
-                                novel: launch.novel,
-                                chapterOrder: launch.chapterOrder,
-                                preloadedChapters: launch.preloadedChapters
-                            )
-                        }
-                    }
-            }
-        } else {
-            NavigationSplitView {
-                homeList
-                    .navigationSplitViewColumnWidth(min: 300, ideal: 380, max: 520)
-            } detail: {
-                NavigationStack {
-                    if let selectedReaderLaunch {
+        NavigationStack(path: $navigationPath) {
+            homeList
+                .toolbar(.visible, for: .tabBar)
+                .navigationDestination(for: HomeRoute.self) { route in
+                    switch route {
+                    case .novel(let novel):
+                        NovelDetailView(novel: novel)
+                    case .reader(let launch):
                         ReaderView(
-                            novel: selectedReaderLaunch.novel,
-                            chapterOrder: selectedReaderLaunch.chapterOrder,
-                            preloadedChapters: selectedReaderLaunch.preloadedChapters
-                        )
-                        .id("reader:\(selectedReaderLaunch.novel.id):\(selectedReaderLaunch.chapterOrder)")
-                    } else if let selectedNovel {
-                        NovelDetailView(novel: selectedNovel)
-                            .id(selectedNovel.id)
-                    } else {
-                        ContentUnavailableView(
-                            "选择一本书",
-                            systemImage: "book.closed",
-                            description: Text("从书单打开详情，或从继续阅读接着读")
+                            novel: launch.novel,
+                            chapterOrder: launch.chapterOrder,
+                            preloadedChapters: launch.preloadedChapters
                         )
                     }
                 }
-                .id(splitDestinationID)
-            }
-            .navigationSplitViewStyle(.balanced)
         }
-    }
-
-    private var splitDestinationID: String {
-        if let launch = selectedReaderLaunch {
-            return "reader:\(launch.novel.id):\(launch.chapterOrder)"
-        }
-        return "detail:\(selectedNovel?.id ?? "none")"
     }
 
     private var homeScrollContent: some View {
@@ -154,13 +111,11 @@ struct HomeView: View {
                     )
                     .padding(.bottom, 24)
                 }
-                if usesStackNavigation {
-                    Text("发现")
-                        .font(serifFont(.largeTitle, .medium))
-                        .foregroundStyle(ReadingSpace.ink)
-                        .accessibilityAddTraits(.isHeader)
-                        .padding(.bottom, 20)
-                }
+                Text("发现")
+                    .font(serifFont(.largeTitle, .medium))
+                    .foregroundStyle(ReadingSpace.ink)
+                    .accessibilityAddTraits(.isHeader)
+                    .padding(.bottom, 20)
                 if showsSearchScopes {
                     Picker("搜索范围", selection: $searchScope) {
                         Text("书库").tag(SearchScope.catalog)
@@ -216,7 +171,7 @@ struct HomeView: View {
     private var homeList: some View {
         searchableHomeContent
         .background(ReadingSpace.profilePaper)
-        .navigationTitle(usesStackNavigation ? "" : "发现")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(ReadingSpaceWindowLayout.usesIPadLayout ? .visible : .automatic, for: .navigationBar)
         .onSubmit(of: .search, submitSearch)
@@ -422,16 +377,10 @@ struct HomeView: View {
     @ViewBuilder
     private func novelRow(_ novel: Novel) -> some View {
         Button {
-            selectedReaderLaunch = nil
-            if usesStackNavigation {
-                navigationPath.append(.novel(novel))
-            } else {
-                selectedNovel = novel
-            }
+            navigationPath.append(.novel(novel))
         } label: {
             NovelCardView(
                 novel: novel,
-                isSelected: !usesStackNavigation && selectedNovel?.id == novel.id,
                 isCoverLayout: usesCoverGrid
             )
         }
@@ -633,12 +582,7 @@ struct HomeView: View {
 
     private func openRecent(_ item: RecentItem) {
         let launch = item.asLaunch
-        selectedNovel = nil
-        if usesStackNavigation {
-            navigationPath.append(.reader(launch))
-        } else {
-            selectedReaderLaunch = launch
-        }
+        navigationPath.append(.reader(launch))
     }
 
     /// 搜索与分类共用同一条防抖加载通道，避免并发 reload 竞态。

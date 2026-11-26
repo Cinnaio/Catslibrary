@@ -381,6 +381,47 @@ final class FrontendAuditTests: XCTestCase {
     }
 
     @MainActor
+    func testPhoneReadingRoutesSurviveRotation() throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .phone, "覆盖 iPhone 横竖屏导航")
+        defer { XCUIDevice.shared.orientation = .portrait }
+        for entry in ["discovery", "detail", "bookshelf"] {
+            XCUIDevice.shared.orientation = .portrait
+            let app = launch()
+            if entry == "bookshelf" {
+                selectTab("书架", app: app)
+                tap(app.buttons["bookshelf.recent.audit-book-1"])
+            } else {
+                selectTab("发现", app: app)
+                if entry == "detail" {
+                    tap(app.buttons["catalog.audit-book-1"])
+                    let chapter = app.buttons["detail.chapter.2"]
+                    reveal(chapter, app: app)
+                    tap(chapter)
+                } else {
+                    tap(app.buttons["discovery.continue-reading"])
+                }
+            }
+            let contents = app.buttons["reader.toolbar.contents"]
+            XCTAssertTrue(contents.waitForExistence(timeout: 15))
+            for orientation in [UIDeviceOrientation.landscapeLeft, .portrait, .landscapeRight, .portrait] {
+                XCUIDevice.shared.orientation = orientation
+                let body = app.textViews["reader.paragraph.1"]
+                XCTAssertTrue(body.waitForExistence(timeout: 15))
+                XCTAssertTrue(contents.isHittable, "旋转后仍应停留在阅读器")
+                XCTAssertFalse(app.buttons["discovery.continue-reading"].isHittable)
+                XCTAssertFalse(app.tabBars.firstMatch.isHittable)
+            }
+            tap(app.navigationBars.buttons.firstMatch)
+            if entry == "detail" {
+                XCTAssertTrue(app.buttons["detail.read"].waitForExistence(timeout: 10))
+                tap(app.navigationBars.buttons.firstMatch)
+            }
+            XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 10))
+            XCTAssertTrue(app.tabBars.firstMatch.isHittable)
+        }
+    }
+
+    @MainActor
     func testIPadDetailReadAndChapterEntriesRemainOpen() throws {
         try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "覆盖 iPad 详情阅读入口")
         XCUIDevice.shared.orientation = .landscapeLeft
