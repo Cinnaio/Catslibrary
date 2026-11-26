@@ -1,4 +1,5 @@
 import SwiftUI
+import ZhiZhouCore
 
 private struct WidgetResolvedItem: Decodable { let item: LibraryWidgetItem }
 private struct WidgetNovelResponse: Decodable { let novel: Novel }

@@ -1,5 +1,13 @@
 # 发布与版本管理
 
+## iOS 1.4.0 / build 32：消息与小组件编译修复（2026-11-26）
+
+- 已通过 GitHub API 核对最新 iOS 工作流：第 73 次运行 `45760655500`，源码 `c9a1ad25ae6e1c110654a18e9b1929d0878386b8`，于北京时间 2026-11-26 13:17:47 开始，13:20:59 完成并失败。`Core unit tests` 成功，`Build unsigned IPA` 中 `Build (unsigned)` 退出 65，产物检查、打包及上传均未执行。上一成功运行是第 72 次，源码 `1e99e9ed`。
+- 对比上一成功构建后的源码，发现 `LibraryWidgetDestination.swift`、`MessageBookSubscriptionsView.swift`、`MessageCenterView.swift` 使用 `ReaderQuery` 却未导入声明该类型的 `ZhiZhouCore`；三处已补齐导入。此次修复不改接口、业务流程或布局。
+- 已通过登录状态下的 GitHub 页面下载完整日志归档 `logs_123809137519.zip`。`Build unsigned IPA/12_Build (unsigned).txt` 第 832、835、838 行分别报告 `LibraryWidgetDestination.swift:38`、`MessageBookSubscriptionsView.swift:48`、`MessageCenterView.swift:79` 的 `cannot find 'ReaderQuery' in scope`；完整编译日志仅有这三处编译错误，与补齐的模块导入逐一对应。退出码 65 是编译失败的汇总结果；日志中的弃用及并发警告未导致本次失败。修复后的原生编译结果仍待验证。
+- 三份 Swift 文件 tree-sitter 语法、上一成功构建后变动文件的核心模块显式导入检查、既有导航静态检查和差异空白检查通过。Windows 环境没有 Xcode，未原生编译、重跑工作流或生成 IPA，也未进行真机验收。
+- 修正源码以本节所在提交为准，基于 `c9a1ad25`；本次按用户要求提交、推送并构建下载 IPA。`ios/project.yml` 中主 App 与 Widget 的 `CURRENT_PROJECT_VERSION` 同步从 31 递增到 32，`MARKETING_VERSION` 保留当前候选 `1.4.0`。此时尚待工作流完成，构建结果与下载校验另行记录；API／Web 版本不变，未执行服务端部署。
+
 ## 消息中心与网页推送（2026-11-26）
 
 - 源码为包含本节的本地提交，父提交为 `3a7dbe11`；已按用户要求提交，未推送或部署。提交时复核版本、差异及消息格式，沿用下述验证结果，未重复运行测试或构建。API 候选升为 `1.15.0`、Web 候选升为 `1.14.0`，同步锁文件；iOS 沿用 `1.4.0 / build 31` 未交付候选，交付包含新源码的 IPA 时须递增 build。

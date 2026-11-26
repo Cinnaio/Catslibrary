@@ -1,4 +1,5 @@
 import SwiftUI
+import ZhiZhouCore
 
 struct LibraryMessage: Decodable, Identifiable {
     let id: String

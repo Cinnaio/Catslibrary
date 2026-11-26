@@ -1,4 +1,5 @@
 import SwiftUI
+import ZhiZhouCore
 private struct MessageWatchedBook: Decodable, Identifiable {
     let novelId: String
     let title: String
