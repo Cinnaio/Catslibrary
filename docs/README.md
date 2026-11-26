@@ -19,6 +19,7 @@
 
 以下专题保留原路径，便于已有链接继续访问。带日期的方案、预览及验收文档记录当时状态，当前发布情况见[发布记录](releasing.md)。
 
+- [消息中心与推送](notifications-and-push.md)：账号消息、PWA 推送、追更订阅及本机阅读提醒
 - [账户与邮件安全](account-security.md)：角色、账户邮件与安全配置
 - [通行密钥](passkey-implementation-contract-2026-10-19.md)：Passkey 实现契约
 - [导入审核](book-import-review.md)与[冲突处理](import-conflict-resolution.md)：书籍导入流程

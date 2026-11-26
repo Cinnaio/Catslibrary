@@ -3,8 +3,8 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ tasks: vi.fn(), toast: vi.fn(), confirm: vi.fn() }))
-vi.mock('@/lib/api', () => ({ aiApi: { tasks: mocks.tasks }, newOperationId: () => 'operation' }))
+const mocks = vi.hoisted(() => ({ tasks: vi.fn(), task: vi.fn(), toast: vi.fn(), confirm: vi.fn() }))
+vi.mock('@/lib/api', () => ({ aiApi: { tasks: mocks.tasks, task: mocks.task }, newOperationId: () => 'operation' }))
 vi.mock('@/components/feedback', () => ({ useToast: () => ({ toast: mocks.toast }), useConfirm: () => ({ confirm: mocks.confirm }) }))
 vi.mock('./useAiConfigured', () => ({ useAiConfigured: () => true }))
 vi.mock('@/components/shared/SearchSelect', () => ({
@@ -69,4 +69,13 @@ it('原章节建议失败后返回原对话，不调用通用重试', async () =
   expect(screen.queryByRole('button', { name: '重试' })).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: '返回对话' }))
   expect(Object.fromEntries(new URLSearchParams(screen.getByTestId('route').textContent || ''))).toEqual({ sub: 'agent', novel: 'book', session: 'chapter-session' })
+})
+
+it('消息深链可打开不在当前页的任务详情', async () => {
+  mocks.tasks.mockResolvedValue({items:[],total:0})
+  mocks.task.mockResolvedValue({task:{...data('通知中的作品').items[0],id:'outside-page',error:'请求中断'}})
+  render(<MemoryRouter initialEntries={['/admin/tasks?view=ai&notificationTask=outside-page']}><AiTasksPanel /></MemoryRouter>)
+  expect(await screen.findByText('通知中的作品')).toBeVisible()
+  expect(screen.getByText('请求中断')).toBeVisible()
+  expect(mocks.task).toHaveBeenCalledWith('outside-page')
 })

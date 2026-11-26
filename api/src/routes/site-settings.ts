@@ -1,3 +1,5 @@
+import { pushAdminSettings, savePushSettings } from '../services/push-settings'
+import { AccountError } from '../services/account-security'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { createHash } from 'node:crypto'
@@ -45,6 +47,30 @@ adminSiteSettingsRoutes.use('*', (c, next) => bodyLimit({
   onError: c => c.json({ error: c.req.path.includes('/assets/') ? `图片请求过大，${BRANDING_IMAGE_SIZE_HINT}` : '站点设置请求过大' }, 413),
 })(c, next))
 adminSiteSettingsRoutes.use('*', async (c, next) => { c.header('Cache-Control', 'no-store'); await next() })
+adminSiteSettingsRoutes.get('/push', c => {
+  try { return c.json(pushAdminSettings()) }
+  catch (error) { return c.json({ error: error instanceof AccountError ? error.message : '推送配置读取失败' }, 503) }
+})
+adminSiteSettingsRoutes.put('/push', async c => {
+  const body = await c.req.json().catch(() => null)
+  let auditId = ''
+  try {
+    auditId = await startAdminOperationAudit(getDb(), {
+      operationId: newId('site-push'), scope: 'site-settings.push', actorUserId: c.get('user').id,
+      action: 'site-settings-push-save', targetCount: 1,
+      // Never include private material, even in an audit hash.
+      requestHash: requestHash({ revision: body?.revision, enabled: body?.enabled, keyAction: body?.keyAction }),
+    })
+    const result = await updateSiteSettings(async () => savePushSettings(body))
+    await finishAdminOperationAudit(getDb(), auditId, { status: 'completed', responseStatus: 200 })
+    return c.json(result)
+  } catch (error) {
+    const status = error instanceof AccountError ? error.status : 503
+    const message = error instanceof AccountError ? error.message : '推送配置保存未完成，请重新读取配置后重试'
+    if (auditId) await finishAdminOperationAudit(getDb(), auditId, { status: 'failed', responseStatus: status, error: message }).catch(() => {})
+    return c.json({ error: message }, status)
+  }
+})
 adminSiteSettingsRoutes.get('/reading-access', async c => c.json(await getReadingAccessSettings()))
 adminSiteSettingsRoutes.put('/reading-access', async c => {
   const input = parseReadingAccessSettings(await c.req.json().catch(() => null))

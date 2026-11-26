@@ -1,3 +1,4 @@
+import { notifyFollowupReaders } from './notification-followups'
 import { getPendingChapterCounts } from './novel-update-summary'
 import type { Db } from '../db/pool'
 import { all, first, withTx } from '../db/query'
@@ -237,6 +238,7 @@ export async function finishFollowup(db: Db, jobId: string) {
       next_check_at=CASE WHEN enabled THEN $8::bigint ELSE 0 END WHERE novel_id=$1`,
       [row.novel_id, result, message, added, now, empty, failures, nextCheck],
     )
+    await notifyFollowupReaders(q, row.novel_id, jobId, now)
   })
 }
 

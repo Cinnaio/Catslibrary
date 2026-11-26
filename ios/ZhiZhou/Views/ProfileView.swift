@@ -144,6 +144,7 @@ struct ProfileView: View {
     private func profilePaper(contentWidth: CGFloat, compactSpacing: Bool) -> some View {
         VStack(spacing: 0) {
             profileIdentity(compactSpacing: compactSpacing)
+            if appState.user != nil { MessageCenterEntry().padding(.horizontal, 24) }
             sectionPicker
                 .padding(.top, compactSpacing ? 12 : 16)
                 .padding(.bottom, compactSpacing ? 16 : 18)

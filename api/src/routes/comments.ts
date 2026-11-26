@@ -65,6 +65,7 @@ commentsRoutes.get('/', optionalUser(), async (c) => {
     [novelId],
   )
 
+  const focusId = cleanText(c.req.query('focusId'), 80)
   const order = sort === 'hot' ? 'c.like_count DESC, c.created_at DESC' : 'c.created_at DESC'
   const rows = await all<Record<string, unknown>>(
     db,
@@ -74,10 +75,10 @@ commentsRoutes.get('/', optionalUser(), async (c) => {
      FROM novel_comments c
      LEFT JOIN users u ON u.id = c.user_id
      LEFT JOIN novel_comment_likes l ON l.comment_id = c.id AND l.user_id = $2
-     WHERE c.novel_id = $3 AND c.parent_id IS NULL AND c.status = 'visible'
+     WHERE c.novel_id = $3 AND c.parent_id IS NULL AND c.status = 'visible' AND ($6='' OR c.id=$6)
      ORDER BY ${order}
      LIMIT $4 OFFSET $5`,
-    [userId, userId, novelId, limit, offset],
+    [userId, userId, novelId, limit, offset, focusId],
   )
   const comments = rows.map(rowToComment).filter((c) => c !== null)
   const ids = comments.map((c) => c.id)

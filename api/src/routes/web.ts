@@ -78,6 +78,7 @@ export function createWebRoutes(
 
   // API misses must remain API 404s, never an HTML fallback.
   routes.get('/api/*', (c) => c.notFound())
+  for (const path of ['/sw.js','/manifest.webmanifest']) routes.get(path,async (c,next)=>{ c.header('Cache-Control','no-cache'); await next() },serveStatic({root}),(c)=>c.notFound())
   routes.get('/assets/*', serveStatic({ root }))
   routes.get('/images/*', serveStatic({ root }))
   routes.get('/fonts/*', serveStatic({ root }), (c) => c.notFound())
@@ -154,7 +155,7 @@ export function createWebRoutes(
       }
     }
     if (new URL(c.req.url).search) indexable = false
-    if (!/^\/$|^\/novel\/[^/]+$|^\/read\/[^/]+\/[^/]+$|^\/bookshelf$|^\/profile$|^\/copyright$|^\/auth$|^\/install$|^\/(?:forgot-password|reset-password|verify-email)$|^\/admin(?:\/[^/]+)?$/.test(c.req.path)) status = 404
+    if (!/^\/$|^\/novel\/[^/]+$|^\/read\/[^/]+\/[^/]+$|^\/bookshelf$|^\/profile$|^\/messages$|^\/copyright$|^\/auth$|^\/install$|^\/(?:forgot-password|reset-password|verify-email)$|^\/admin(?:\/[^/]+)?$/.test(c.req.path)) status = 404
     const robots = indexable && status === 200 ? 'index, follow' : 'noindex, follow'
     const canonical = origin() && (c.req.path === '/' || novelMatch) ? `${origin()}${novelMatch ? `/novel/${encodeURIComponent(novelId)}` : '/'}` : ''
     template = template.replace(/<meta\s+name="(?:robots|description)"[^>]*>/g, '').replace(/<title>[^<]*<\/title>/, '')

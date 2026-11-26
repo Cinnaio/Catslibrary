@@ -6,7 +6,7 @@ import { BackupError } from './config'
 
 // 会话会在恢复时统一失效；迁移版本另行绑定，不比较其应用时间。
 // Search text is rebuildable derived data; a reader warming it must not invalidate restore approval.
-const excluded = new Set(['user_sessions', 'schema_migrations', 'account_email_tokens', 'chapter_search_text'])
+const excluded = new Set(['user_sessions', 'schema_migrations', 'account_email_tokens', 'chapter_search_text', 'notification_subscriptions', 'notification_deliveries'])
 // 这些运行记录仍会回到备份状态，但查看报告/提交恢复产生的审计不应让业务影响过期。
 export const volatileTables = new Set([
   'site_visits',

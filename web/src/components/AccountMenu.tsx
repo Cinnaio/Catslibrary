@@ -88,6 +88,7 @@ export function AccountMenu({ variant = 'site', className, wrapperClassName, onN
               <span>个人中心</span>
             </Link>
           </DropdownMenuItem>
+          <DropdownMenuItem asChild className="account-menu__item"><Link to="/messages" onClick={onNavigate}>消息中心</Link></DropdownMenuItem>
           <DropdownMenuItem variant="destructive" className="account-menu__item account-menu__item--danger" onSelect={() => void handleLogout()}>
             <LogOut aria-hidden="true" />
             <span>退出登录</span>

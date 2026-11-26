@@ -9,7 +9,7 @@ import type { AdminStatusTone } from '@/lib/admin-status'
 import { DialogFrame } from "@/components/shared/DialogFrame"
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { startPolling } from '@/lib/polling'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { aiApi, newOperationId, type AiTaskInfo } from '@/lib/api'
 import { parsePromptView } from '@/lib/prompt-view'
 import { useToast, useConfirm } from '@/components/feedback'
@@ -66,6 +66,9 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
   const { toast } = useToast()
   const { confirm } = useConfirm()
   const navigate = useNavigate()
+  const [notificationParams] = useSearchParams()
+  const notificationTaskId = notificationParams.get('notificationTask') || ''
+  const [notificationTask, setNotificationTask] = useState<AiTask | null>(null)
   const [detailsId, setDetailsId] = useState<string | null>(null)
   const [tasks, setTasks] = useState<AiTask[]>([])
   const [loading, setLoading] = useState(true)
@@ -221,7 +224,15 @@ export default function AiTasksPanel(props: { onViewBatch?: (batchId: string) =>
     }
   }
 
-  const detailTask = tasks.find((task) => task.id === detailsId)
+  useEffect(() => {
+    let active = true
+    setNotificationTask(null)
+    if (notificationTaskId) void aiApi.task(notificationTaskId).then(({ task }) => {
+      if (active) { setNotificationTask(task); setDetailsId(task.id) }
+    }).catch(() => { if (active) setError('此任务已删除或当前账号无权查看') })
+    return () => { active = false }
+  }, [notificationTaskId])
+  const detailTask = tasks.find((task) => task.id === detailsId) || (notificationTask?.id === detailsId ? notificationTask : undefined)
   const failedCount = statusCounts.failed ?? 0
   function renderRetry(task: AiTask) {
     if (['novel_analysis', 'novel_analysis_review'].includes(task.kind)) {

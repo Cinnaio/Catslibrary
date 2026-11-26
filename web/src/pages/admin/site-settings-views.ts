@@ -1,4 +1,4 @@
-export const SITE_SETTINGS_VIEWS = ['branding', 'content-policy', 'security', 'passkey', 'mail', 'config', 'params'] as const
+export const SITE_SETTINGS_VIEWS = ['branding', 'content-policy', 'security', 'passkey', 'push', 'mail', 'config', 'params'] as const
 export type SiteSettingsView = (typeof SITE_SETTINGS_VIEWS)[number]
 
 /** 旧 AI 设置地址继续使用同一个站点设置外壳，不打断导航与表单草稿。 */

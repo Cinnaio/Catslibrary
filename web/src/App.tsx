@@ -21,6 +21,7 @@ const Novel = lazy(() => import('./pages/Novel'))
 const Reader = lazy(() => import('./pages/Reader'))
 const Bookshelf = lazy(() => import('./pages/Bookshelf'))
 const Edge = lazy(() => import('./pages/Edge'))
+const Messages = lazy(() => import('./pages/Messages'))
 const Profile = lazy(() => import('./pages/Profile'))
 const Copyright = lazy(() => import('./pages/Copyright'))
 const Auth = lazy(() => import('./pages/Auth'))
@@ -52,6 +53,7 @@ export default function App() {
             <Route path="/tools/tempo" element={<Navigate to="/tools/edge" replace />} />
             <Route path="/tools/edge" element={<Edge />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/messages" element={<Messages />} />
             <Route path="/copyright" element={<Copyright />} />
           </Route>
           <Route path="/read/:novelId/:chapterId" element={<Reader />} />

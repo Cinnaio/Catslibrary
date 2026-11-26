@@ -1,3 +1,4 @@
+import { runNotificationTick } from './services/notification-push'
 import { assertSuperAdministrator } from './services/account-security'
 import { pruneImportSnapshots } from './services/book-import-state'
 import { runFollowupTick } from './services/novel-followup'
@@ -117,6 +118,15 @@ async function start() {
     }).catch(()=>console.error('[mail] worker unavailable')).finally(()=>{mailRunning=false})
   },5000)
   mailTimer.unref()
+  let notificationsRunning=false
+  const notificationTimer=setInterval(()=>{
+    if(notificationsRunning || !loadConfig().configured) return
+    notificationsRunning=true
+    void withBusinessActivity(getDb(),()=>runNotificationTick(getDb()))
+      .catch(()=>console.error('[notifications] delivery worker unavailable'))
+      .finally(()=>{notificationsRunning=false})
+  },10000)
+  notificationTimer.unref()
   let aiTaskMaintenanceRunning = false
   const checkAiTasks = async () => {
     if (aiTaskMaintenanceRunning || !loadConfig().configured) return
@@ -216,6 +226,7 @@ async function start() {
 
   function shutdown() {
     clearInterval(mailTimer)
+    clearInterval(notificationTimer)
     stopBackupCommands()
     clearInterval(importPruneTimer)
     clearInterval(followupTimer)

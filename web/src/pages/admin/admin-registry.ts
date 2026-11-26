@@ -174,6 +174,7 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
           { id: 'site-settings-branding', label: '站点信息', to: `${adminTabPath('site-settings')}?view=branding` },
           { id: 'content-policy', label: '内容安全', to: `${adminTabPath('site-settings')}?view=content-policy` },
           { id: 'site-settings-security', label: '安全验证', to: `${adminTabPath('site-settings')}?view=security` },
+          { id: 'site-settings-push', label: '消息推送', to: `${adminTabPath('site-settings')}?view=push` },
           { id: 'site-settings-passkey', label: 'Passkey', to: `${adminTabPath('site-settings')}?view=passkey` },
           { id: 'ai-config', label: '模型与服务', to: `${adminTabPath('ai')}?sub=config` },
           { id: 'ai-params', label: '创作参数', to: `${adminTabPath('ai')}?sub=params` },

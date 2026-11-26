@@ -56,6 +56,8 @@ describe('public SEO responses', () => {
     '/read/general/chapter',
     '/admin',
     '/auth',
+    '/messages',
+    '/messages?message=test',
     '/forgot-password',
     '/reset-password',
     '/verify-email',

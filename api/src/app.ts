@@ -1,3 +1,4 @@
+import { notificationRoutes } from './routes/notifications'
 import { accountEmailRoutes } from './routes/account-email'
 import { securityAdminRoutes, securityPublicRoutes } from './routes/security'
 import { SecurityError } from './services/security-policy'
@@ -102,6 +103,7 @@ app.route('/api/progress', progressRoutes)
 app.route('/api/cover', coverRoutes)
 app.route('/api/avatar', avatarRoutes)
 app.route('/api/bookshelf', bookshelfRoutes)
+app.route('/api/notifications', notificationRoutes)
 app.route('/api/bookmarks', bookmarksRoutes)
 app.route('/api/thoughts', thoughtsRoutes)
 app.route('/api/ratings', ratingsRoutes)

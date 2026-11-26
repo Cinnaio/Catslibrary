@@ -1,3 +1,4 @@
+import MessageCenterLink from './MessageCenterLink'
 import { MotionPresence, MotionView } from '@/components/ui/motion'
 import { Spinner } from '@/components/ui/spinner'
 import { roleLabel } from '@shared/roles'
@@ -345,6 +346,7 @@ export default function Profile() {
         </div>
 
         <div className="profile-settings-sheet">
+          <MessageCenterLink />
           <nav className="profile-tabs" aria-label="个人中心设置">
             {[
               { id: 'details', label: '个人资料' },

@@ -1,3 +1,4 @@
+import { clearBrowserPush } from '../lib/notifications'
 /**
  * 会话上下文 —— 登录态管理（由 theme.js hydrateAccountAvatar + 各页登录逻辑收敛）。
  * 暴露 user / loading / login / register / logout / refresh。
@@ -50,7 +51,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (event.key === 'user_session_marker' || event.key === 'user_session_token' || event.key === null) { authApi.invalidate(); void refresh() }
     }
     window.addEventListener('storage', onStorage)
-    const onExpired = () => { setUser(null); setLoading(false) }
+    const onExpired = () => { setUser(null); setLoading(false); void clearBrowserPush().catch(() => undefined) }
     window.addEventListener('zhizhou-session-expired', onExpired)
     return () => { window.removeEventListener('storage', onStorage); window.removeEventListener('zhizhou-session-expired', onExpired) }
   }, [refresh])
@@ -72,6 +73,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     const seq = ++revision.current
     await authApi.logout()
+    await clearBrowserPush().catch(() => undefined)
     if (seq === revision.current) setUser(null)
   }, [])
 

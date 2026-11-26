@@ -145,6 +145,12 @@ export default function Novel() {
   const { inShelf, toggle } = useBookshelf(id)
 
   // 评论
+  const commentFocusId = new URLSearchParams(routeSearch).get('comment') || ''
+  const loadedNovelId = novel?.id
+  const commentScope = `${id}:${commentFocusId}:${mode}:${user?.id}`
+  const [commentFocus, setCommentFocus] = useState<{scope:string;comment:Comment | null;error:string} | null>(null)
+  const focusedComment = commentFocus?.scope === commentScope ? commentFocus.comment : null
+  const commentFocusError = commentFocus?.scope === commentScope ? commentFocus.error : ''
   const [comments, setComments] = useState<Comment[]>([])
   const [commentsTotal, setCommentsTotal] = useState(0)
   const [commentsOffset, setCommentsOffset] = useState(0)
@@ -318,6 +324,18 @@ export default function Novel() {
       toast((err as Error).message || '撤销失败', 'error')
     }
   }
+
+  useEffect(() => {
+    let current = true
+    if (commentFocusId && loadedNovelId === id && !blocked) void commentsApi.list({ novelId: id, focusId: commentFocusId }).then(result => {
+      if (!current) return
+      setCommentFocus({scope:commentScope,comment:result.comments[0] || null,error:result.comments.length?'':'这条评论已不可用'})
+    }).catch(() => { if(current) setCommentFocus({scope:commentScope,comment:null,error:'评论读取失败，请刷新后重试'}) })
+    return () => { current = false }
+  }, [commentFocusId, id, loadedNovelId, blocked, commentScope])
+  useEffect(() => {
+    if (focusedComment) document.getElementById('notification-comment')?.scrollIntoView({ block: 'center' })
+  }, [focusedComment])
 
   // ---------- 评论 ----------
   const loadComments = useCallback(async (nid: string, reset: boolean, activeSort: string) => {
@@ -702,6 +720,9 @@ export default function Novel() {
               )}
             </div>
 
+            {commentFocusId && <div id="notification-comment" tabIndex={-1} aria-label="通知中的评论">
+              {focusedComment ? <CommentCard comment={focusedComment} onLike={likeComment} onReport={reportComment} onDelete={deleteComment} onReply={(text, parentId) => void submitComment(text, false, parentId)} /> : commentFocusError && <p role="alert">{commentFocusError}</p>}
+            </div>}
             {/* 评论输入 */}
             {user ? (
               <div className="comment-composer">

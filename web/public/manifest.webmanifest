@@ -1,0 +1,12 @@
+{
+  "id": "/",
+  "name": "Cat’s Library",
+  "short_name": "书房",
+  "lang": "zh-CN",
+  "start_url": "/messages",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#faf9f6",
+  "theme_color": "#faf9f6",
+  "icons": [{ "src": "/images/logo-circle.png", "sizes": "392x392", "type": "image/png", "purpose": "any" }]
+}
