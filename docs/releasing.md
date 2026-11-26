@@ -1,5 +1,14 @@
 # 发布与版本管理
 
+## iOS 1.4.1 / build 33：iPad 阅读导航与正文搜索修正（2026-11-26，源码候选）
+
+- 依据 iPad 作品详情截图反馈，详情页面统一声明隐藏底部标签；保留顶部返回、正文搜索等工具与底部阅读、收藏操作。阅读器返回详情继续隐藏，发现和书架根页沿用各自的显示声明恢复主导航。
+- 阅读页取消 iPad 专用的整条不透明导航背景，并在页面层关闭顶部滚动边缘遮罩；返回、章节提示和工具控件保留自身玻璃材质。顶部导航和状态栏继续占位，维持现有正文尺寸及阅读控制显隐行为。
+- 用户进一步反馈打开书内正文搜索退回首页。源码中搜索面板在阅读器内嵌套 `NavigationStack`、立即激活导航栏搜索，并读取外层 `dismiss`；本轮隔离这些导航耦合点，改用共享 `ReadingSpaceSearchField` 和明确的关闭回调。保留宽窗口侧栏、窄窗口弹层及搜索快照；详情页搜索结果统一通过弹层 `onDismiss` 后的固定阅读目标进入，避免同时关闭与推入。无设备日志和现场复现，不能把这些风险点认定为已证实的唯一根因。
+- 更新既有 iPad 导航回归的详情显隐预期；新增横竖屏搜索打开与焦点激活后持续显示、关闭留在原章节、命中定位、恢复结果及原路返回的 UI 用例。模拟器测试新增 `/api/chapters/search` 数据，避免搜索请求误入章节详情的强制解包分支；此模拟接口只用于 DEBUG 模拟器审查，不代表真实设备闪退原因。同步更新 `DESIGN.md`，历史构建记录保留。
+- `ios/project.yml` 中主 App 与 Widget 的 `MARKETING_VERSION` 从 `1.4.0` 更新为 `1.4.1`，`CURRENT_PROJECT_VERSION` 从 32 更新为 33，为下一次修复交付准备源码候选。API、Web 与数据库无变更。
+- 五份相关 Swift 文件通过 tree-sitter 语法解析，`ios/scripts/navigation-smoke.ps1`、`ios/scripts/reader-smoke.ps1` 与 `git diff --check` 通过。源码为包含本节的本地提交，基于 `86a9a405`；Windows 环境未执行 Xcode 类型检查、构建、XCTest 或 iPad 真机验收，新增和更新的 UI 回归尚未运行；未推送、触发 CI 或生成新 IPA。build 32 的历史构建成功不代表本次修改已经构建或安装。
+
 ## iOS 1.4.0 / build 32：消息与小组件编译修复（2026-11-26）
 
 - 已通过 GitHub API 核对本次修复前的失败 iOS 工作流：第 73 次运行 `45760655500`，源码 `c9a1ad25ae6e1c110654a18e9b1929d0878386b8`，于北京时间 2026-11-26 13:17:47 开始，13:20:59 完成并失败。`Core unit tests` 成功，`Build unsigned IPA` 中 `Build (unsigned)` 退出 65，产物检查、打包及上传均未执行。上一成功运行是第 72 次，源码 `1e99e9ed`。
@@ -1867,7 +1876,7 @@ API/Web 新增 SMTP 管理表单与即时生效配置，分别从已部署的 `0
 
 | 组件 | 唯一版本来源 | 当前源码版本 | 同步要求 |
 | --- | --- | --- | --- |
-| iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `1.4.0 / 31` | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
+| iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `1.4.1 / 33` | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
 | API | `api/package.json` | `1.9.1` | 同步 `package-lock.json` 的 `packages.api.version` |
 | Web | `web/package.json` | `1.10.1` | 同步锁文件 `packages.web.version` |
 | 仓库根包 | `package.json` | `1.0.0` | 修改时同步锁文件顶层及 `packages[""].version` |

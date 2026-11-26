@@ -7,7 +7,6 @@ struct NovelDetailView: View {
     var showsCloseButton = false
     @Environment(AppState.self) private var appState
     @Environment(OfflineReadingStore.self) private var offlineStore
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .caption) private var chapterNumberWidth: CGFloat = 24
@@ -35,7 +34,6 @@ struct NovelDetailView: View {
     @State private var showKeepsakes = false
     @State private var showBodySearch = false
     @State private var bodySearchSnapshot: BookSearchSnapshot?
-    @State private var searchLaunch: BookSearchLaunch?
     // 阅读目标属于详情页面，不依附会刷新、复用或离屏的按钮和章节行。
     @State private var readerRequest: DetailReaderRequest?
     @State private var pendingReaderRequest: DetailReaderRequest?
@@ -108,22 +106,15 @@ struct NovelDetailView: View {
             ReadingKeepsakesView(novelId: currentNovel.id)
         }
         .sheet(isPresented: $showBodySearch, onDismiss: presentPendingReader) {
-            BookSearchView(novel: currentNovel, state: $bodySearchSnapshot) { hit, query in
-                if ReadingSpaceWindowLayout.usesIPadLayout {
-                    pendingReaderRequest = DetailReaderRequest(
-                        launch: ReaderLaunch(novel: currentNovel, chapterOrder: hit.chapterOrder),
-                        searchQuery: query, initialChapterID: hit.chapterId,
-                        searchSnapshot: bodySearchSnapshot
-                    )
-                    showBodySearch = false
-                } else {
-                    searchLaunch = BookSearchLaunch(hit: hit, query: query)
-                }
+            BookSearchView(novel: currentNovel, state: $bodySearchSnapshot,
+                           onClose: { showBodySearch = false }) { hit, query in
+                // 搜索面板只关闭一次，关闭动画完成后再进入固定的阅读目的地。
+                pendingReaderRequest = DetailReaderRequest(
+                    launch: ReaderLaunch(novel: currentNovel, chapterOrder: hit.chapterOrder),
+                    searchQuery: query, initialChapterID: hit.chapterId,
+                    searchSnapshot: bodySearchSnapshot
+                )
             }
-        }
-        .navigationDestination(item: $searchLaunch) { launch in
-            ReaderView(novel: currentNovel, chapterOrder: launch.hit.chapterOrder, searchQuery: launch.query,
-                       initialChapterID: launch.hit.chapterId, searchSnapshot: bodySearchSnapshot)
         }
         .sheet(isPresented: $showChapterSearch, onDismiss: presentPendingReader) {
             ChapterListView(
@@ -181,8 +172,8 @@ struct NovelDetailView: View {
         }
         .sensoryFeedback(.selection, trigger: interactionFeedback)
         .readerContentAccess(isRestricted: currentNovel.isRestricted)
-        // iPad 作品详情保留主导航；阅读器自行隐藏标签，返回详情后即可继续切换。
-        .toolbar(ReadingSpaceWindowLayout.usesIPadLayout || horizontalSizeClass == .regular ? .visible : .hidden, for: .tabBar)
+        // 作品详情只保留阅读操作；返回发现或书架根页后由根页恢复主导航。
+        .toolbar(.hidden, for: .tabBar)
         .toolbar(ReadingSpaceWindowLayout.usesIPadLayout ? .visible : .automatic, for: .navigationBar)
         // 注册在完整页面外层，异步详情更新或内容门禁切换都不会移除目的地注册。
         // 同时应用最新作品分级，详情异步补全不能绕过门禁；返回时由系统清除请求。

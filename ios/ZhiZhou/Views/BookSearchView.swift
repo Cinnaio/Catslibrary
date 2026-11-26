@@ -10,11 +10,6 @@ struct BookSearchHit: Decodable, Identifiable, Hashable {
     var id: String { chapterId }
 }
 
-struct BookSearchLaunch: Hashable {
-    let hit: BookSearchHit
-    let query: String
-}
-
 private struct BookSearchResponse: Decodable {
     let novelId: String
     let query: String
@@ -82,11 +77,9 @@ struct BookSearchView: View {
     let onSelect: (BookSearchHit, String) -> Void
     @Binding private var snapshot: BookSearchSnapshot?
     @Environment(AppState.self) private var appState
-    private let onClose: (() -> Void)?
-    @Environment(\.dismiss) private var dismiss
+    private let onClose: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @FocusState private var queryFocused: Bool
-    @State private var searchPresented: Bool
+    @State private var queryFocused = false
     @State private var query: String
     @State private var searched: String
     @State private var items: [BookSearchHit]
@@ -104,14 +97,13 @@ struct BookSearchView: View {
     private static let topAnchorID = "book-search-top"
 
     init(novel: Novel, state: Binding<BookSearchSnapshot?>, initialQuery: String = "",
-         onClose: (() -> Void)? = nil, onSelect: @escaping (BookSearchHit, String) -> Void) {
+         onClose: @escaping () -> Void, onSelect: @escaping (BookSearchHit, String) -> Void) {
         self.novel = novel
         self.onClose = onClose
         self.onSelect = onSelect
         _snapshot = state
         let context = BookSearchScope.current(novelID: novel.id)
         let saved = state.wrappedValue.flatMap { $0.scope == context ? $0 : nil }
-        _searchPresented = State(initialValue: saved?.searched.isEmpty ?? true)
         _scope = State(initialValue: context)
         _query = State(initialValue: saved?.query ?? (state.wrappedValue == nil ? initialQuery : ""))
         _searched = State(initialValue: saved?.searched ?? "")
@@ -131,12 +123,14 @@ struct BookSearchView: View {
     private var searchAnimation: Animation? { reduceMotion ? nil : AppMotion.micro }
 
     private func closePanel() {
-        if let onClose { onClose() }
-        else { dismiss() }
+        queryFocused = false
+        onClose()
     }
 
     var body: some View {
-        NavigationStack {
+        // 搜索只管理自己的面板与输入框，不在阅读导航中嵌套 NavigationStack 或激活导航栏搜索。
+        VStack(spacing: 0) {
+            searchHeader
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: trimmedQuery.isEmpty ? 12 : 24) {
                     searchContext.id(Self.topAnchorID)
@@ -153,31 +147,50 @@ struct BookSearchView: View {
             }
             .scrollPosition(id: $visibleResultID, anchor: .top)
             .scrollDismissesKeyboard(.interactively)
+            .scrollEdgeEffectHidden(true, for: .top)
             .scrollEdgeEffectHidden(true, for: .bottom)
-            .background(ReadingSpace.profilePaper)
-            .readingSpaceNavigation()
-            .searchable(
-                text: Binding(get: { scope == currentScope ? query : "" }, set: updateQuery),
-                isPresented: $searchPresented,
-                placement: .navigationBarDrawer(displayMode: .always),
-                prompt: "人物、句子或关键词"
-            )
-            .searchFocused($queryFocused)
-            .onSubmit(of: .search) { search() }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭", systemImage: "xmark") { closePanel() }
-                        .labelStyle(.iconOnly)
-                }
-            }
-            .task { if searched.isEmpty { queryFocused = true } }
-            .onChange(of: appState.user?.id) { _, _ in resetScope() }
-            .onChange(of: currentScope) { _, _ in resetScope() }
-            .onDisappear { pauseSearch() }
         }
         .background(ReadingSpace.profilePaper)
         .tint(AppTheme.primary)
+        .onChange(of: appState.user?.id) { _, _ in resetScope() }
+        .onChange(of: currentScope) { _, _ in resetScope() }
+        .onDisappear { pauseSearch() }
+        .accessibilityIdentifier("bookSearch.panel")
         .readerContentAccess(isRestricted: novel.isRestricted)
+    }
+
+    private var searchHeader: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Text("书内正文搜索")
+                    .font(serifFont(.title3, .medium))
+                    .foregroundStyle(ReadingSpace.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: 0)
+                Button(action: closePanel) {
+                    Image(systemName: "xmark")
+                        .frame(width: AppLayout.minimumTouchTarget, height: AppLayout.minimumTouchTarget)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .appGlassEffect(.regular, fallback: ReadingSpace.profilePaper, in: Circle())
+                .accessibilityLabel("关闭")
+                .accessibilityIdentifier("bookSearch.close")
+            }
+            ReadingSpaceSearchField(
+                text: Binding(get: { scope == currentScope ? query : "" }, set: updateQuery),
+                isFocused: $queryFocused,
+                prompt: "人物、句子或关键词",
+                accessibilityID: "bookSearch.query",
+                onSubmit: { search() }
+            )
+        }
+        .padding(.horizontal, 22)
+        .padding(.top, 16)
+        .padding(.bottom, 12)
+        .frame(maxWidth: 760)
+        .frame(maxWidth: .infinity)
     }
 
     private var searchContext: some View {

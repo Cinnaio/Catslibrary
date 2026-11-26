@@ -247,6 +247,22 @@ private final class VisualAuditProtocol: URLProtocol {
             body = ["novel": Self.json(VisualAudit.books.first { path.hasSuffix($0.id) } ?? VisualAudit.books[0])]
         case ("GET", "/api/chapters"):
             body = ["chapters": VisualAudit.chapters(for: queryValue("novelId") ?? VisualAudit.books[0].id).map(Self.json)]
+        case ("GET", "/api/chapters/search"):
+            let novelID = queryValue("novelId") ?? ""
+            let query = queryValue("q") ?? ""
+            if VisualAudit.books.contains(where: { $0.id == novelID }) {
+                let chapters = VisualAudit.chapters(for: novelID)
+                let matches = BookTextSearch.ranges(in: VisualAudit.chapterContent, query: query)
+                let items: [[String: Any]] = matches.isEmpty ? [] : chapters.map { chapter in
+                    ["chapterId": chapter.id, "chapterTitle": chapter.title, "chapterOrder": chapter.order,
+                     "snippet": String(VisualAudit.chapterContent.prefix(160)), "matchCount": matches.count]
+                }
+                body = ["novelId": novelID, "query": query, "items": items,
+                        "scanned": chapters.count, "nextCursor": NSNull()]
+            } else {
+                status = 404
+                body = ["error": "作品不存在"]
+            }
         case ("GET", let path) where path.hasSuffix("/illustrations"):
             let chapterID = path.components(separatedBy: "/")[3]
             // Match real decoded chapter IDs; a %255F/%252D URL must fail instead of being hidden by the fixture.

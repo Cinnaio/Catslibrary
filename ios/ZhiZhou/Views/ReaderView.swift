@@ -296,9 +296,9 @@ struct ReaderView: View {
         .background(paper.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
         .navigationTitle(chapter?.title ?? "阅读")
-        // 顶部系统区域保持固定占位；只切换控制内容，避免正文在收起控制时重新布局。
-        .toolbarBackground(paper, for: .navigationBar)
-        .toolbarBackground(ReadingSpaceWindowLayout.usesIPadLayout ? .visible : .hidden, for: .navigationBar)
+        // 顶部保持固定占位，隐藏整条背景与滚动遮罩；玻璃仅用于控件，收起控制时正文不重排。
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .scrollEdgeEffectHidden(true, for: .top)
         .toolbar(.visible, for: .navigationBar)
         .toolbar(.hidden, for: .bottomBar)
         .toolbar(.hidden, for: .tabBar)

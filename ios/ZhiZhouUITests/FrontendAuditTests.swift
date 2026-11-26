@@ -392,19 +392,20 @@ final class FrontendAuditTests: XCTestCase {
             selectTab("我的", app: app)
             selectTab("发现", app: app)
             tap(app.buttons["catalog.audit-book-1"])
-            XCTAssertTrue(app.tabBars.buttons["书架"].isHittable, "作品详情页保留底部主导航")
+            XCTAssertFalse(app.tabBars.firstMatch.isHittable, "作品详情页隐藏底部主导航")
             let entry = app.buttons[identifier]
             reveal(entry, app: app)
             tap(entry)
             assertReaderStaysOpenAndReturnToDetail(app)
-            selectTab("书架", app: app)
-            selectTab("发现", app: app)
-            XCTAssertTrue(app.buttons["detail.read"].waitForExistence(timeout: 10), "切回发现保留原作品详情")
             tap(app.navigationBars.buttons.firstMatch)
+            XCTAssertTrue(app.buttons["catalog.audit-book-1"].waitForExistence(timeout: 10))
             let discoverTab = app.tabBars.buttons["发现"]
             XCTAssertTrue(discoverTab.waitForExistence(timeout: 10))
             XCTAssertTrue(discoverTab.isHittable, "返回首页后底部标签不能继续隐藏")
             XCTAssertTrue(app.navigationBars.firstMatch.isHittable, "返回发现页后顶部导航必须恢复")
+            selectTab("书架", app: app)
+            selectTab("发现", app: app)
+            XCTAssertTrue(app.buttons["catalog.audit-book-1"].waitForExistence(timeout: 10))
         }
     }
 
@@ -433,6 +434,72 @@ final class FrontendAuditTests: XCTestCase {
         search.typeText("信纸\n")
         tap(app.buttons["bookSearch.hit.audit-book-1-chapter-1"])
         assertReaderStaysOpenAndReturnToDetail(app)
+    }
+
+    @MainActor
+    func testIPadReaderBodySearchOpenCloseAndResultsKeepNavigation() throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "覆盖 iPad 正文搜索导航稳定性")
+        // 普通横屏覆盖内嵌工具；竖屏大字号确保覆盖弹层，不依赖具体 iPad 的屏幕尺寸。
+        defer { XCUIDevice.shared.orientation = .portrait }
+        for orientation in [UIDeviceOrientation.landscapeLeft, .portrait] {
+            XCUIDevice.shared.orientation = orientation
+            let app = launch(largeText: orientation == .portrait)
+            tap(app.buttons["catalog.audit-book-1"])
+            tap(app.buttons["detail.read"])
+            let contents = app.buttons["reader.toolbar.contents"]
+            XCTAssertTrue(contents.waitForExistence(timeout: 15))
+            let progress = app.descendants(matching: .any).matching(identifier: "reader.progress").firstMatch
+            XCTAssertTrue(progress.waitForExistence(timeout: 10))
+            let originalChapter = progress.label.components(separatedBy: "，").first
+            func assertSearchClosed() {
+                let closed = XCTNSPredicateExpectation(
+                    predicate: NSPredicate(format: "exists == false"), object: app.searchFields["bookSearch.query"]
+                )
+                XCTAssertEqual(XCTWaiter.wait(for: [closed], timeout: 10), .completed)
+                let readerReady = XCTNSPredicateExpectation(
+                    predicate: NSPredicate(format: "hittable == true"), object: contents
+                )
+                XCTAssertEqual(XCTWaiter.wait(for: [readerReady], timeout: 10), .completed)
+            }
+
+            tap(app.buttons["reader.toolbar.more"])
+            tap(app.buttons["书内正文搜索"])
+            let search = app.searchFields["bookSearch.query"]
+            tap(search)
+            // 必须持续留在搜索面板，包含输入框激活、键盘出现后的阶段。
+            let disappeared = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: search)
+            disappeared.isInverted = true
+            XCTAssertEqual(XCTWaiter.wait(for: [disappeared], timeout: 2), .completed)
+            XCTAssertFalse(app.buttons["catalog.audit-book-1"].isHittable, "打开正文搜索不能退回首页")
+            tap(app.buttons["bookSearch.close"])
+            assertSearchClosed()
+            XCTAssertEqual(progress.label.components(separatedBy: "，").first, originalChapter)
+
+            tap(app.buttons["reader.toolbar.more"])
+            tap(app.buttons["书内正文搜索"])
+            tap(search)
+            search.typeText("信纸\n")
+            let hit = app.buttons["bookSearch.hit.audit-book-1-chapter-1"]
+            tap(hit)
+            assertSearchClosed()
+            let selectedChapter = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "label BEGINSWITH %@", "第 1 /"), object: progress
+            )
+            XCTAssertEqual(XCTWaiter.wait(for: [selectedChapter], timeout: 10), .completed)
+
+            tap(app.buttons["reader.toolbar.more"])
+            tap(app.buttons["返回搜索结果"])
+            XCTAssertTrue(search.waitForExistence(timeout: 10))
+            XCTAssertEqual(search.value as? String, "信纸", "重新打开保留关键词")
+            XCTAssertTrue(hit.waitForExistence(timeout: 10), "重新打开保留已加载结果")
+            tap(app.buttons["bookSearch.close"])
+            assertSearchClosed()
+            tap(app.navigationBars.buttons.firstMatch)
+            XCTAssertTrue(app.buttons["detail.read"].waitForExistence(timeout: 10), "仍能沿原路径返回作品详情")
+            tap(app.navigationBars.buttons.firstMatch)
+            XCTAssertTrue(app.buttons["catalog.audit-book-1"].waitForExistence(timeout: 10))
+            app.terminate()
+        }
     }
 
     @MainActor
@@ -467,9 +534,7 @@ final class FrontendAuditTests: XCTestCase {
         tap(app.navigationBars.buttons.firstMatch, file: file, line: line)
         XCTAssertTrue(app.buttons["detail.read"].waitForExistence(timeout: 10), file: file, line: line)
         XCTAssertFalse(contents.exists, file: file, line: line)
-        let shelfTab = app.tabBars.buttons["书架"]
-        XCTAssertTrue(shelfTab.waitForExistence(timeout: 10), file: file, line: line)
-        XCTAssertTrue(shelfTab.isHittable, "回到作品详情就应恢复底部标签，无需再返回首页", file: file, line: line)
+        XCTAssertFalse(app.tabBars.firstMatch.isHittable, "返回作品详情仍隐藏底部主导航", file: file, line: line)
         // 只看到作品正文并不够，必须能使用返回后的导航栏。
         tap(app.buttons["正文搜索"], file: file, line: line)
         XCTAssertTrue(app.searchFields.firstMatch.waitForExistence(timeout: 10), file: file, line: line)
