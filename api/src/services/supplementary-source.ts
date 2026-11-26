@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
-import type { SupplementaryBinding, SupplementaryFile, SupplementaryOverview, SupplementarySource } from '@shared/supplementary-source'
+import type { SupplementaryBinding, SupplementaryFile, SupplementaryOverview, SupplementarySource, SupplementaryUpdateMode, SupplementaryUpdateResult } from '@shared/supplementary-source'
 import { compareSupplementaryVersions } from '@shared/supplementary-source'
 import type { Db } from '../db/pool'
-import { all, first } from '../db/query'
+import { all, first, withTx } from '../db/query'
 import { identityKey, normalizeLanzouFolderUrl, scanLanzouFolder, LanzouError } from './lanzou'
 
 const STALE_VERSIONS_PER_BOOK = 2
@@ -52,6 +52,13 @@ interface BindingRow {
   alias_title: string
   alias_author: string
   novel_title: string
+  update_mode: SupplementaryUpdateMode
+  update_lease_until: number
+  update_result: (SupplementaryUpdateResult & { fileVersion?: string }) | null
+  import_status: string | null
+  import_expires_at: number | null
+  import_added_count: number | null
+  import_rolled_back_at: number | null
 }
 export function sourceFiles(source: Pick<SourceRow, 'files_json'>): SupplementaryFile[] {
   try {
@@ -79,13 +86,32 @@ function publicSource(s: SourceRow): SupplementarySource {
 export function bindingCandidates(files: SupplementaryFile[], title: string, author: string): SupplementaryFile[] {
   return files
     .filter((f) => identityKey(f.title) === identityKey(title) && identityKey(f.author) === identityKey(author))
-    .sort((a, b) => b.folder.localeCompare(a.folder, 'zh-CN', { numeric: true }) || (b.revision ?? -1) - (a.revision ?? -1) || a.key.localeCompare(b.key))
+    .sort(compareSupplementaryVersions)
 }
+
+function publicUpdateResult(binding: BindingRow): SupplementaryUpdateResult | null {
+  if (!binding.update_result) return null
+  const { fileVersion: _fileVersion, ...result } = binding.update_result
+  if (!result.runId) return result
+  if (Number(binding.import_rolled_back_at) > 0) return { ...result, status: 'rolled-back', message: undefined, addedCount: undefined, runId: undefined }
+  if (binding.import_status === 'applied' || binding.import_status === 'partial') {
+    const addedCount = Number(binding.import_added_count) || 0
+    return { ...result, status: addedCount ? 'added' : 'unchanged', message: undefined, addedCount, runId: undefined }
+  }
+  if (binding.import_status !== 'preview' || Number(binding.import_expires_at) <= Date.now()) {
+    return { ...result, runId: undefined, ...(result.status === 'review' ? { message: '这份预览已结束或过期，可以重新检查目录或从候选版本打开。' } : {}) }
+  }
+  return result
+}
+
 export async function supplementaryOverview(db: Db): Promise<SupplementaryOverview> {
   const sources = await all<SourceRow>(db, 'SELECT * FROM supplementary_sources ORDER BY name,id')
   const bindings = await all<BindingRow>(
     db,
-    'SELECT b.*,n.title AS novel_title FROM supplementary_bindings b JOIN novels n ON n.id=b.novel_id ORDER BY n.title,b.id',
+    `SELECT b.*,n.title AS novel_title,r.status AS import_status,r.source_expires_at AS import_expires_at,r.rolled_back_at AS import_rolled_back_at,
+       (r.history_summary::jsonb->>'created')::integer AS import_added_count
+     FROM supplementary_bindings b JOIN novels n ON n.id=b.novel_id
+     LEFT JOIN book_import_runs r ON r.id=b.update_result->>'runId' ORDER BY n.title,b.id`,
   )
   const files = new Map(sources.map((s) => [s.id, sourceFiles(s)]))
   return {
@@ -98,6 +124,9 @@ export async function supplementaryOverview(db: Db): Promise<SupplementaryOvervi
       aliasTitle: b.alias_title,
       aliasAuthor: b.alias_author,
       candidates: bindingCandidates(files.get(b.source_id) || [], b.alias_title, b.alias_author),
+      updateMode: b.update_mode,
+      updateResult: publicUpdateResult(b),
+      updating: Number(b.update_lease_until) > Date.now(),
     })),
   }
 }
@@ -197,6 +226,27 @@ export async function saveSupplementaryBinding(db: Db, sourceId: string, novelId
     [randomUUID(), sourceId, novelId, file.title, file.author],
   )
 }
+
+export async function saveSupplementaryUpdateMode(db: Db, id: string, mode: unknown): Promise<void> {
+  if (mode !== 'manual' && mode !== 'preview' && mode !== 'append') throw new LanzouError('文件更新模式无效', 'invalid')
+  await withTx(db, async q => {
+    const target = (await q<{ novel_id: string }>('SELECT novel_id FROM supplementary_bindings WHERE id=$1', [id])).rows[0]
+    if (!target || !(await q('SELECT id FROM novels WHERE id=$1 FOR UPDATE', [target.novel_id])).rows.length)
+      throw new LanzouError('附加源绑定不存在，请刷新后重试', 'invalid')
+    const binding = (await q<Pick<BindingRow, 'novel_id' | 'update_mode'>>(
+      'SELECT novel_id,update_mode FROM supplementary_bindings WHERE id=$1 FOR UPDATE', [id],
+    )).rows[0]
+    if (!binding) throw new LanzouError('附加源绑定不存在，请刷新后重试', 'invalid')
+    if (mode === binding.update_mode) return
+    if (mode === 'append') {
+      const other = (await q("SELECT id FROM supplementary_bindings WHERE novel_id=$1 AND update_mode='append' AND id<>$2", [binding.novel_id, id])).rows[0]
+      if (other) throw new LanzouError('这本书已有自动追加的附加源，请先调整原绑定的模式', 'invalid')
+      await q(`INSERT INTO novel_followups(novel_id,enabled,next_check_at,user_configured) VALUES ($1,FALSE,0,TRUE)
+        ON CONFLICT(novel_id) DO UPDATE SET enabled=FALSE,next_check_at=0,user_configured=TRUE`, [binding.novel_id])
+    }
+    await q('UPDATE supplementary_bindings SET update_mode=$2,update_scan_at=0,update_lease_until=0 WHERE id=$1', [id, mode])
+  })
+}
 export async function boundSupplementaryFile(db: Db, bindingId: string, fileKey: string): Promise<{ binding: SupplementaryBinding; file: SupplementaryFile }> {
   const overview = await supplementaryOverview(db)
   const binding = overview.bindings.find((b) => b.id === bindingId)
@@ -205,7 +255,7 @@ export async function boundSupplementaryFile(db: Db, bindingId: string, fileKey:
   if (!binding || !file) throw new LanzouError('绑定或文件已变化，请刷新附加源后重试', 'invalid')
   return { binding, file }
 }
-/** 每个共享来源只调度一次；只检查目录，不下载、发布章节。 */
+/** 每个共享来源只调度一次，正文由各绑定按模式处理。 */
 export async function runSupplementaryTick(db: Db) {
   const due = await all<{ id: string }>(
     db,

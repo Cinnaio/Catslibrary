@@ -12,7 +12,7 @@ export async function resolveImportChapter(
   return withTx(db, async (q) => {
     const run = (
       await q<StoredImportRun & { review_token?: string; review_started_at?: number }>(
-        'SELECT * FROM book_import_runs WHERE id=$1 AND actor_user_id=$2 FOR UPDATE',
+        "SELECT * FROM book_import_runs WHERE id=$1 AND (actor_user_id=$2 OR supplementary_auto_hash<>'') FOR UPDATE",
         [opts.runId, opts.actorUserId],
       )
     ).rows[0]

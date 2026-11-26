@@ -490,6 +490,8 @@ export const supplementarySourceApi = {
     request('POST', '/supplementary-sources/bindings', { sourceId, novelId, fileKey }, true),
   unbind: (id: string): Promise<import('@shared/supplementary-source').SupplementaryOverview> =>
     request('DELETE', `/supplementary-sources/bindings/${encodeURIComponent(id)}`, null, true),
+  saveUpdateMode: (id: string, mode: import('@shared/supplementary-source').SupplementaryUpdateMode): Promise<import('@shared/supplementary-source').SupplementaryOverview> =>
+    request('PUT', `/supplementary-sources/bindings/${encodeURIComponent(id)}/update-mode`, { mode }, true),
   preview: (bindingId: string, fileKey: string): Promise<BookImportPreview> =>
     request('POST', '/book-import/preview', { supplementaryBindingId: bindingId, fileKey }, true, {}, 120000),
   upload: (bindingId: string, fileKey: string, file: File): Promise<BookImportPreview> => {

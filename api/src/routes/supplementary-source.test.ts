@@ -3,6 +3,8 @@ import { createTestDb, type TestDb } from '../test/db'
 import { setDbForTests } from '../db/pool'
 import { app } from '../app'
 import { checkSupplementarySource, runSupplementaryTick } from '../services/supplementary-source'
+import { runSupplementaryUpdateTick } from '../services/supplementary-update'
+import { LanzouError } from '../services/lanzou'
 import type { BookImportPreview } from '@shared/types'
 import type { SupplementaryFile, SupplementaryOverview } from '@shared/supplementary-source'
 
@@ -161,6 +163,88 @@ it('部分目录受限时保留旧文件并逐项标注，成功目录仍可更�
   expect(grouped.items[0]!.versions).toHaveLength(2)
   expect(grouped.folders.find((f) => f.name === '1016')).toMatchObject({ incomplete: true, staleCount: 1 })
 })
+const updateMode = (mode: string) => call(`/api/supplementary-sources/bindings/${bindingId}/update-mode`, { mode }, 'PUT')
+async function autoResult() {
+  const data = (await (await call('/api/supplementary-sources')).json()) as SupplementaryOverview
+  return data.bindings.find(binding => binding.id === bindingId)?.updateResult
+}
+async function scanFile(candidate: SupplementaryFile) {
+  await checkSupplementarySource(t.db, sourceId, async () => [candidate])
+  await runSupplementaryUpdateTick(t.db)
+}
+const localChapters = () => t.db.query("SELECT id,sort_order,source_url FROM chapters WHERE novel_id='supp-book' ORDER BY sort_order")
+
+it('自动预览仅处理完整清单，开启自动追加仍保留现有待确认预览', async () => {
+  expect((await updateMode('preview')).status).toBe(200)
+  mocks.download.mockClear()
+  await runSupplementaryUpdateTick(t.db)
+  expect(mocks.download).not.toHaveBeenCalled()
+  expect(await autoResult()).toBeNull()
+
+  await scanFile(file)
+  const result = await autoResult()
+  expect(result).toMatchObject({ status: 'review', runId: expect.any(String) })
+  const preview = await call(`/api/book-import/${result?.runId}`)
+  expect(preview.status).toBe(200)
+  expect(await preview.json()).toMatchObject({ targetNovelId: 'supp-book', summary: { newCount: 1 }, canResplit: true })
+  await scanFile(file)
+  expect((await autoResult())?.runId).toBe(result?.runId)
+  expect(mocks.download).toHaveBeenCalledTimes(1)
+  await t.db.query("INSERT INTO novel_followups(novel_id,enabled,user_configured) VALUES ('supp-book',TRUE,TRUE) ON CONFLICT(novel_id) DO UPDATE SET enabled=TRUE")
+  expect((await updateMode('append')).status).toBe(200)
+  expect((await t.db.query("SELECT enabled FROM novel_followups WHERE novel_id='supp-book'")).rows[0]).toEqual({ enabled: false })
+  await runSupplementaryUpdateTick(t.db)
+  expect((await autoResult())?.runId).toBe(result?.runId)
+  expect((await localChapters()).rows).toHaveLength(1)
+})
+
+it('自动追加连续尾章，保留融合序号；同文件及副本不会重新写入已撤回批次', async () => {
+  await t.db.query("UPDATE chapters SET sort_order=7 WHERE id='supp-existing'")
+  const next = { ...file, key: 'auto-tail', folder: '1018', revision: 3, url: 'https://dudu88.lanzov.com/iFile3' }
+  mocks.download.mockClear().mockResolvedValue(new TextEncoder().encode(text + '\n第三章 明灯\n明灯下的第三章新增正文内容。'))
+  await scanFile(next)
+  expect(await autoResult()).toMatchObject({ status: 'added', addedCount: 2 })
+  expect((await localChapters()).rows).toMatchObject([
+    { id: 'supp-existing', sort_order: 7, source_url: 'https://original.example/1' },
+    { sort_order: 8, source_url: next.url + '#chapter=2' }, { sort_order: 9, source_url: next.url + '#chapter=3' },
+  ])
+  await scanFile(next)
+  expect(mocks.download).toHaveBeenCalledTimes(1)
+  const history = await (await call('/api/book-import/history')).json() as { items: { runId: string; created: number; sourceUrl: string }[] }
+  const applied = history.items.find(item => item.created === 2 && item.sourceUrl === next.url)
+  expect(applied).toBeDefined()
+  expect((await call(`/api/book-import/${applied?.runId}/rollback`, {})).status).toBe(200)
+  expect(await autoResult()).toMatchObject({ status: 'rolled-back' })
+  await scanFile({ ...next, key: 'copy-of-tail', folder: '1019', url: 'https://dudu88.lanzov.com/iCopy' })
+  expect(await autoResult()).toMatchObject({ status: 'rolled-back' })
+  expect((await localChapters()).rows).toHaveLength(1)
+})
+
+it.each([
+  ['已有正文变化', text.replace('山雨里的已有正文内容。', '旧章里被改写了的正文。')],
+  ['尾章跳号', text.replace('第二章 夜归', '第四章 夜归')],
+  ['尾章有两个正文版本', text + '\n第二章 夜归\n这一版夜归的正文有很多不同。'],
+])('%s时生成待确认预览', async (reason, content) => {
+  mocks.download.mockResolvedValue(new TextEncoder().encode(content))
+  await scanFile({ ...file, key: reason, url: `https://dudu88.lanzov.com/${encodeURIComponent(reason)}` })
+  expect(await autoResult()).toMatchObject({ status: 'review', runId: expect.any(String) })
+  expect((await localChapters()).rows).toHaveLength(1)
+})
+
+it('下载需验证时保留人工接续，切回手动后在途任务不能写入', async () => {
+  const next = { ...file, key: 'manual-required', url: 'https://dudu88.lanzov.com/iManual' }
+  mocks.download.mockRejectedValueOnce(new LanzouError('请手动下载后上传', 'manual'))
+  await scanFile(next)
+  expect(await autoResult()).toMatchObject({ status: 'manual-download' })
+  mocks.download.mockImplementationOnce(async () => {
+    expect((await updateMode('manual')).status).toBe(200)
+    return new TextEncoder().encode(text + '\n第三章 明灯\n与已撤回版本不同的正文。')
+  })
+  await scanFile(next)
+  expect((await localChapters()).rows).toHaveLength(1)
+  expect(await autoResult()).toMatchObject({ status: 'manual-download' })
+})
+
 it('更换月份保留书籍绑定，清空旧目录；解除绑定保留书籍', async () => {
   const res = await call('/api/supplementary-sources', {
     id: sourceId,

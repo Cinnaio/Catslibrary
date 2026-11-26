@@ -1,8 +1,20 @@
 import { Tabs } from '@/components/ui/tabs'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
-const mocks = vi.hoisted(() => ({ overview: vi.fn(), sourceBindings: vi.fn(), updated: vi.fn() }))
-vi.mock('@/lib/api', () => ({ supplementarySourceApi: { overview: mocks.overview }, scrapeApi: { sourceBindings: mocks.sourceBindings } }))
+const mocks = vi.hoisted(() => ({ overview: vi.fn(), sourceBindings: vi.fn(), updated: vi.fn(), saveMode: vi.fn(), getPreview: vi.fn() }))
+vi.mock('@/lib/api', () => ({
+  supplementarySourceApi: { overview: mocks.overview, saveUpdateMode: mocks.saveMode },
+  scrapeApi: { sourceBindings: mocks.sourceBindings },
+  bookImportApi: { getPreview: mocks.getPreview },
+}))
+vi.mock('./BookImportDialog', () => ({
+  default: ({ initialPreview, onOpenChange }: { initialPreview: { runId: string }; onOpenChange: (open: boolean) => void }) => (
+    <div role="dialog" aria-label="章节预览">
+      {initialPreview.runId}
+      <button onClick={() => onOpenChange(false)}>返回文件设置</button>
+    </div>
+  ),
+}))
 vi.mock('./SupplementarySourcesDialog', () => ({
   default: ({ novel, initialSourceId, onClose }: any) => (
     <div role="dialog" aria-label="文件更新">
@@ -87,4 +99,27 @@ it('文件与目录页签隔离可见内容，切换保留已读结果和候选�
   expect(await screen.findByRole('dialog', { name: '目录融合' })).toHaveTextContent('txt · 52')
   expect(mocks.overview).toHaveBeenCalledTimes(1)
   expect(mocks.sourceBindings).toHaveBeenCalledTimes(1)
+})
+
+it('附加源可逐绑定保存更新方式，并从状态打开已有预览', async () => {
+  const setup = {
+    sources: [{ id: 'folder', name: '共享书单', enabled: true, intervalHours: 6, checkedAt: 1, nextCheckAt: 2, status: 'ok', error: '' }],
+    bindings: [{ id: 'binding', sourceId: 'folder', novelId: 'txt', candidates: [], updateMode: 'manual' }],
+  }
+  const saved = { ...setup, bindings: [{ ...setup.bindings[0], updateMode: 'preview', updateResult: { status: 'review', checkedAt: 2, runId: 'auto-preview' } }] }
+  mocks.overview.mockResolvedValueOnce(setup).mockResolvedValue(saved)
+  mocks.saveMode.mockResolvedValue(saved)
+  mocks.getPreview.mockResolvedValue({ runId: 'auto-preview' })
+  render(<NovelRelatedSources novel={novel} onUpdated={mocks.updated} />)
+  fireEvent.click(await screen.findByText('手动确认'))
+  fireEvent.click(await screen.findByRole('option', { name: '自动生成预览' }))
+  expect(mocks.saveMode).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: '保存方式' }))
+  expect(await screen.findByText('待确认')).toBeVisible()
+  expect(mocks.saveMode).toHaveBeenCalledWith('binding', 'preview')
+  fireEvent.click(screen.getByRole('button', { name: '打开预览' }))
+  expect(await screen.findByRole('dialog', { name: '章节预览' })).toHaveTextContent('auto-preview')
+  expect(mocks.getPreview).toHaveBeenCalledWith('auto-preview')
+  fireEvent.click(screen.getByRole('button', { name: '返回文件设置' }))
+  await waitFor(() => expect(mocks.overview).toHaveBeenCalledTimes(2))
 })

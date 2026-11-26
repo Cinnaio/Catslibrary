@@ -320,6 +320,7 @@ const NUMBERED_HEADING_PREFIX = /^第\s*[0-9０-９零〇一二三四五六七�
 export interface StoredImportRun {
   supplementary_binding_id?: string
   supplementary_file_key?: string
+  supplementary_auto_pending?: boolean
   id: string
   source_type: 'file' | 'url'
   source_label: string
@@ -1660,6 +1661,36 @@ export function buildChapterDiff(book: BookImportPayload, local: ChapterRow[], o
   return diffs
 }
 
+export function supplementaryChapterNeedsReview(diff: BookImportChapterDiff): boolean {
+  return diff.status === 'conflict' || !!diff.variantGroup ||
+    (diff.status === 'changed' && importContentHash(diff.localContent) !== importContentHash(diff.incomingContent))
+}
+
+export function planSupplementaryAppend(preview: Pick<BookImportPreview, 'chapters' | 'localChapters' | 'diagnostics'>): string[] {
+  const { chapters, localChapters, diagnostics } = preview
+  if (!localChapters?.length || !diagnostics || chapters.length >= MAX_IMPORT_CHAPTERS || chapters.some(supplementaryChapterNeedsReview)) return []
+  if (diagnostics.anomalies.some(({ code }) => ['no-heading-detected', 'empty-chapters-dropped', 'chapters-fragmented', 'chapters-missing', 'numbering-gap-filled'].includes(code))) return []
+  const tailStart = chapters.findIndex(chapter => chapter.status === 'new')
+  if (tailStart <= 0) return []
+  const matched = chapters.slice(0, tailStart)
+  const anchor = matched[matched.length - 1]!
+  const maxOrder = Math.max(...localChapters.map(({ order }) => order))
+  if (!anchor.localChapterId || anchor.localOrder !== maxOrder || localChapters.filter(({ order }) => order === maxOrder).length !== 1) return []
+  if (matched.some((chapter, index) => chapter.localOrder === undefined || (index > 0 && chapter.localOrder <= matched[index - 1]!.localOrder!))) return []
+  const number = (title: string) => {
+    const key = chapterVersionKey(title)
+    return key.startsWith('#') ? Number(key.slice(1)) : NaN
+  }
+  const anchorNumber = number(anchor.incomingTitle)
+  if (!Number.isSafeInteger(anchorNumber) || anchorNumber < 1 || !normalizeImportContent(anchor.localContent)) return []
+  const tail = chapters.slice(tailStart)
+  if (tail.some((chapter, index) => chapter.status !== 'new' || !normalizeImportContent(chapter.incomingContent) ||
+    chapter.incomingOrder !== maxOrder + index + 1 || number(chapter.incomingTitle) !== anchorNumber + index + 1)) return []
+  return tail.map(chapter => chapter.id)
+}
+
+export class SupplementaryAppendNeedsReview extends Error {}
+
 async function findCandidates(db: DbClient, book: BookImportPayload, sourceType: ImportPreviewOptions['sourceType']): Promise<BookImportNovelCandidate[]> {
   const rows = await all<NovelRow>(db, 'SELECT * FROM novels ORDER BY updated_at DESC')
   const incomingAuthor = knownAuthor(book.author)
@@ -1872,6 +1903,7 @@ export async function applyImport(
     metadataMode: 'missing' | 'replace'
     actorUserId: string
     requireNewBook?: boolean
+    supplementaryAppend?: { scanAt: number; leaseUntil: number }
   },
 ): Promise<BookImportCommitResult> {
   let preview = safeJsonParse<BookImportPreview>(opts.run.preview_json, {} as BookImportPreview)
@@ -1972,6 +2004,26 @@ export async function applyImport(
 
     const localRows = await q<ChapterRow>('SELECT id, title, sort_order, content, source_url FROM chapters WHERE novel_id = $1 ORDER BY sort_order ASC FOR UPDATE', [novelId])
     const resolutions = preview.chapterResolutions || []
+    if (opts.supplementaryAppend) {
+      const { scanAt, leaseUntil } = opts.supplementaryAppend
+      const eligible = (await q(
+        `SELECT b.id FROM supplementary_bindings b JOIN supplementary_sources s ON s.id=b.source_id
+         WHERE b.id=$1 AND b.novel_id=$2 AND b.update_mode='append' AND b.update_lease_until=$3 AND $3>$5
+           AND s.enabled AND s.status='ok' AND s.checked_at=$4 AND s.checking_until<=$5
+           AND NOT EXISTS(SELECT 1 FROM novel_followups f WHERE f.novel_id=b.novel_id AND f.enabled)
+           AND NOT EXISTS(SELECT 1 FROM scrape_jobs j WHERE j.novel_id=b.novel_id AND j.status NOT IN ('completed','partial','failed','cancelled'))
+         FOR SHARE OF b,s`,
+        [lockedRun.rows[0]!.supplementary_binding_id, novelId, leaseUntil, scanAt, Date.now()],
+      )).rows.length
+      const chapters = buildChapterDiff(payload, localRows.rows, { preserveLocalOrder: true })
+      const localChapters = localRows.rows.map(row => ({ id: row.id, title: row.title, order: row.sort_order }))
+      const freshIds = planSupplementaryAppend({ chapters, localChapters, diagnostics: preview.diagnostics })
+      if (!eligible || !lockedRun.rows[0]!.supplementary_auto_pending || resolutions.length ||
+        !freshIds.length || freshIds.length !== selectedChapters.size || freshIds.some(id => !selectedChapters.has(id))) {
+        throw new SupplementaryAppendNeedsReview('来源设置或本地章节已变化，请核对预览后再导入')
+      }
+      preview.chapters = chapters
+    }
     if (resolutions.length) {
       if (!preview.resolutionSnapshot || preview.resolutionSnapshot !== importResolutionSnapshot(localRows.rows)) throw new Error('本地章节已变化，请重新生成预览并确认对应关系')
       preview.chapters = resolvedChapterDiffs(buildChapterDiff(payload, localRows.rows, { preserveLocalOrder: supplementary }), localRows.rows, resolutions)
@@ -2088,9 +2140,11 @@ export async function applyImport(
         if (!metadataUpdated.includes('coverUrl')) metadataUpdated.push('coverUrl')
       }
     }
+    if (opts.supplementaryAppend && created !== selectedChapters.size)
+      throw new SupplementaryAppendNeedsReview('部分尾章无法安全追加，请核对预览后再导入')
     await q('UPDATE novels SET chapter_count=(SELECT COUNT(*) FROM chapters WHERE novel_id=$1), updated_at=$2 WHERE id=$1', [novelId, Date.now()])
     const status = conflicts.length ? 'partial' : 'applied'
-    await q('UPDATE book_import_runs SET target_novel_id=$1, status=$2, changes_json=$3, applied_at=$4, history_summary=$6, source_expires_at=$7 WHERE id=$5', [novelId, status, JSON.stringify(applied), Date.now(), opts.run.id, JSON.stringify({ title: preview.book.title, conflicts: conflicts.length, created, updated }), Date.now() + 30 * 86400000])
+    await q('UPDATE book_import_runs SET target_novel_id=$1, status=$2, changes_json=$3, applied_at=$4, history_summary=$6, source_expires_at=$7,supplementary_auto_pending=FALSE WHERE id=$5', [novelId, status, JSON.stringify(applied), Date.now(), opts.run.id, JSON.stringify({ title: preview.book.title, conflicts: conflicts.length, created, updated }), Date.now() + 30 * 86400000])
   })
 
   if (applied.some(change => change.kind === 'cover-image') && payload.coverImage) {

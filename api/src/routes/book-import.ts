@@ -37,6 +37,7 @@ import {
   IMPORT_REVIEW_LEASE_MS,
   mergeBoundaryOverrides,
   resplitImport,
+  storeImportPreview,
 } from '../services/book-import-state'
 
 export const bookImportRoutes = new Hono<AuthEnv>()
@@ -60,7 +61,7 @@ function stringArray(value: unknown): string[] {
 }
 
 async function loadRun(db: ReturnType<typeof getDb>, runId: string, actorUserId: string): Promise<BookImportRunRow | null> {
-  return (await first<BookImportRunRow>(db, 'SELECT * FROM book_import_runs WHERE id = $1 AND actor_user_id = $2', [runId, actorUserId])) || null
+  return (await first<BookImportRunRow>(db, "SELECT * FROM book_import_runs WHERE id=$1 AND (actor_user_id=$2 OR supplementary_auto_hash<>'')", [runId, actorUserId])) || null
 }
 
 function runPayload(run: StoredImportRun): BookImportPayload {
@@ -245,40 +246,12 @@ bookImportRoutes.post('/preview', previewUploadLimit, async (c) => {
       preserveLocalOrder: !!supplementary,
     })
     preview.warnings = Array.from(new Set([...warnings, ...preview.warnings]))
-    const now = Date.now()
-    preview.revision = 0
-    preview.boundaryOverrides = []
-    preview.reviewedLines = []
-    preview.sourceHash = sourceText ? createHash('sha256').update(sourceText).digest('hex') : ''
-    preview.sourceExpiresAt = now + IMPORT_PREVIEW_RETENTION_MS
-    preview.canResplit = !!sourceText
     if (supplementary) {
       preview.supplementary = supplementary
       preview.metadataDiff = preview.metadataDiff.map(field=>({...field,selected:false}))
       preview.warnings.push('附加源只更新你确认的章节，不修改作品信息；已有正文变化默认不勾选。')
     }
-    await db.query(
-      `INSERT INTO book_import_runs
-        (id, actor_user_id, source_type, source_label, source_url, target_novel_id, status, payload_json, preview_json, changes_json, source_text, created_at, applied_at, rolled_back_at, source_hash, source_expires_at, history_summary, supplementary_binding_id, supplementary_file_key)
-       VALUES ($1,$2,$3,$4,$5,$6,'preview',$7,$8,'[]',$9,$10,0,0,$11,$12,$13,$14,$15)`,
-      [
-        preview.runId,
-        c.get('user').id,
-        sourceType,
-        preview.sourceLabel,
-        preview.sourceUrl,
-        preview.targetNovelId || '',
-        JSON.stringify(payload),
-        JSON.stringify(preview),
-        sourceText,
-        now,
-        preview.sourceHash,
-        preview.sourceExpiresAt,
-        importHistorySummary(preview),
-        supplementary?.bindingId || '',
-        supplementary?.fileKey || '',
-      ],
-    )
+    await storeImportPreview(db, preview, payload, sourceText, c.get('user').id)
     return c.json(preview, 200, { 'Cache-Control': 'no-store' })
   } catch (err) {
     if (err instanceof LanzouError) return c.json({error:err.message,code:err.code},err.code==='invalid'?400:502)
@@ -648,7 +621,7 @@ bookImportRoutes.get('/history', async (c) => {
             COALESCE(n.title, '') AS novel_title
        FROM book_import_runs r
        LEFT JOIN novels n ON n.id = NULLIF(r.target_novel_id, '')
-      WHERE r.actor_user_id = $1
+      WHERE r.actor_user_id=$1 OR r.supplementary_auto_hash<>''
       ORDER BY r.created_at DESC, r.id
       LIMIT $2 OFFSET $3`,
     [c.get('user').id, limit, offset],
@@ -673,13 +646,14 @@ bookImportRoutes.get('/history', async (c) => {
       canRollback: row.status === 'applied' || row.status === 'partial',
     }
   })
-  const count = await first<{ total: number }>(db, 'SELECT COUNT(*) AS total FROM book_import_runs WHERE actor_user_id=$1', [c.get('user').id])
+  const count = await first<{ total: number }>(db, "SELECT COUNT(*) AS total FROM book_import_runs WHERE actor_user_id=$1 OR supplementary_auto_hash<>''", [c.get('user').id])
   return c.json({ items, total: Number(count?.total) || 0, limit, offset }, 200, { 'Cache-Control': 'no-store' })
 })
 
 bookImportRoutes.get('/:runId', async (c) => {
   const run = await loadRun(getDb(), c.req.param('runId'), c.get('user').id)
   if (!run) return c.json({ error: '导入预览不存在' }, 404)
-  if (run.status !== 'preview') return c.json({ error: '这次预览已提交或过期，请重新生成预览' }, 409)
+  if (run.status !== 'preview' || (Number(run.source_expires_at) > 0 && Number(run.source_expires_at) <= Date.now()))
+    return c.json({ error: '这次预览已提交或过期，请重新生成预览' }, 409)
   return c.json(previewPayload(run), 200, { 'Cache-Control': 'no-store' })
 })

@@ -7,6 +7,7 @@ import {
   checkSupplementarySource,
   saveSupplementaryBinding,
   saveSupplementarySource,
+  saveSupplementaryUpdateMode,
   sourceFiles,
   supplementaryOverview,
 } from '../services/supplementary-source'
@@ -46,6 +47,11 @@ supplementarySourceRoutes.get('/:id/files', async (c) => {
 supplementarySourceRoutes.post('/bindings', async (c) => {
   const body = await c.req.json<Record<string, unknown>>()
   await saveSupplementaryBinding(getDb(), String(body.sourceId || ''), String(body.novelId || ''), String(body.fileKey || ''))
+  return c.json(await supplementaryOverview(getDb()))
+})
+supplementarySourceRoutes.put('/bindings/:id/update-mode', async c => {
+  const body = await c.req.json<Record<string, unknown>>()
+  await saveSupplementaryUpdateMode(getDb(), c.req.param('id'), body.mode)
   return c.json(await supplementaryOverview(getDb()))
 })
 supplementarySourceRoutes.delete('/bindings/:id', async (c) => {

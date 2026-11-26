@@ -3,6 +3,7 @@ import { assertSuperAdministrator } from './services/account-security'
 import { pruneImportSnapshots } from './services/book-import-state'
 import { runFollowupTick } from './services/novel-followup'
 import { runSupplementaryTick } from './services/supplementary-source'
+import { runSupplementaryUpdateTick } from './services/supplementary-update'
 import { makeDeps, fireJob } from './services/scraper/runtime'
 import { scrapeAdapters } from './services/scraper/sources'
 import { serve } from '@hono/node-server'
@@ -191,7 +192,11 @@ async function start() {
   const supplementaryTimer = setInterval(() => {
     if (supplementaryRunning || !loadConfig().configured) return
     supplementaryRunning = true
-    void withBusinessActivity(getDb(), async () => { await runSupplementaryTick(getDb()) })
+    const db = getDb()
+    void withBusinessActivity(db, async () => {
+      await runSupplementaryTick(db)
+      await runSupplementaryUpdateTick(db)
+    })
       .catch(() => console.error('[supplementary-source] scheduling failed'))
       .finally(() => { supplementaryRunning = false })
   }, 60000)

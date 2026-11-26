@@ -127,11 +127,16 @@ export async function saveFollowup(db: Db, novelId: string, enabled: boolean, ho
   const state = await getFollowup(db, novelId)
   if (!state) throw new Error('小说不存在')
   if (enabled && !state.hasConfig) throw new Error('只有已配置有效来源的小说可以开启自动追更')
-  await db.query(
-    `INSERT INTO novel_followups (novel_id,enabled,interval_hours,next_check_at,user_configured) VALUES ($1,$2,$3,$4,TRUE)
-    ON CONFLICT (novel_id) DO UPDATE SET enabled=$2,interval_hours=$3,next_check_at=$4,user_configured=TRUE`,
-    [novelId, enabled, hours, enabled ? Date.now() + hours * 3600000 : 0],
-  )
+  await withTx(db, async q => {
+    if (!(await q('SELECT id FROM novels WHERE id=$1 FOR UPDATE', [novelId])).rows.length) throw new Error('小说不存在')
+    if (enabled && (await q("SELECT id FROM supplementary_bindings WHERE novel_id=$1 AND update_mode='append'", [novelId])).rows.length)
+      throw new Error('本书已由附加源自动追加，请先在附加文件中调整更新模式')
+    await q(
+      `INSERT INTO novel_followups (novel_id,enabled,interval_hours,next_check_at,user_configured) VALUES ($1,$2,$3,$4,TRUE)
+      ON CONFLICT (novel_id) DO UPDATE SET enabled=$2,interval_hours=$3,next_check_at=$4,user_configured=TRUE`,
+      [novelId, enabled, hours, enabled ? Date.now() + hours * 3600000 : 0],
+    )
+  })
 }
 
 /** 小说行锁序列化手动和定时更新，任务创建与下次调度在同一事务提交。 */

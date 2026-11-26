@@ -25,6 +25,15 @@ export interface SupplementarySource {
   error: string
   fileCount: number
 }
+export type SupplementaryUpdateMode = 'manual' | 'preview' | 'append'
+export interface SupplementaryUpdateResult {
+  status: 'no-file' | 'unchanged' | 'review' | 'added' | 'manual-download' | 'failed' | 'rolled-back'
+  checkedAt: number
+  message?: string
+  fileName?: string
+  runId?: string
+  addedCount?: number
+}
 export interface SupplementaryBinding {
   id: string
   sourceId: string
@@ -33,6 +42,9 @@ export interface SupplementaryBinding {
   aliasTitle: string
   aliasAuthor: string
   candidates: SupplementaryFile[]
+  updateMode?: SupplementaryUpdateMode
+  updateResult?: SupplementaryUpdateResult | null
+  updating?: boolean
 }
 export interface SupplementaryOverview {
   sources: SupplementarySource[]

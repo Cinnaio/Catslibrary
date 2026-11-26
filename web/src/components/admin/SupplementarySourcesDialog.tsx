@@ -333,9 +333,10 @@ export default function SupplementarySourcesDialog({
                   </div>
                   <label className="supplementary-check">
                     <Checkbox checked={draft.enabled} disabled={busy} onCheckedChange={(value) => setDraft({ ...draft, enabled: value === true })} />
-                    定时检查目录（只发现文件，不自动写入章节）
+                    定时检查目录
                   </label>
                   {novel && <p className="supplementary-note">此处修改的是共享目录设置，检查频率和开关对所有绑定书籍生效。</p>}
+                  <p className="supplementary-note">各书的文件处理方式在「更新与来源 → 附加文件」设置。</p>
                   {draft.id && <p className="supplementary-note">换月时可更换目录链接，已有书籍绑定会保留；更换后需重新检查目录。</p>}
                   <div className="supplementary-editor__actions">
                     <Button size="sm" disabled={busy || !draft.name.trim() || !draft.url.trim()} onClick={() => void save()}>

@@ -27,12 +27,16 @@ export async function saveBatchFollowups(db: Db, ids: string[], mode: BatchFollo
         [uniqueIds],
       )
     ).rows
+    const fileWriters = new Set(mode === 'enable' ? (await q<{ novel_id: string }>(
+      "SELECT novel_id FROM supplementary_bindings WHERE novel_id=ANY($1::text[]) AND update_mode='append'", [uniqueIds],
+    )).rows.map(row => row.novel_id) : [])
     const byId = new Map(rows.map((row) => [row.id, row]))
     const valid: Array<{ id: string; enabled: boolean; hours: number }> = []
     const results: BatchFollowupResult['results'] = uniqueIds.map((id) => {
       const row = byId.get(id)
       let reason = ''
       if (!row) reason = '作品已删除或不存在'
+      else if (fileWriters.has(id)) reason = '本书已由附加源自动追加'
       else if (mode !== 'pause') {
         if (row.status !== 'ongoing') reason = '已完结作品不参与自动追更'
         else {

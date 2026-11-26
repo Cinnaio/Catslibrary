@@ -1,13 +1,16 @@
 import { type ReactNode, lazy, Suspense, useCallback, useEffect, useState } from 'react'
-import type { SupplementaryOverview } from '@shared/supplementary-source'
-import { scrapeApi, supplementarySourceApi } from '@/lib/api'
+import type { SupplementaryOverview, SupplementaryUpdateMode, SupplementaryUpdateResult } from '@shared/supplementary-source'
+import type { BookImportPreview } from '@shared/types'
+import { bookImportApi, scrapeApi, supplementarySourceApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { TabsContent } from '@/components/ui/tabs'
 import { Files, ListOrdered } from 'lucide-react'
 import EmptyState from '@/components/shared/EmptyState'
+import SearchSelect from '@/components/shared/SearchSelect'
 import { MotionDetails } from '@/components/ui/motion'
 import styles from './NovelFollowupDialog.module.css'
 import SupplementarySourcesDialog from './SupplementarySourcesDialog'
+import BookImportDialog from './BookImportDialog'
 
 const ChapterMergeDialog = lazy(() => import('@/pages/admin/ChaptersTab'))
 type Novel = { id: string; title: string; author?: string; chapterCount?: number }
@@ -18,6 +21,24 @@ const time = (value: number) =>
 const statusText = (status: string) =>
   status === 'partial' ? '部分目录未完整读取' : status === 'error' ? '检查失败' : status === 'never' ? '尚未检查' : '目录检查成功'
 const statusTone = (status: string) => (status === 'error' ? 'failed' : status === 'partial' ? 'partial' : 'idle')
+const fileUpdateModes = [
+  { value: 'manual', label: '手动确认' },
+  { value: 'preview', label: '自动生成预览' },
+  { value: 'append', label: '自动追加尾章' },
+] satisfies { value: SupplementaryUpdateMode; label: string }[]
+
+function fileUpdateStatus(result?: SupplementaryUpdateResult | null) {
+  if (!result) return '等待处理候选文件'
+  return {
+    'no-file': '未找到匹配的文件',
+    unchanged: '文件无新章',
+    review: '待确认',
+    added: `已追加 ${result.addedCount} 章`,
+    'manual-download': '下载需人工接续',
+    failed: '文件处理失败',
+    'rolled-back': '已撤回',
+  }[result.status]
+}
 
 function SourcePanel({ value, activeTab, children }: { value: string; activeTab?: string; children: ReactNode }) {
   return activeTab === undefined ? (
@@ -30,7 +51,7 @@ function SourcePanel({ value, activeTab, children }: { value: string; activeTab?
 }
 
 /** 来源按用途展示，参考目录与文件绑定均不会启用网页正文抓取。 */
-export default function NovelRelatedSources({ novel, onUpdated, activeTab }: { novel: Novel; onUpdated: () => void; activeTab?: string }) {
+export default function NovelRelatedSources({ novel, onUpdated, activeTab }: { novel: Novel; onUpdated: (mode?: SupplementaryUpdateMode) => void; activeTab?: string }) {
   const [overview, setOverview] = useState<SupplementaryOverview | null>(null)
   const [bindings, setBindings] = useState<Array<Record<string, unknown>> | null>(null)
   const [fileError, setFileError] = useState('')
@@ -38,6 +59,11 @@ export default function NovelRelatedSources({ novel, onUpdated, activeTab }: { n
   const [filesOpen, setFilesOpen] = useState(false)
   const [sourceId, setSourceId] = useState<string>()
   const [mergeOpen, setMergeOpen] = useState(false)
+  const [draftModes, setDraftModes] = useState<Record<string, SupplementaryUpdateMode>>({})
+  const [fileActionId, setFileActionId] = useState('')
+  const [fileActionError, setFileActionError] = useState<{ id: string; message: string } | null>(null)
+  const [fileNotice, setFileNotice] = useState('')
+  const [automaticPreview, setAutomaticPreview] = useState<BookImportPreview | null>(null)
   const loadFiles = useCallback(async () => {
     try {
       setOverview(await supplementarySourceApi.overview())
@@ -87,6 +113,18 @@ export default function NovelRelatedSources({ novel, onUpdated, activeTab }: { n
     setSourceId(id)
     setFilesOpen(true)
   }
+  async function fileBindingAction(id: string, task: () => Promise<void>) {
+    setFileActionId(id)
+    setFileActionError(null)
+    setFileNotice('')
+    try {
+      await task()
+    } catch (error) {
+      setFileActionError({ id, message: (error as Error).message })
+    } finally {
+      setFileActionId('')
+    }
+  }
   const fileAction = (
     <Button variant="secondary" size="sm" onClick={() => openFiles()}>
       绑定附加源
@@ -110,9 +148,17 @@ export default function NovelRelatedSources({ novel, onUpdated, activeTab }: { n
                 </span>
               )}
             </div>
-            {(!overview || fileBindings.length > 0 || fileError) && fileAction}
+            <div className={styles.entryActions}>
+              {fileBindings.some(binding => binding.updateMode && binding.updateMode !== 'manual') && (
+                <Button variant="ghost" size="sm" disabled={!!fileActionId} onClick={() => void fileBindingAction('refresh', loadFiles)}>
+                  {fileActionId === 'refresh' ? '正在刷新…' : '刷新文件状态'}
+                </Button>
+              )}
+              {(!overview || fileBindings.length > 0 || fileError) && fileAction}
+            </div>
           </div>
-          <p className="dialog-frame-hint">检查 TXT／EPUB 文件版本，预览章节差异后再确认入库。</p>
+          <p className="dialog-frame-hint">为每个绑定选择如何处理共享目录中的 TXT／EPUB 文件。</p>
+          {fileNotice && <p className={styles.notice} role="status">{fileNotice}</p>}
           {fileError && (
             <div role="alert" className={styles.inlineAlert}>
               <p>{fileError}</p>
@@ -133,6 +179,8 @@ export default function NovelRelatedSources({ novel, onUpdated, activeTab }: { n
             {fileBindings.map((binding, index) => {
               const source = overview!.sources.find((item) => item.id === binding.sourceId)
               if (!source) return null
+              const mode = draftModes[binding.id] || binding.updateMode
+              const result = binding.updateResult
               return (
                 <div className={styles.entry} key={binding.id} style={{ animationDelay: `${Math.min(index, 6) * 30}ms` }}>
                   <div className={styles.entryHead}>
@@ -159,6 +207,58 @@ export default function NovelRelatedSources({ novel, onUpdated, activeTab }: { n
                       <dd>{source.enabled ? (source.nextCheckAt ? time(source.nextCheckAt) : '等待安排') : '已暂停'}</dd>
                     </div>
                   </dl>
+                  {mode && (
+                    <div className={styles.candidateRow}>
+                      <div className={styles.settingCopy}>
+                        <label className={styles.factLabel} htmlFor={`file-mode-${binding.id}`}>文件更新方式</label>
+                        <p id={`file-mode-hint-${binding.id}`}>
+                          {mode === 'append' ? '只追加能接上本地末章的新章。保存时会暂停本书的网页自动追更。'
+                            : mode === 'preview' ? '定时比较新文件，有章节差异时生成预览，供你确认。' : '从候选版本打开文件，核对章节后确认。'}
+                        </p>
+                      </div>
+                      <div className={styles.entryActions}>
+                        <SearchSelect id={`file-mode-${binding.id}`} aria-describedby={`file-mode-hint-${binding.id}`}
+                          value={mode} options={fileUpdateModes} searchable={false} disabled={!!fileActionId}
+                          onChange={value => {
+                            const next = fileUpdateModes.find(option => option.value === value)?.value
+                            if (next) setDraftModes(current => ({ ...current, [binding.id]: next }))
+                            setFileNotice('')
+                          }} />
+                        {mode !== binding.updateMode && (
+                          <Button size="sm" disabled={!!fileActionId} onClick={() => void fileBindingAction(binding.id, async () => {
+                            setOverview(await supplementarySourceApi.saveUpdateMode(binding.id, mode))
+                            setDraftModes(current => {
+                              const next = { ...current }
+                              delete next[binding.id]
+                              return next
+                            })
+                            setFileNotice('文件更新方式已保存')
+                            onUpdated(mode)
+                          })}>
+                            {fileActionId === binding.id ? '保存中…' : '保存方式'}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {binding.updateMode && binding.updateMode !== 'manual' && (
+                    <div className={styles.candidateRow}>
+                      <div className={styles.settingCopy} aria-live="polite">
+                        <span className={styles.factLabel}>{binding.updating ? '正在处理文件…' : fileUpdateStatus(result)}</span>
+                        {source.enabled && (source.status === 'partial' || source.status === 'error') && (
+                          <p>等待目录完整读取后再处理文件。</p>
+                        )}
+                        {result && <p>{[result.fileName, time(result.checkedAt)].filter(Boolean).join(' · ')}</p>}
+                        {result?.message && <p>{result.message}</p>}
+                      </div>
+                      {result?.runId && (
+                        <Button variant="secondary" size="sm" disabled={!!fileActionId} onClick={() => void fileBindingAction(binding.id, async () => {
+                          setAutomaticPreview(await bookImportApi.getPreview(result.runId!))
+                        })}>打开预览</Button>
+                      )}
+                    </div>
+                  )}
+                  {fileActionError?.id === binding.id && <p role="alert" className={styles.sourceError}>{fileActionError.message}</p>}
                   <div className={styles.candidateRow}>
                     <div className={styles.settingCopy}>
                       <span className={styles.factLabel}>候选文件</span>
@@ -240,6 +340,13 @@ export default function NovelRelatedSources({ novel, onUpdated, activeTab }: { n
           </MotionDetails>
         </section>
       </SourcePanel>
+      {automaticPreview && <BookImportDialog key={automaticPreview.runId} open initialPreview={automaticPreview} onCompleted={onUpdated}
+        onOpenChange={open => {
+          if (!open) {
+            setAutomaticPreview(null)
+            void loadFiles()
+          }
+        }} />}
       {filesOpen && (
         <SupplementarySourcesDialog
           novel={novel}

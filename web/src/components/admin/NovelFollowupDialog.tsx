@@ -16,6 +16,7 @@ import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } fr
 import { DialogBody, DialogFrame } from '@/components/shared/DialogFrame'
 import SearchSelect from '@/components/shared/SearchSelect'
 import NovelRelatedSources from './NovelRelatedSources'
+import type { SupplementaryUpdateMode } from '@shared/supplementary-source'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -209,7 +210,8 @@ export default function NovelFollowupDialog({
       setBusy(false)
     }
   }
-  function sourcesUpdated() {
+  function sourcesUpdated(mode?: SupplementaryUpdateMode) {
+    if (mode === 'append') setEnabled(false)
     void refresh().catch((error) => setError(error.message))
     onCompleted?.()
   }

@@ -1,9 +1,33 @@
-import type { BookImportBoundaryImpact, BookImportBoundaryOverride, BookImportPreview } from '@shared/types'
-import type { Db } from '../db/pool'
+import { createHash } from 'node:crypto'
+import type { BookImportBoundaryImpact, BookImportBoundaryOverride, BookImportPayload, BookImportPreview } from '@shared/types'
+import type { Db, DbClient } from '../db/pool'
 import { parseTextImportDetailed, type StoredImportRun, type TextImportResult } from './book-import'
 
 export const IMPORT_PREVIEW_RETENTION_MS = 7 * 86400000
 export const IMPORT_REVIEW_LEASE_MS = 10 * 60000
+
+export async function storeImportPreview(
+  db: DbClient, preview: BookImportPreview, payload: BookImportPayload, sourceText: string, actorUserId: string,
+  automatic?: { hash: string; version: string; append: boolean },
+) {
+  const now = Date.now()
+  preview.revision = 0
+  preview.boundaryOverrides = []
+  preview.reviewedLines = []
+  preview.sourceHash = sourceText ? createHash('sha256').update(sourceText).digest('hex') : ''
+  preview.sourceExpiresAt = now + IMPORT_PREVIEW_RETENTION_MS
+  preview.canResplit = !!sourceText
+  await db.query(
+    `INSERT INTO book_import_runs
+     (id,actor_user_id,source_type,source_label,source_url,target_novel_id,created_at,payload_json,preview_json,source_text,
+      source_hash,source_expires_at,history_summary,supplementary_binding_id,supplementary_file_key,
+      supplementary_auto_hash,supplementary_auto_file_version,supplementary_auto_pending)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+    [preview.runId, actorUserId, preview.sourceType, preview.sourceLabel, preview.sourceUrl, preview.targetNovelId || '', now,
+      JSON.stringify(payload), JSON.stringify(preview), sourceText, preview.sourceHash, preview.sourceExpiresAt, importHistorySummary(preview),
+      preview.supplementary?.bindingId || '', preview.supplementary?.fileKey || '', automatic?.hash || '', automatic?.version || '', automatic?.append || false],
+  )
+}
 
 export function checkImportRevision(run: StoredImportRun, revision: unknown): void {
   if (Number(run.source_expires_at) > 0 && Number(run.source_expires_at) <= Date.now()) throw new Error('预览已过期，请重新上传生成预览')
