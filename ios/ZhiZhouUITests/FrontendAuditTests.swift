@@ -381,6 +381,54 @@ final class FrontendAuditTests: XCTestCase {
     }
 
     @MainActor
+    func testMessageFilterFailureDoesNotPageThroughOldResults() {
+        let app = launch("messages-filter-failure")
+        selectTab("我的", app: app)
+        let entry = app.buttons["messages.entry"]
+        reveal(entry, app: app); tap(entry)
+        let more = app.buttons["messages.more"]
+        XCTAssertTrue(more.waitForExistence(timeout: 15))
+        let unread = app.segmentedControls.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "未读")).firstMatch
+        tap(unread)
+        let retry = app.buttons["messages.retry"]
+        XCTAssertTrue(retry.waitForExistence(timeout: 15))
+        XCTAssertFalse(more.isEnabled, "失败后不能使用旧筛选的分页游标")
+        XCTAssertFalse(app.buttons["messages.row.audit-read"].isEnabled)
+        tap(retry)
+        XCTAssertTrue(app.buttons["messages.row.audit-unread"].waitForExistence(timeout: 15))
+        XCTAssertFalse(app.buttons["messages.row.audit-read"].exists)
+        XCTAssertFalse(more.exists)
+    }
+
+    @MainActor
+    func testNotificationDraftSurvivesReminderRoundTrip() {
+        for largeText in [false, true] {
+            let app = launch(largeText: largeText)
+            selectTab("我的", app: app)
+            let entry = app.buttons["messages.entry"]
+            reveal(entry, app: app); tap(entry)
+            tap(app.buttons["messages.settings.entry"])
+            let preview = app.switches["messages.settings.preview"]
+            reveal(preview, app: app)
+            XCTAssertTrue(preview.waitForExistence(timeout: 15))
+            let originalValue = preview.value as? String
+            tap(preview)
+            XCTAssertNotEqual(preview.value as? String, originalValue)
+            let editedValue = preview.value as? String
+            let reminder = app.buttons["messages.settings.reminder"]
+            reveal(reminder, app: app); tap(reminder)
+            XCTAssertTrue(app.staticTexts["阅读提醒"].waitForExistence(timeout: 10))
+            tap(app.navigationBars.buttons.firstMatch)
+            for _ in 0..<10 {
+                if preview.isHittable { break }
+                app.swipeDown()
+            }
+            XCTAssertEqual(preview.value as? String, editedValue, "进入子页再返回不能覆盖未保存的偏好")
+            XCTAssertTrue(preview.isHittable)
+        }
+    }
+
+    @MainActor
     func testPhoneReadingRoutesSurviveRotation() throws {
         try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .phone, "覆盖 iPhone 横竖屏导航")
         defer { XCUIDevice.shared.orientation = .portrait }

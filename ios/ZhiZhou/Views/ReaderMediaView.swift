@@ -313,6 +313,9 @@ private struct ImagePreview: View {
                             y: panOffset.height + dragOffset.height
                         )
                         .accessibilityLabel(caption.isEmpty ? "插图大图" : caption)
+                        .accessibilityAction(named: showChrome ? "隐藏操作" : "显示操作") {
+                            withAnimation(reduceMotion ? nil : AppMotion.structural) { showChrome.toggle() }
+                        }
                         .accessibilityAction(named: "放大") {
                             withAnimation(reduceMotion ? nil : AppMotion.structural) {
                                 zoom = min(4.0, zoom + 1)
@@ -438,11 +441,15 @@ private struct ImagePreview: View {
                             .foregroundStyle(Color.white)
                             .frame(width: 32, height: 32)
                             .background(Color.white.opacity(0.18), in: Circle())
+                            .frame(minWidth: AppLayout.minimumTouchTarget, minHeight: AppLayout.minimumTouchTarget)
+                            .contentShape(Rectangle())
                     }
                     .accessibilityLabel("完成")
                     .accessibilityIdentifier("完成")
                     .accessibilityHint("关闭图片预览")
                     .opacity(showChrome ? 1 : 0)
+                    .allowsHitTesting(showChrome)
+                    .accessibilityHidden(!showChrome)
                 }
 
                 ToolbarItem(placement: .principal) {
@@ -450,6 +457,7 @@ private struct ImagePreview: View {
                         .font(.subheadline.weight(.medium).monospacedDigit())
                         .foregroundStyle(Color.white)
                         .opacity(showChrome ? 1 : 0)
+                        .accessibilityHidden(!showChrome)
                 }
             }
             .toolbarBackground(.hidden, for: .navigationBar)

@@ -97,6 +97,13 @@ private final class VisualAuditProtocol: URLProtocol {
     private static var discoverCapabilityRequests = 0
     private static var importApplied = false
     private static var importTargetID: String?
+    private static var messageInboxLoaded = false
+    private static var messageFilterFailureServed = false
+    private static var messageSettings: [String: Any] = [
+        "replies": true, "tasks": true, "preview": false,
+        "quietEnabled": false, "quietStart": "22:00", "quietEnd": "08:00",
+        "timeZone": "Asia/Shanghai", "revision": 1,
+    ]
     private static var backupRequests = 0
 
     private static var followupFixture: [String: Any] {
@@ -139,6 +146,33 @@ private final class VisualAuditProtocol: URLProtocol {
             image = VisualAudit.imageData(avatar: false)
         case (_, let path) where path.hasPrefix("/api/avatar/"):
             image = VisualAudit.imageData(avatar: true)
+        case ("GET", "/api/notifications"):
+            let unreadOnly = queryValue("unread") == "1"
+            if !unreadOnly { Self.messageInboxLoaded = true }
+            if VisualAudit.scenario == "messages-filter-failure", unreadOnly,
+               Self.messageInboxLoaded, !Self.messageFilterFailureServed {
+                Self.messageFilterFailureServed = true
+                status = 503
+                body = ["error": "消息筛选暂时不可用，请重试"]
+            } else {
+                let item: [String: Any] = [
+                    "id": unreadOnly ? "audit-unread" : "audit-read", "kind": "reply",
+                    "title": unreadOnly ? "待阅读消息" : "已读消息样本", "body": "这是一条测试回复。",
+                    "createdAt": VisualAudit.timestamp, "readAt": unreadOnly ? (NSNull() as Any) : (VisualAudit.timestamp as Any),
+                ]
+                body = ["items": [item], "unread": 2, "hasMore": !unreadOnly]
+            }
+        case ("GET", "/api/notifications/settings"):
+            body = ["settings": Self.messageSettings, "devices": [], "pushConfigured": false]
+        case ("PUT", "/api/notifications/settings"):
+            Self.messageSettings.merge(payload) { _, submitted in submitted }
+            body = ["settings": Self.messageSettings]
+        case ("GET", "/api/notifications/watches"):
+            body = ["items": [["novelId": "audit-book-1", "title": "山中来信", "enabled": false, "checksEnabled": true]], "hasMore": false]
+        case ("GET", let messagePath) where messagePath.hasPrefix("/api/notifications/"):
+            body = ["item": ["id": "audit-unread", "kind": "reply", "title": "待阅读消息", "body": "测试回复",
+                             "createdAt": VisualAudit.timestamp, "readAt": NSNull()],
+                    "text": "测试消息正文。", "href": "", "linkLabel": "", "novelId": "", "taskId": ""]
         case ("GET", "/api/auth/register-status"):
             body = ["mode": "open"]
         case ("GET", "/api/auth/passkeys/config"):

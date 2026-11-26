@@ -47,41 +47,63 @@ private struct MessageInboxView: View {
     private var resultsCurrent: Bool { displayedQuery == query }
     private var canUseResults: Bool { resultsCurrent && !busy }
     var body: some View {
-        List {
+        AccountSettingsList {
+            AccountSettingsHeading("消息中心", detail: "评论回复、追更与任务进展，都收在这里。")
+                .padding(.bottom, 24)
+                .readingSpaceEntrance(0)
             Section {
-                Picker("消息筛选", selection: $onlyUnread) { Text("全部").tag(false); Text("未读 \(unread)").tag(true) }.pickerStyle(.segmented)
-                NavigationLink { MessageSettingsView() } label: { Label("通知设置", systemImage: "bell.badge") }
+                Picker("消息筛选", selection: $onlyUnread) { Text("全部").tag(false); Text("未读 \(unread)").tag(true) }.accessibleSegmentedPicker().padding(.bottom, 12).accessibilityIdentifier("messages.filter")
+                NavigationLink { MessageSettingsView() } label: {
+                    AccountSettingsActionLabel(title: "通知设置", symbol: "bell.badge")
+                }
+                .padding(.bottom, 16)
+                .accessibilityIdentifier("messages.settings.entry")
             }
             if requests.isLoading { ProgressView(items.isEmpty ? "正在读取消息…" : "正在更新消息…") }
             if !items.isEmpty && !resultsCurrent {
                 Text("当前显示上次载入的消息，筛选成功后可继续操作。")
                     .font(.footnote).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("messages.stale")
             }
-            if let error { Section { Text(error).foregroundStyle(.red); Button("重试") { Task { await load() } }.disabled(busy) } }
+            if let error {
+                AccountSettingsNote(error, isError: true)
+                Button { Task { await load() } } label: {
+                    AccountSettingsActionLabel(title: "重试", symbol: "arrow.clockwise")
+                }
+                .disabled(busy).accessibilityIdentifier("messages.retry")
+            }
             Section {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                     NavigationLink { MessageDetailView(id: item.id) } label: {
                         HStack(alignment: .top, spacing: 12) {
                             Circle().fill(item.readAt == nil ? AppTheme.primary : .clear).frame(width: 7, height: 7).padding(.top, 7)
                             VStack(alignment: .leading, spacing: 8) {
-                                Text(item.title).font(.headline)
+                                Text(item.title).font(serifFont(.headline, .medium)).foregroundStyle(ReadingSpace.ink)
                                 if !item.body.isEmpty { Text(item.body).foregroundStyle(.secondary) }
                                 Text(Date(timeIntervalSince1970: item.createdAt / 1000), format: .dateTime.month().day().hour().minute()).font(.caption).foregroundStyle(.secondary)
                             }
-                        }.padding(.vertical, 6)
+                        }.padding(.vertical, 16)
+                            .overlay(alignment: .bottom) {
+                                ReadingSpace.profileLine.frame(height: 0.5).accessibilityHidden(true)
+                            }
                     }.accessibilityLabel("\(item.readAt == nil ? "未读，" : "")\(item.title)，\(item.body)")
                         .modifier(MessageRowEntrance(index: index, identity: String(displayedQuery?.onlyUnread ?? false)))
                         .opacity(resultsCurrent ? 1 : 0.5)
                         .disabled(!canUseResults)
+                        .accessibilityIdentifier("messages.row.\(item.id)")
                 }
                 if items.isEmpty && resultsCurrent && !busy {
                     Text(onlyUnread ? "暂时没有未读消息。" : "这里会收下新的评论回复和任务结果。")
                         .foregroundStyle(.secondary)
                 }
-                if hasMore { Button("加载更多") { Task { await load(more: true) } }.disabled(!canUseResults) }
+                if hasMore {
+                    Button { Task { await load(more: true) } } label: {
+                        AccountSettingsActionLabel(title: "加载更多", symbol: "arrow.down")
+                    }
+                    .disabled(!canUseResults).accessibilityIdentifier("messages.more")
+                }
             }
         }
-        .navigationTitle("消息中心").readingSpaceNavigation().scrollContentBackground(.hidden).background(ReadingSpace.profilePaper)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("全部已读") { Task { await markAll() } }.disabled(busy || unread == 0) } }
         .refreshable { await load() }
         .task(id: query) { await load() }
@@ -156,20 +178,31 @@ private struct MessageDetailView: View {
     @State private var retry = 0
     private var scope: String { "\(appState.user?.id ?? "")|\(APIClient.shared.token ?? "")|\(ServerConfig.serverURL)|\(ContentAccessStore.shared.mode)|\(retry)" }
     var body: some View {
-        List {
+        AccountSettingsPage {
             if let detail {
-                Section {
-                    Text(detail.item.title).font(serifFont(.title2, .semibold))
-                    if !detail.item.body.isEmpty { Text(detail.item.body).foregroundStyle(.secondary) }
-                    Text(detail.text).textSelection(.enabled)
-                }
+                AccountSettingsHeading(detail.item.title, detail: detail.item.body)
+                Text(detail.text).foregroundStyle(ReadingSpace.ink).textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 if !detail.taskId.isEmpty {
-                    NavigationLink("查看任务详情") { AdminAITasksView(taskID: detail.taskId) }
+                    NavigationLink { AdminAITasksView(taskID: detail.taskId) } label: {
+                        AccountSettingsActionLabel(title: "查看任务详情", symbol: "list.bullet.rectangle")
+                    }
                 }
-                if !detail.href.isEmpty { AdminWebLink(title: detail.linkLabel + "（网页）", path: detail.href) }
-            } else if error == nil { ProgressView("正在读取消息…") }
-            if let error { Text(error).foregroundStyle(.red); Button("重试") { retry += 1 } }
-        }.navigationTitle("消息详情").readingSpaceNavigation().task(id: scope) {
+                if !detail.href.isEmpty {
+                    AdminWebLink(title: detail.linkLabel + "（网页）", path: detail.href)
+                        .frame(minHeight: AppLayout.minimumTouchTarget)
+                }
+            } else {
+                AccountSettingsHeading("消息详情")
+                if error == nil { ProgressView("正在读取消息…") }
+            }
+            if let error {
+                AccountSettingsNote(error, isError: true)
+                Button { retry += 1 } label: {
+                    AccountSettingsActionLabel(title: "重试", symbol: "arrow.clockwise")
+                }
+            }
+        }.task(id: scope) {
             let owner = scope; detail = nil; error = nil
             do {
                 let result: LibraryMessageDetail = try await APIClient.shared.get("/api/notifications/" + ReaderMediaAPI.pathSegment(id), auth: true)
@@ -188,8 +221,8 @@ struct MessageCenterEntry: View {
     private var scope: String { "\(appState.user?.id ?? "")|\(ServerConfig.serverURL)|\(ContentAccessStore.shared.mode)" }
     var body: some View {
         NavigationLink { MessageCenterView() } label: {
-            HStack { Label("消息中心", systemImage: "bell"); Spacer(); if unread > 0 { Text("\(unread) 条未读").font(.caption).foregroundStyle(.secondary) }; Image(systemName: "chevron.right").font(.caption) }.padding(.vertical, 10)
-        }.task(id: scope) { await refresh() }.onChange(of: scenePhase) { _, value in if value == .active { Task { await refresh() } } }
+            AppAdaptiveRow { Label("消息中心", systemImage: "bell"); Spacer(); if unread > 0 { Text("\(unread) 条未读").font(.caption).foregroundStyle(.secondary) }; Image(systemName: "chevron.right").font(.caption) }.padding(.vertical, 10)
+        }.accessibilityIdentifier("messages.entry").task(id: scope) { await refresh() }.onChange(of: scenePhase) { _, value in if value == .active { Task { await refresh() } } }
     }
     private func refresh() async {
         let owner = scope; unread = 0

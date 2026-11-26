@@ -38,34 +38,61 @@ private struct MessageBookSubscriptionsContent: View {
     private var resultsCurrent: Bool { displayedQuery == query }
     private var canUseResults: Bool { resultsCurrent && !busy }
     var body: some View {
-        List {
-            Section { Text("仅订阅收藏的书。保存新章节后合并提醒；补录已有章节不通知。目录未知或更换书源时，首次检查只建立记录。").font(.footnote).foregroundStyle(.secondary) }
+        AccountSettingsList {
+            AccountSettingsHeading("书架追更提醒", detail: "仅订阅收藏的书。保存新章节后合并提醒；补录已有章节不通知。目录未知或更换书源时，首次检查只建立记录。")
+                .padding(.bottom, 24)
+                .readingSpaceEntrance(0)
             if requests.isLoading { ProgressView(items.isEmpty ? "正在读取收藏…" : "正在更新结果…") }
             if displayedQuery != nil && !resultsCurrent {
                 Text("当前显示上次载入的收藏，检索成功后可继续操作。")
                     .font(.footnote).foregroundStyle(.secondary)
             }
-            if let error { Text(error).foregroundStyle(.red); Button("重试") { Task { await load() } }.disabled(busy) }
+            if let error {
+                AccountSettingsNote(error, isError: true)
+                Button { Task { await load() } } label: {
+                    AccountSettingsActionLabel(title: "重试", symbol: "arrow.clockwise")
+                }
+                .disabled(busy)
+            }
             ForEach(Array(items.enumerated()), id: \.element.id) { index, book in
-                HStack {
-                    VStack(alignment: .leading, spacing: 6) { Text(book.title); if !book.checksEnabled { Text("站点尚未开启定时检查").font(.caption).foregroundStyle(.secondary) } }
+                AppAdaptiveRow(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 6) { Text(book.title).font(serifFont(.headline, .medium)).foregroundStyle(ReadingSpace.ink); if !book.checksEnabled { Text("站点尚未开启定时检查").font(.caption).foregroundStyle(.secondary) } }
                     Spacer()
-                    Button(book.enabled ? "已订阅" : "订阅更新") { Task { await toggle(book) } }.disabled(!canUseResults)
-                        .accessibilityLabel("\(book.enabled ? "取消" : "开启")《\(book.title)》更新提醒")
-                }.modifier(MessageRowEntrance(index: index, identity: "\(displayedQuery?.search ?? "")|\(displayedQuery?.offset ?? 0)"))
-                    .opacity(resultsCurrent ? 1 : 0.5)
+                    Button { Task { await toggle(book) } } label: {
+                        Text(book.enabled ? "已订阅" : "订阅更新")
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(minWidth: AppLayout.minimumTouchTarget, minHeight: AppLayout.minimumTouchTarget)
+                            .contentShape(Rectangle())
+                    }
+                    .foregroundStyle(AppTheme.primary).disabled(!canUseResults)
+                    .accessibilityLabel("\(book.enabled ? "取消" : "开启")《\(book.title)》更新提醒")
+                }
+                .padding(.vertical, 16)
+                .overlay(alignment: .bottom) { ReadingSpace.profileLine.frame(height: 0.5).accessibilityHidden(true) }
+                .modifier(MessageRowEntrance(index: index, identity: "\(displayedQuery?.search ?? "")|\(displayedQuery?.offset ?? 0)"))
+                .opacity(resultsCurrent ? 1 : 0.5)
             }
             if items.isEmpty && resultsCurrent && !busy { Text("没有找到收藏的书。").foregroundStyle(.secondary) }
             HStack {
-                if offset > 0 { Button("上一页") { offset = max(0, offset - 30) } }
+                if offset > 0 {
+                    Button { offset = max(0, offset - 30) } label: {
+                        Text("上一页").frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
+                    }
+                }
                 Spacer()
-                if more { Button("下一页") { offset += 30 } }
-            }.disabled(!canUseResults)
-        }.navigationTitle("书架追更提醒").readingSpaceNavigation()
-            .searchable(text: $search, prompt: "搜索我的收藏")
-            .onChange(of: search) { _, _ in offset = 0 }
-            .task(id: query) { await load(debounce: true) }
-            .onDisappear { requests.invalidate() }
+                if more {
+                    Button { offset += 30 } label: {
+                        Text("下一页").frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
+                    }
+                }
+            }
+            .frame(minHeight: AppLayout.minimumTouchTarget)
+            .disabled(!canUseResults)
+        }
+        .searchable(text: $search, prompt: "搜索我的收藏")
+        .onChange(of: search) { _, _ in offset = 0 }
+        .task(id: query) { await load(debounce: true) }
+        .onDisappear { requests.invalidate() }
     }
     private func load(debounce: Bool = false) async {
         let current = query
