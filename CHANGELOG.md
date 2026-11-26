@@ -1,10 +1,10 @@
 # 变更记录
 
-## iOS 1.4.0 / build 32：消息与小组件编译修复 — 2026-11-26（待构建）
+## iOS 1.4.0 / build 32：消息与小组件编译修复 — 2026-11-26（IPA 构建通过）
 
 - 为消息中心、书架追更提醒和小组件跳转补齐 `ZhiZhouCore` 导入，修复使用 `ReaderQuery.encode` 时缺少所属模块的编译问题。
-- GitHub Actions 第 73 次 iOS 构建（运行 `45760655500`，源码 `c9a1ad25`）核心单元测试成功，无签名编译步骤失败并退出 65，未生成 IPA。已读取完整日志，三处编译错误均为上述文件的 `cannot find 'ReaderQuery' in scope`；本次补齐对应模块导入，修复后仍待 Xcode 复编译确认。
-- 源码以本节所在提交为准，基于 `c9a1ad25`；三份 Swift 语法、同批源码模块引用和导航静态检查通过。主 App 与 Widget 同步递增至 iOS `1.4.0 / build 32`，准备通过 GitHub Actions 构建并下载未签名 IPA；构建及真机验收尚待完成，未执行服务端部署。详见[发布记录](docs/releasing.md)。
+- GitHub Actions 第 73 次 iOS 构建（运行 `45760655500`，源码 `c9a1ad25`）核心单元测试成功，无签名编译步骤失败并退出 65，未生成 IPA。已读取完整日志，三处编译错误均为上述文件的 `cannot find 'ReaderQuery' in scope`；本次补齐对应模块导入后，第 74 次 Xcode Release 构建通过。
+- 修复提交 `3e80ef8378b6fbb826baca75d562785542515960` 已推送；主 App 与 Widget 同步递增至 iOS `1.4.0 / build 32`。第 74 次构建（运行 `45765922734`）核心测试、Xcode Release 编译、包校验及工件上传全部成功，未签名 IPA 已下载并核对两端版本、ZIP 完整性及工件 SHA-256；尚未签名安装或真机验收，未执行服务端部署。详见[发布记录](docs/releasing.md)。
 
 ## API 1.15.0 / Web 1.14.0：消息中心与网页推送 — 2026-11-26（源码候选）
 

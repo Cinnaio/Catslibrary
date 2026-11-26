@@ -2,11 +2,13 @@
 
 ## iOS 1.4.0 / build 32：消息与小组件编译修复（2026-11-26）
 
-- 已通过 GitHub API 核对最新 iOS 工作流：第 73 次运行 `45760655500`，源码 `c9a1ad25ae6e1c110654a18e9b1929d0878386b8`，于北京时间 2026-11-26 13:17:47 开始，13:20:59 完成并失败。`Core unit tests` 成功，`Build unsigned IPA` 中 `Build (unsigned)` 退出 65，产物检查、打包及上传均未执行。上一成功运行是第 72 次，源码 `1e99e9ed`。
+- 已通过 GitHub API 核对本次修复前的失败 iOS 工作流：第 73 次运行 `45760655500`，源码 `c9a1ad25ae6e1c110654a18e9b1929d0878386b8`，于北京时间 2026-11-26 13:17:47 开始，13:20:59 完成并失败。`Core unit tests` 成功，`Build unsigned IPA` 中 `Build (unsigned)` 退出 65，产物检查、打包及上传均未执行。上一成功运行是第 72 次，源码 `1e99e9ed`。
 - 对比上一成功构建后的源码，发现 `LibraryWidgetDestination.swift`、`MessageBookSubscriptionsView.swift`、`MessageCenterView.swift` 使用 `ReaderQuery` 却未导入声明该类型的 `ZhiZhouCore`；三处已补齐导入。此次修复不改接口、业务流程或布局。
-- 已通过登录状态下的 GitHub 页面下载完整日志归档 `logs_123809137519.zip`。`Build unsigned IPA/12_Build (unsigned).txt` 第 832、835、838 行分别报告 `LibraryWidgetDestination.swift:38`、`MessageBookSubscriptionsView.swift:48`、`MessageCenterView.swift:79` 的 `cannot find 'ReaderQuery' in scope`；完整编译日志仅有这三处编译错误，与补齐的模块导入逐一对应。退出码 65 是编译失败的汇总结果；日志中的弃用及并发警告未导致本次失败。修复后的原生编译结果仍待验证。
-- 三份 Swift 文件 tree-sitter 语法、上一成功构建后变动文件的核心模块显式导入检查、既有导航静态检查和差异空白检查通过。Windows 环境没有 Xcode，未原生编译、重跑工作流或生成 IPA，也未进行真机验收。
-- 修正源码以本节所在提交为准，基于 `c9a1ad25`；本次按用户要求提交、推送并构建下载 IPA。`ios/project.yml` 中主 App 与 Widget 的 `CURRENT_PROJECT_VERSION` 同步从 31 递增到 32，`MARKETING_VERSION` 保留当前候选 `1.4.0`。此时尚待工作流完成，构建结果与下载校验另行记录；API／Web 版本不变，未执行服务端部署。
+- 已通过登录状态下的 GitHub 页面下载完整日志归档 `logs_123809137519.zip`。`Build unsigned IPA/12_Build (unsigned).txt` 第 832、835、838 行分别报告 `LibraryWidgetDestination.swift:38`、`MessageBookSubscriptionsView.swift:48`、`MessageCenterView.swift:79` 的 `cannot find 'ReaderQuery' in scope`；完整编译日志仅有这三处编译错误，与补齐的模块导入逐一对应。退出码 65 是编译失败的汇总结果；日志中的弃用及并发警告未导致本次失败。修复后的第 74 次原生编译已通过，结果见下。
+- 三份 Swift 文件 tree-sitter 语法、上一成功构建后变动文件的核心模块显式导入检查、既有导航静态检查和差异空白检查通过。原生验证由 GitHub Actions macOS runner 执行：第 74 次运行 `45765922734` 的 `Core unit tests` 与 `Build unsigned IPA` 均成功，Release 编译、包校验、IPA 打包与上传全部完成。尚未进行真机验收。
+- 实际构建源码为已推送的修复提交 `3e80ef8378b6fbb826baca75d562785542515960`，基于 `c9a1ad25`。`ios/project.yml` 中主 App 与 Widget 的 `CURRENT_PROJECT_VERSION` 同步从 31 递增到 32，`MARKETING_VERSION` 保留 `1.4.0`；下载 IPA 内两份 Info.plist 均与之匹配。API／Web 版本不变，未执行服务端部署。
+- 工件 `ZhiZhou-unsigned-ipa`（ID `15091839469`）已下载，归档 SHA-256 与 GitHub 返回值一致：`c857c1cdd4b5192c8436f862d1226328740c30692dd011d917e43f06fcf0c33a`。已校验外层 ZIP 与 IPA 的 CRC、主 App／Widget 可执行文件、隐私清单及 Release 网络配置。IPA 大小 `22384034` 字节，SHA-256 为 `78f80c57460e12281aef2475ccb330ef6449838c0439bf4d79b811cbdacd2530`；本地产物和校验回执保存在下载目录 `Catslibrary-iOS-1.4.0-build32-run74`。本次产物未签名，仍需自行签名安装；签名与真机运行尚未验收。
+- 本次后续提交仅补记上述构建与下载结果，产物对应源码仍为 `3e80ef83`，无需因文档记录更新重建相同 IPA。
 
 ## 消息中心与网页推送（2026-11-26）
 
