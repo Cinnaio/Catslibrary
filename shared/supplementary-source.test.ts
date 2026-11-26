@@ -49,3 +49,18 @@ it('同一文件重复出现只计一个版本，空查询不伪造书籍', () =
   expect(groupSupplementaryFiles([file('same'), file('same')])[0]!.versions).toHaveLength(1)
   expect(supplementaryCatalog([])).toEqual({ grouped: true, items: [], total: 0, fileCount: 0, folders: [] })
 })
+it('目录在 11.26 与 1123 之间换写法时仍按真实日期取最新', () => {
+  const files = [
+    file('a', { folder: '26年汇总/11月/1123', revision: 42 }),
+    file('b', { folder: '26年汇总/11月/11.25', revision: 45 }),
+    file('c', { folder: '26年汇总/11月/11.26', revision: 46 }),
+    file('d', { folder: '26年汇总/11月/11.22', revision: 42 }),
+  ]
+  expect(groupSupplementaryFiles(files)[0]!.versions.map((f) => f.key)).toEqual(['c', 'b', 'a', 'd'])
+  expect(supplementaryCatalog(files).folders.map((f) => f.name)).toEqual([
+    '26年汇总/11月/11.26',
+    '26年汇总/11月/11.25',
+    '26年汇总/11月/1123',
+    '26年汇总/11月/11.22',
+  ])
+})

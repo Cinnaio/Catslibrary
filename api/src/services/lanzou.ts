@@ -1,6 +1,6 @@
 import { createCipheriv, createHash } from 'node:crypto'
 import type { SupplementaryFile } from '@shared/supplementary-source'
-import { supplementaryIdentityKey } from '@shared/supplementary-source'
+import { compareSupplementaryFolders, supplementaryIdentityKey } from '@shared/supplementary-source'
 import { outboundFetch } from './outbound-fetch'
 
 const SHARE_DOMAINS = [
@@ -267,7 +267,7 @@ function ilanzouFolderName(item: Record<string, unknown>): string {
 }
 
 function newestFirst(a: Record<string, unknown>, b: Record<string, unknown>): number {
-  return ilanzouFolderName(b).localeCompare(ilanzouFolderName(a), 'zh-CN', { numeric: true })
+  return compareSupplementaryFolders(ilanzouFolderName(a), ilanzouFolderName(b))
 }
 
 /** 范围定位用的浅层目录读取：只需要文件名，不追求分页完整性。 */
@@ -293,7 +293,7 @@ async function listILanzouItems(
 }
 
 /**
- * `?latest=N` 的落点：从分享根目录往下按名称倒序（日期目录天然可比）走到日期层，取最新 N 个。
+ * `?latest=N` 的落点：从分享根目录往下按真实日期倒序走到日期层，取最新 N 个；`11.26` 与 `1123` 混用时也按日期比较。
  * 目录结构不符合「汇总/月/日」时，退回扫描最先命中的那一层，避免把整个分享拖进全量扫描。
  */
 async function ilanzouLatestFolders(

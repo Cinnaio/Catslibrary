@@ -72,8 +72,53 @@ export function supplementaryIdentityKey(value: string): string {
     .replace(/[\s《》「」]/g, '')
     .toLocaleLowerCase()
 }
+/**
+ * 目录名里的日期折算成 MMDD。发布者常在 `11.26` 与 `1123` 之间换写法，
+ * 纯数字自然序会把 `1123` 当成 1123 排到 `11.26` 前面，导致「最新目录」停在旧包。
+ */
+function folderUnitKey(unit: string): number {
+  const name = unit.trim()
+  let month = 0
+  let day = 0
+  let match = name.match(/^\d{4}\s*[.\-_/年]\s*(\d{1,2})\s*[.\-_/月]\s*(\d{1,2})/)
+  if (match) {
+    month = Number(match[1])
+    day = Number(match[2])
+  } else if ((match = name.match(/^(\d{1,2})\s*[.\-_/月]\s*(\d{1,2})(?!\d)/))) {
+    month = Number(match[1])
+    day = Number(match[2])
+  } else if ((match = name.match(/^(\d{1,2})月$/))) {
+    return Number(match[1]) * 100
+  } else if ((match = name.match(/^(\d{3,4})$/))) {
+    month = Number(match[1]!.slice(0, match[1]!.length - 2))
+    day = Number(match[1]!.slice(-2))
+  } else {
+    return Number.NaN
+  }
+  if (month < 1 || month > 12 || day < 1 || day > 31) return Number.NaN
+  return month * 100 + day
+}
+/** 目录按日期倒序；解析不出日期时退回名称自然序，保证排序始终是全序。 */
+export function compareSupplementaryFolders(a: string, b: string): number {
+  const unitsA = a.split('/').filter(Boolean)
+  const unitsB = b.split('/').filter(Boolean)
+  for (let i = 0; i < Math.min(unitsA.length, unitsB.length); i++) {
+    const keyA = folderUnitKey(unitsA[i]!)
+    const keyB = folderUnitKey(unitsB[i]!)
+    const diff =
+      Number.isFinite(keyA) && Number.isFinite(keyB)
+        ? keyB - keyA
+        : Number.isFinite(keyA) !== Number.isFinite(keyB)
+          ? Number.isFinite(keyA)
+            ? -1
+            : 1
+          : unitsB[i]!.localeCompare(unitsA[i]!, 'zh-CN', { numeric: true })
+    if (diff) return diff
+  }
+  return unitsB.length - unitsA.length
+}
 export function compareSupplementaryVersions(a: SupplementaryFile, b: SupplementaryFile): number {
-  return b.folder.localeCompare(a.folder, 'zh-CN', { numeric: true }) || (b.revision ?? -1) - (a.revision ?? -1) || a.key.localeCompare(b.key)
+  return compareSupplementaryFolders(a.folder, b.folder) || (b.revision ?? -1) - (a.revision ?? -1) || a.key.localeCompare(b.key)
 }
 /** 只归并完整书名和作者一致的文件，不用短标题或进度数字推断作品身份。 */
 export function groupSupplementaryFiles(files: SupplementaryFile[]): SupplementaryBook[] {
@@ -111,6 +156,6 @@ export function supplementaryCatalog(files: SupplementaryFile[], query = '', off
     items: books.slice(offset, offset + 30),
     total: books.length,
     fileCount: books.reduce((n, b) => n + b.versions.length, 0),
-    folders: [...folders.values()].sort((a, b) => b.name.localeCompare(a.name, 'zh-CN', { numeric: true })),
+    folders: [...folders.values()].sort((a, b) => compareSupplementaryFolders(a.name, b.name)),
   }
 }

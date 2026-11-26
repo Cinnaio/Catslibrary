@@ -222,6 +222,30 @@ describe('蓝奏目录与下载', () => {
     const both = await scanLanzouFolder(`${ilanzouRoot}?latest=2`, '', request)
     expect(both.map((file) => file.folder)).toEqual(['26年汇总/11月/11.22', '26年汇总/11月/11.21'])
   })
+  it('latest 模式在 11.26 与 1123 混用目录名时仍取当天最新的包', async () => {
+    const ilanzouRoot = 'https://www.ilanzou.com/s/bTPy1rOoO'
+    const listing = (list: unknown[]) => bytes({ code: 200, total: list.length, list })
+    const request = vi.fn(async (url: string) => {
+      const u = new URL(url)
+      if (u.pathname.includes('/unproved/recommend/list')) return bytes({ status: 1, code: 200 })
+      const folderId = u.searchParams.get('folderId') || ''
+      if (!folderId) return listing([{ fileType: 2, folderId: '100', folderName: '26年汇总' }])
+      if (folderId === '100') return listing([{ fileType: 2, folderId: '101', folderName: '11月' }])
+      if (folderId === '101')
+        return listing([
+          { fileType: 2, folderId: '102', folderName: '1123' },
+          { fileType: 2, folderId: '103', folderName: '11.26' },
+          { fileType: 2, folderId: '104', folderName: '11.25' },
+          { fileType: 2, folderId: '105', folderName: '11.22' },
+        ])
+      if (folderId === '103') return listing([{ fileType: 1, fileId: '9001', name: '[更46]《东宫妒》作者：泠.txt' }])
+      throw new Error(`未预期的目录：${folderId}`)
+    })
+
+    const newest = await scanLanzouFolder(`${ilanzouRoot}?latest=1`, '', request)
+    expect(newest.map((file) => file.folder)).toEqual(['26年汇总/11月/11.26'])
+    expect(newest[0]).toMatchObject({ title: '东宫妒', revision: 46, url: `${ilanzouRoot}?latest=1&fileId=9001` })
+  })
   it('通过蓝奏优享版重定向接口下载书籍正文', async () => {
     const file = {
       key: 'key',
