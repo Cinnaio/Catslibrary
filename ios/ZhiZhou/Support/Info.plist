@@ -46,5 +46,18 @@
 	</array>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>将你选择的书籍封面、插图或配图保存到系统相册。</string>
+	<key>LibraryWidgetAppGroup</key>
+	<string>$(LIBRARY_WIDGET_APP_GROUP)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.zhizhou.app.widget</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>catslibrary</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

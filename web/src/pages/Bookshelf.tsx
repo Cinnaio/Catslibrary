@@ -1,3 +1,5 @@
+import BookshelfOrganization from './BookshelfOrganization'
+import type { ShelfOrganization } from '@shared/bookshelf-organization'
 import { MotionView } from '@/components/ui/motion'
 import { Spinner } from '@/components/ui/spinner'
 import '@/styles/account-content.css'
@@ -16,7 +18,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { MoreHorizontal } from 'lucide-react'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '../components/ui/dropdown-menu'
 import type { ReadingHistoryEntry, Thought } from '@shared/types'
-import { bookmarksApi, bookshelfApi, getToken, progressApi } from '../lib/api'
+import { bookmarksApi, bookshelfApi, getToken, progressApi, shelfOrganizationApi } from '../lib/api'
 import { applyProgressState } from '../lib/progress-state'
 import {
   clearHistory,
@@ -36,7 +38,7 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { timeAgo } from '../lib/format'
 import { coverUrl } from '../lib/cover-url'
 
-interface Favorite {
+interface Favorite extends ShelfOrganization {
   novelId: string
   title?: string
   author?: string
@@ -229,13 +231,32 @@ export default function Bookshelf() {
     setSyncing(false)
   }
 
-  async function addFavorite(novelId: string, allowed: () => boolean = () => true) {
+  async function organize(action: () => Promise<unknown>) {
+    const current = beginMutation('organization')
+    if (!current) return false
+    try {
+      await action()
+      if (!current()) return false
+      finishMutation('organization', current)
+      await loadAll()
+      return current()
+    } finally { finishMutation('organization', current) }
+  }
+
+  async function addFavorite(novelId: string, allowed: () => boolean = () => true, restore?: Favorite) {
     if (!allowed()) return
     const current = beginMutation(novelId)
     if (!current) return
     try {
       await bookshelfApi.add(novelId)
       if (!current()) return
+      if (restore && (restore.note || restore.pinned || restore.groupIds?.length)) {
+        const available = await shelfOrganizationApi.groups(safeMode ? 'safe' : 'adult')
+        if (!current()) return
+        await shelfOrganizationApi.edit({ novelIds: [novelId], note: restore.note || '', pinned: !!restore.pinned,
+          groupIds: (restore.groupIds || []).filter(id => available.groups.some(g => g.id === id)), expectedVersion: 0 }, safeMode ? 'safe' : 'adult')
+        if (!current()) return
+      }
       finishMutation(novelId, current)
       await loadAll()
       if (current()) toast('已加入收藏', 'success')
@@ -256,7 +277,7 @@ export default function Bookshelf() {
       if (!current()) return
       listMotion.prepare()
       setFavorites(items => items.filter(item => item.novelId !== novelId))
-      toast('已移出书架', 'success', { action: { label: '撤销', onClick: () => { void addFavorite(novelId, current) } } })
+      toast('已移出书架', 'success', { action: { label: '撤销', onClick: () => { void addFavorite(novelId, current, favorites.find(f => f.novelId === novelId)) } } })
     } catch (err) {
       if (current()) toast((err as Error).message || '移出书架失败，请重试', 'error')
     } finally { finishMutation(novelId, current) }
@@ -371,20 +392,15 @@ export default function Bookshelf() {
             <h2 className="bookshelf-subtitle sr-only">
               收藏 <span className="text-muted">· {favorites.length}</span>
             </h2>
-            <div className={shelfStyles.grid} id="bookshelfFavorites" aria-busy={syncing} key={`favorites-${visiblePage}`}>
-              {favorites.length === 0 ? (
-                <p className="profile-empty-note">还没有收藏小说</p>
-              ) : (
-                favorites.slice(start, start + pageSize).map((f) => {
-                  const latest = recent.find(h => h.novelId === f.novelId)
-                  const reading = latest && latest.timestamp >= (f.progressUpdatedAt || 0) ? latest : f
-                  return <ShelfBookCard key={f.novelId} novelId={f.novelId} title={f.title || f.novelTitle || f.novelId}
-                    author={f.author} coverUpdatedAt={f.novelUpdatedAt} reading={reading} favorite
-                    time={f.updatedAt ? `收藏于 ${timeAgo(f.updatedAt)}` : undefined}
-                    pending={pending.size > 0} onRemove={() => void deleteFavorite(f.novelId)} />
-                })
-              )}
-            </div>
+            {loadedMode === safeMode && <BookshelfOrganization key={`${user?.id}:${safeMode}`} favorites={favorites} safeMode={safeMode} disabled={syncing || pending.size > 0} mutate={organize} renderBook={f => {
+              const latest = recent.find(h => h.novelId === f.novelId)
+              const reading = latest && latest.timestamp >= (f.progressUpdatedAt || 0) ? latest : f
+              return <ShelfBookCard novelId={f.novelId} title={f.title || f.novelTitle || f.novelId}
+                author={f.author} coverUpdatedAt={f.novelUpdatedAt} reading={reading} favorite
+                time={f.updatedAt ? `收藏于 ${timeAgo(f.updatedAt)}` : undefined}
+                pending={pending.size > 0} onRemove={() => void deleteFavorite(f.novelId)} />
+            }} />}
+
           </div>
         </section></MotionView>
 
@@ -452,7 +468,7 @@ export default function Bookshelf() {
             )}
           </div>
         </section></MotionView>
-        {totalPages > 1 && <Pagination variant="plain" ariaLabel="书架分页" page={visiblePage} totalPages={totalPages} busy={syncing} jump={false} summary={`共 ${total} 条`} onPage={page => setPages(current => ({ ...current, [activeShelf]: page }))} />}
+        {activeShelf !== 'favorites' && totalPages > 1 && <Pagination variant="plain" ariaLabel="书架分页" page={visiblePage} totalPages={totalPages} busy={syncing} jump={false} summary={`共 ${total} 条`} onPage={page => setPages(current => ({ ...current, [activeShelf]: page }))} />}
       </div>
     </main>
   )

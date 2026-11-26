@@ -9,7 +9,12 @@ import { rowToThoughtAdmin } from '../db/mappers'
 import { requireUser, type AuthEnv } from '../middlewares/auth'
 import { contentPolicyHeaders, restrictedContentResponse, resolveContentAccess } from '../services/content-access'
 
+import { bookshelfWidgetsRoutes } from './bookshelf-widgets'
+import { bookshelfOrganizationRoutes } from './bookshelf-organization'
+
 export const bookshelfRoutes = new Hono<AuthEnv>()
+bookshelfRoutes.route('/organization', bookshelfOrganizationRoutes)
+bookshelfRoutes.route('/widgets', bookshelfWidgetsRoutes)
 
 bookshelfRoutes.get('/', requireUser(), async (c) => {
   const db = getDb()
@@ -26,14 +31,17 @@ bookshelfRoutes.get('/', requireUser(), async (c) => {
     .toLowerCase()
     .slice(0, 200)
   const reading = c.req.query('reading') || ''
+  const groupId = cleanId(c.req.query('groupId'))
   const progressJoin = `LEFT JOIN reading_progress rp ON rp.user_id = b.user_id AND rp.novel_id = b.novel_id AND COALESCE(rp.deleted_at, 0) = 0
     AND EXISTS(SELECT 1 FROM chapters valid WHERE valid.id=rp.chapter_id AND valid.novel_id=rp.novel_id)`
   const favoriteFilter = `b.user_id = $1${ratingFilter} AND ($2 = '' OR n.id = $2)
-    AND ($3 = '' OR STRPOS(LOWER(n.title), $3) > 0 OR STRPOS(LOWER(n.author), $3) > 0)
-    AND ($4 = '' OR ($4 = 'unread' AND rp.chapter_id IS NULL) OR ($4 = 'started' AND rp.chapter_id IS NOT NULL))`
+    AND ($3 = '' OR STRPOS(LOWER(n.title), $3) > 0 OR STRPOS(LOWER(n.author), $3) > 0 OR STRPOS(LOWER(b.note), $3) > 0)
+    AND ($4 = '' OR ($4 = 'unread' AND rp.chapter_id IS NULL) OR ($4 = 'started' AND rp.chapter_id IS NOT NULL))
+    AND ($5 = '' OR EXISTS(SELECT 1 FROM bookshelf_group_members gm WHERE gm.user_id=b.user_id AND gm.novel_id=b.novel_id AND gm.group_id=$5))`
   const readingFilter = reading === 'unread' || reading === 'started' ? reading : ''
   const orderBy =
     new Map([
+      ['manual', 'b.position ASC, b.updated_at DESC, b.novel_id'],
       ['recent_read', 'COALESCE(rp.updated_at, 0) DESC, b.updated_at DESC, b.novel_id'],
       ['updated', 'n.updated_at DESC, b.novel_id'],
       ['title', 'n.title ASC, b.novel_id'],
@@ -42,7 +50,8 @@ bookshelfRoutes.get('/', requireUser(), async (c) => {
   const [favRows, recentRows, thoughtRows] = await Promise.all([
     all<Record<string, unknown>>(
       db,
-      `SELECT b.novel_id, b.created_at, b.updated_at,
+      `SELECT b.novel_id, b.created_at, b.updated_at,b.note,b.pinned,b.position,b.organization_version,
+              ARRAY(SELECT m.group_id FROM bookshelf_group_members m WHERE m.user_id=b.user_id AND m.novel_id=b.novel_id ORDER BY m.group_id) AS group_ids,
               n.title, n.author, n.description, n.status, n.chapter_count, n.remote_chapter_count, n.content_rating,
               n.updated_at AS novel_updated_at,
               rp.chapter_id, rp.scroll_percent, rp.updated_at AS progress_updated_at,
@@ -52,9 +61,9 @@ bookshelfRoutes.get('/', requireUser(), async (c) => {
        ${progressJoin}
        LEFT JOIN chapters c ON c.id = rp.chapter_id AND c.novel_id = rp.novel_id
        WHERE ${favoriteFilter}
-       ORDER BY ${orderBy}
-       LIMIT $5 OFFSET $6`,
-      [userId, novelId, search, readingFilter, limit, offset],
+       ORDER BY b.pinned DESC, ${orderBy}
+       LIMIT $6 OFFSET $7`,
+      [userId, novelId, search, readingFilter, groupId, limit, offset],
     ),
     all<Record<string, unknown>>(
       db,
@@ -88,7 +97,7 @@ bookshelfRoutes.get('/', requireUser(), async (c) => {
       db,
       `SELECT COUNT(*) AS total FROM user_bookshelf b JOIN novels n ON n.id=b.novel_id ${progressJoin}
        WHERE ${favoriteFilter}`,
-      [userId, novelId, search, readingFilter],
+      [userId, novelId, search, readingFilter, groupId],
     ),
     first<{ total: number }>(
       db,
@@ -152,6 +161,11 @@ bookshelfRoutes.delete('/', requireUser(), async (c) => {
 function rowToFavorite(row: Record<string, unknown>) {
   return {
     novelId: String(row.novel_id),
+    note: String(row.note || ''),
+    pinned: Boolean(row.pinned),
+    position: Number(row.position) || 0,
+    organizationVersion: Number(row.organization_version) || 0,
+    groupIds: Array.isArray(row.group_ids) ? row.group_ids : [],
     title: String(row.title || ''),
     author: String(row.author || ''),
     description: String(row.description || ''),

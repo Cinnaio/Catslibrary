@@ -89,6 +89,9 @@ jobs:
 
       - name: Validate property lists
         run: |
+          plutil -lint ZhiZhouWidgets/Info.plist
+          plutil -lint ZhiZhouWidgets/ZhiZhouWidgets.entitlements
+          plutil -lint ZhiZhou/Support/ZhiZhou.entitlements
           plutil -lint ZhiZhou/Support/Info.plist
           plutil -lint ZhiZhou/Support/PrivacyInfo.xcprivacy
 
@@ -118,6 +121,11 @@ jobs:
             echo "::error::未找到 Release .app 产物"
             exit 1
           fi
+          test -f "$APP_PATH/PlugIns/ZhiZhouWidgets.appex/Info.plist"
+          test -f "$APP_PATH/PlugIns/ZhiZhouWidgets.appex/ZhiZhouWidgets"
+          plutil -lint "$APP_PATH/PlugIns/ZhiZhouWidgets.appex/Info.plist"
+          test "$(plutil -extract CFBundleShortVersionString raw -o - "$APP_PATH/Info.plist")" = "$(plutil -extract CFBundleShortVersionString raw -o - "$APP_PATH/PlugIns/ZhiZhouWidgets.appex/Info.plist")"
+          test "$(plutil -extract CFBundleVersion raw -o - "$APP_PATH/Info.plist")" = "$(plutil -extract CFBundleVersion raw -o - "$APP_PATH/PlugIns/ZhiZhouWidgets.appex/Info.plist")"
           test -f "$APP_PATH/PrivacyInfo.xcprivacy"
           plutil -lint "$APP_PATH/PrivacyInfo.xcprivacy"
           if plutil -extract NSAppTransportSecurity.NSAllowsArbitraryLoads raw -o - "$APP_PATH/Info.plist" >/dev/null 2>&1; then

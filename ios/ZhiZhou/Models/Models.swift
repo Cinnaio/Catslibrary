@@ -168,6 +168,12 @@ struct FavoriteItem: Codable, Hashable, Identifiable {
     let progressUpdatedAt: Int64?
     var contentRating: String? = nil
 
+    var note: String? = nil
+    var pinned: Bool? = nil
+    var position: Int64? = nil
+    var organizationVersion: Int? = nil
+    var groupIds: [String]? = nil
+
     var asNovel: Novel {
         Novel(
             id: novelId, title: title, author: author, description: description,

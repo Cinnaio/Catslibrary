@@ -23,7 +23,10 @@ struct BookshelfView: View {
     @State private var requests = ListRequestGuard<[String]>()
     @State private var search = ""
     @State private var searchFocused = false
-    @State private var sort = "added"
+    @State private var sort = "manual"
+    @State private var groupID = ""
+    @State private var privateGroups: [PrivateShelfGroup] = []
+    @State private var showOrganizer = false
     @State private var reading = ""
     @State private var isLoadingMore = false
     @State private var loadMoreError: String?
@@ -48,7 +51,7 @@ struct BookshelfView: View {
 
     private var searchTerm: String { search.trimmingCharacters(in: .whitespacesAndNewlines) }
 
-    private var filtersFavorites: Bool { !searchTerm.isEmpty || !reading.isEmpty }
+    private var filtersFavorites: Bool { !searchTerm.isEmpty || !reading.isEmpty || !groupID.isEmpty }
 
     private var visibleSection: ShelfSection {
         if filtersFavorites { return .favorites }
@@ -76,16 +79,19 @@ struct BookshelfView: View {
     }
 
     private var shelfQuery: [String] {
-        [searchTerm, sort, reading, ContentAccessStore.shared.mode]
+        [searchTerm, sort, reading, ContentAccessStore.shared.mode, groupID]
     }
 
     @ViewBuilder
     var body: some View {
-        if ReadingSpaceWindowLayout.usesIPadLayout {
-            adaptiveBookshelf
-        } else {
-            phoneBookshelf
+        Group {
+            if ReadingSpaceWindowLayout.usesIPadLayout { adaptiveBookshelf }
+            else { phoneBookshelf }
         }
+        .sheet(isPresented: $showOrganizer, onDismiss: { shelfSection = .favorites; Task { await load(); await loadPrivateGroups() } }) {
+            PrivateBookshelfView()
+        }
+        .task(id: ContentAccessStore.shared.mode) { await loadPrivateGroups() }
     }
 
     @ViewBuilder
@@ -510,7 +516,13 @@ struct BookshelfView: View {
     private var bookshelfToolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
+                Button("整理书架", systemImage: "folder.badge.gearshape") { showOrganizer = true }
+                Picker("私人分组", selection: $groupID) {
+                    Text("全部收藏").tag("")
+                    ForEach(privateGroups) { Text($0.name).tag($0.id) }
+                }
                 Picker("排序", selection: $sort) {
+                    Text("我的顺序").tag("manual")
                     Text("收藏时间").tag("added")
                     Text("最近阅读").tag("recent_read")
                     Text("最近更新").tag("updated")
@@ -522,7 +534,7 @@ struct BookshelfView: View {
                     Text("已开始").tag("started")
                 }
             } label: {
-                Label("筛选与排序", systemImage: sort == "added" && reading.isEmpty
+                Label("筛选与排序", systemImage: sort == "manual" && reading.isEmpty && groupID.isEmpty
                     ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
             }
         }
@@ -784,6 +796,8 @@ struct BookshelfView: View {
                 .foregroundStyle(ReadingSpace.ink).appTextLineLimit(2)
             Text(favorite.author)
                 .font(.caption).foregroundStyle(AppTheme.textSecondary).appTextLineLimit(1)
+            if favorite.pinned == true { Label("已置顶", systemImage: "pin.fill").font(.caption2).foregroundStyle(AppTheme.primary) }
+            if let note = favorite.note, !note.isEmpty { Text(note).font(.caption).foregroundStyle(ReadingSpace.profileMuted).appTextLineLimit(2) }
             Text(favoriteProgress(favorite))
                 .font(.caption).foregroundStyle(AppTheme.primary)
                 .appTextLineLimit(2)
@@ -872,6 +886,16 @@ struct BookshelfView: View {
         "\(percentValue(raw))%"
     }
 
+    private func loadPrivateGroups() async {
+        let token = APIClient.shared.token, mode = ContentAccessStore.shared.mode
+        do {
+            let result: PrivateShelfGroups = try await APIClient.shared.getReader("/api/bookshelf/organization/groups", auth: true)
+            guard token == APIClient.shared.token, mode == ContentAccessStore.shared.mode, !Task.isCancelled else { return }
+            privateGroups = result.groups
+            if !groupID.isEmpty && !privateGroups.contains(where: { $0.id == groupID }) { groupID = "" }
+        } catch { /* Older APIs retain the existing bookshelf. The organizer presents actionable errors. */ }
+    }
+
     private func load(animate: Bool = false, debounce: Bool = false) async {
         guard APIClient.shared.isAuthenticated else { return }
         let ticket = requests.begin(shelfQuery)
@@ -906,7 +930,7 @@ struct BookshelfView: View {
         }
         do {
             let params = ["limit": String(pageSize), "offset": String(offset),
-                          "search": ticket.query[0], "sort": ticket.query[1], "reading": ticket.query[2]]
+                          "search": ticket.query[0], "sort": ticket.query[1], "reading": ticket.query[2], "groupId": ticket.query[4]]
             let r: BookshelfResponse = try await APIClient.shared.getReader(
                 "/api/bookshelf?" + ReaderQuery.encode(params), auth: true
             )

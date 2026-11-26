@@ -251,6 +251,7 @@ final class AppState {
         ReadingStatsStore.shared.activate(userID: user.id)
         AdminAITaskCoordinator.shared.activate(userID: user.id)
         self.user = user
+        LibraryWidgetStore.shared.activate(userID: user.id)
     }
 
     /// 账号已经可用后再同步非关键数据，避免认证冷启动和登录按钮被网络延迟拖住。
@@ -263,6 +264,7 @@ final class AppState {
     }
 
     private func deactivateLocalAccount(clearOfflineFallback: Bool) async {
+        LibraryWidgetStore.shared.deactivate()
         ContentAccessStore.shared.activate(token: nil)
         OfflineReadingStore.shared.deactivate(clearOfflineFallback: clearOfflineFallback)
         ReaderSettingsStore.shared.deactivate()

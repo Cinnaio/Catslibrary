@@ -1,0 +1,26 @@
+.organizer { display: grid; gap: 20px; min-width: 0; }
+.toolbar, .groupForm, .batch { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.search { flex: 1 1 220px; min-width: 0; }
+.toolbar select, .batch select { max-width: 100%; min-height: 36px; border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; background: var(--bg-card); color: var(--text-primary); font: inherit; }
+.book { min-width: 0; display: flex; flex-direction: column; gap: 8px; animation: shelf-enter 180ms both; animation-delay: var(--shelf-delay); }
+.book > article { flex: 1; }
+.bookTools, .groupRow { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.bookTools label, .pin { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+.pin { border: 0; background: none; cursor: pointer; min-height: 32px; padding: 4px; }
+.pin[aria-pressed=true] { color: var(--accent); }
+.annotation { padding: 0 4px 12px; }
+.annotation p { margin: 2px 0 6px; line-height: 1.6; font-size: 13px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: pre-wrap; overflow-wrap: anywhere; }
+.annotation small, .groupRow small { color: var(--text-muted); }
+.memberships { border: 0; padding: 0; margin: 0 0 24px; display: flex; flex-wrap: wrap; gap: 12px 20px; }
+.memberships legend { margin-bottom: 12px; }
+.memberships label { display: inline-flex; align-items: center; gap: 8px; }
+.groupRow { padding: 12px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+.groupRow > span:first-child { min-width: 0; }
+.groupRow > span:last-child { flex-shrink: 0; }
+.batch, .confirm { padding: 12px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; }
+.error { color: var(--accent); font-size: 14px; }
+.organizer button:disabled { cursor: default; opacity: .5; }
+.organizer input[type=checkbox] { accent-color: var(--accent); }
+@keyframes shelf-enter { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .book { animation: none; } }
+@media (max-width: 480px) { .toolbar > label { flex: 1 1 40%; } .toolbar > .search { flex-basis: 100%; } .toolbar select { width: 100%; } }

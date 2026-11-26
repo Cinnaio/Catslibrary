@@ -10,7 +10,7 @@ from pathlib import Path
 
 def inputs(root):
     tracked = subprocess.check_output(
-        ["git", "ls-files", "-z", "--", "ZhiZhou", "ZhiZhouCore", "project.yml"],
+        ["git", "ls-files", "-z", "--", "ZhiZhou", "ZhiZhouCore", "ZhiZhouWidgets", "WidgetShared", "project.yml"],
         cwd=root,
     ).decode("utf-8").split("\0")
     paths = {root / name for name in tracked if name}

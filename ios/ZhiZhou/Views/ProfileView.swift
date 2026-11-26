@@ -267,6 +267,9 @@ struct ProfileView: View {
                 profileRow("我的想法", symbol: "text.bubble")
             }
             .accessibilityIdentifier("profile.thoughts")
+            NavigationLink { LibraryWidgetsHelpView().profileDestinationNavigation() } label: {
+                profileRow("桌面上的书房", symbol: "rectangle.grid.2x2", detail: "续读与划句")
+            }
             Divider().overlay(ReadingSpace.profileLine)
             offlineLink
         }

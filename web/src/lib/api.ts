@@ -1,3 +1,4 @@
+import type { BookshelfGroup, ShelfEdit } from '@shared/bookshelf-organization'
 import type { ReadingEvent, ReadingStats } from '@shared/reading-stats'
 import type { GenerationAssociation, GenerationAssociationPreview, GenerationAssociationRequest } from '@shared/ai-generation-association'
 import type { ChallengeConfiguration, SecurityAction } from '@shared/security'
@@ -838,7 +839,7 @@ export const progressApi = {
 
 export const bookshelfApi = {
   get(
-    params: { offset?: number; limit?: number; contentMode?: string; novelId?: string } = {},
+    params: { offset?: number; limit?: number; contentMode?: string; novelId?: string; sort?: string; groupId?: string } = {},
   ): Promise<{ favorites: unknown[]; recent: unknown[]; thoughts: unknown[]; totals?: { favorites: number; thoughts: number } }> {
     const query = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]))
     return request('GET', `/bookshelf?${query}`, null, true)
@@ -848,6 +849,27 @@ export const bookshelfApi = {
   },
   remove(novelId: string): Promise<{ ok: boolean }> {
     return request('DELETE', `/bookshelf?novelId=${encodeURIComponent(novelId)}`, null, true)
+  },
+}
+
+export const shelfOrganizationApi = {
+  groups(contentMode: string): Promise<{ groups: BookshelfGroup[] }> {
+    return request('GET', `/bookshelf/organization/groups?contentMode=${contentMode}`, null, true)
+  },
+  create(name: string): Promise<{ group: BookshelfGroup }> {
+    return request('POST', '/bookshelf/organization/groups', { name }, true)
+  },
+  rename(id: string, name: string): Promise<{ success: boolean }> {
+    return request('PATCH', `/bookshelf/organization/groups/${encodeURIComponent(id)}`, { name }, true)
+  },
+  remove(id: string): Promise<{ success: boolean }> {
+    return request('DELETE', `/bookshelf/organization/groups/${encodeURIComponent(id)}`, null, true)
+  },
+  edit(body: ShelfEdit, contentMode: string): Promise<{ success: boolean }> {
+    return request('PATCH', `/bookshelf/organization/entries?contentMode=${contentMode}`, body, true)
+  },
+  move(novelId: string, direction: 'up' | 'down', groupId: string, contentMode: string): Promise<{ success: boolean }> {
+    return request('POST', `/bookshelf/organization/move?contentMode=${contentMode}`, { novelId, direction, groupId }, true)
   },
 }
 

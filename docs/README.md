@@ -33,3 +33,5 @@
 - [iOS 并仓说明](ios-monorepo.md)：源码布局与构建边界
 
 其余方案、验证记录与预览保留在本目录及 `previews/`；设计素材位于 `assets/` 和 `design-assets/`。
+
+- [私人书架与桌面书房](private-bookshelf-and-widgets.md)：跨端整理、Widget 共享与签名、验收边界。

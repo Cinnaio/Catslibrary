@@ -12,13 +12,20 @@ packages:
   ZhiZhouCore:
     path: ZhiZhouCore
 
+settings:
+  base:
+    LIBRARY_WIDGET_APP_GROUP: group.com.zhizhou.app
+
 targets:
   ZhiZhou:
     type: application
     platform: iOS
     dependencies:
       - package: ZhiZhouCore
+      - target: ZhiZhouWidgets
+        embed: true
     sources:
+      - path: WidgetShared
       - path: ZhiZhou
         excludes:
           - "Support/Info.plist"
@@ -41,6 +48,29 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         SWIFT_VERSION: "5.0"
         ENABLE_PREVIEWS: YES
+
+  ZhiZhouWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ZhiZhouWidgets
+        excludes:
+          - "Info.plist"
+          - "ZhiZhouWidgets.entitlements"
+      - path: WidgetShared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.zhizhou.app.widgets
+        PRODUCT_NAME: ZhiZhouWidgets
+        MARKETING_VERSION: "1.4.0"
+        CURRENT_PROJECT_VERSION: 31
+        INFOPLIST_FILE: ZhiZhouWidgets/Info.plist
+        CODE_SIGN_ENTITLEMENTS: ZhiZhouWidgets/ZhiZhouWidgets.entitlements
+        CODE_SIGN_STYLE: Automatic
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
 
   ZhiZhouTests:
     type: bundle.unit-test

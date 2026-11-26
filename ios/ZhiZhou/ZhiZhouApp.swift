@@ -27,6 +27,7 @@ struct ZhiZhouApp: App {
                 .environment(fontStore)
                 .environment(offlineReadingStore)
                 .background(GlobalKeyboardDismissal())
+                .onOpenURL { LibraryWidgetStore.shared.receive($0) }
                 .task(id: appState.user?.id) { await ContentAccessStore.shared.revalidate() }
                 #if DEBUG && targetEnvironment(simulator)
                 .preferredColorScheme(VisualAudit.appearance)
@@ -35,13 +36,14 @@ struct ZhiZhouApp: App {
                     if phase == .inactive || phase == .background {
                         ContentAccessStore.shared.suspend()
                     } else if phase == .active {
-                        Task { await ContentAccessStore.shared.revalidate() }
+                        Task { await ContentAccessStore.shared.revalidate(); LibraryWidgetStore.shared.refresh() }
                     }
                     guard phase == .active || phase == .background else { return }
                     Task { @MainActor in
                         await ReaderSettingsStore.shared.flush()
                         await ReaderProgressStore.shared.flush()
                         await ReadingStatsStore.shared.flush()
+                        LibraryWidgetStore.shared.refresh(force: phase == .background)
                     }
                 }
                 .overlay(alignment: .top) {

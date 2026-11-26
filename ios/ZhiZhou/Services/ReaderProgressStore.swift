@@ -74,7 +74,9 @@ final class ReaderProgressStore {
         await flush()
         await outbox.waitForIdle()
         guard activeUserID == userID, outbox.sessionID == sessionID else { return false }
-        return outbox.pendingDelete(for: novelID) == nil
+        let synced = outbox.pendingDelete(for: novelID) == nil
+        if synced { LibraryWidgetStore.shared.invalidateReading(novelID: novelID) }
+        return synced
     }
 
     func activate(userID: String) {
@@ -92,5 +94,6 @@ final class ReaderProgressStore {
     func flush() async {
         guard APIClient.shared.isAuthenticated else { return }
         await outbox.flush()
+        LibraryWidgetStore.shared.refresh()
     }
 }

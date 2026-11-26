@@ -2,9 +2,9 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, expect, it, vi } from 'vitest'
-const mocks = vi.hoisted(() => ({ list: vi.fn(), replace: vi.fn(), shelf: vi.fn(), add: vi.fn(), remove: vi.fn(), recent: vi.fn(), removeProgress: vi.fn(), saveProgress: vi.fn(), toast: vi.fn(), safeMode: false, user: { id: 'a' } }))
+const mocks = vi.hoisted(() => ({ editOrganization: vi.fn(), list: vi.fn(), replace: vi.fn(), shelf: vi.fn(), add: vi.fn(), remove: vi.fn(), recent: vi.fn(), removeProgress: vi.fn(), saveProgress: vi.fn(), toast: vi.fn(), safeMode: false, user: { id: 'a' } }))
 vi.mock('../context/ContentPolicyContext', () => ({ useContentPolicy: () => ({ safeMode: mocks.safeMode }) }))
-vi.mock('../lib/api', () => ({ url: (p: string) => p, getToken: () => sessionStorage.getItem('user_session_token') || '', bookmarksApi: { list: mocks.list, replace: mocks.replace }, bookshelfApi: { get: mocks.shelf, add: mocks.add, remove: mocks.remove }, progressApi: { recent: mocks.recent, remove: mocks.removeProgress, save: mocks.saveProgress } }))
+vi.mock('../lib/api', () => ({ url: (p: string) => p, getToken: () => sessionStorage.getItem('user_session_token') || '', bookmarksApi: { list: mocks.list, replace: mocks.replace }, bookshelfApi: { get: mocks.shelf, add: mocks.add, remove: mocks.remove }, shelfOrganizationApi: { groups: async () => ({ groups: [{ id: 'g', name: '睡前读', count: 1 }] }), edit: mocks.editOrganization }, progressApi: { recent: mocks.recent, remove: mocks.removeProgress, save: mocks.saveProgress } }))
 vi.mock('../context/SessionContext', () => ({ useSession: () => ({ user: mocks.user, loading: false }) }))
 vi.mock('../components/feedback', () => ({ useToast: () => ({ toast: mocks.toast }) }))
 import Bookshelf from './Bookshelf'
@@ -14,6 +14,7 @@ beforeEach(() => {
   mocks.safeMode = false
   mocks.user = { id: 'a' }
   mocks.add.mockResolvedValue({ ok: true })
+  mocks.editOrganization.mockResolvedValue({ success: true })
   mocks.remove.mockResolvedValue({ ok: true })
   sessionStorage.setItem('user_session_token', 'a'); setStorageUser('a')
   mocks.list.mockResolvedValue({ bookmarks: [] })
@@ -208,4 +209,15 @@ it('最近阅读加入收藏后显示云端确认的收藏状态', async () => {
   await userEvent.click(screen.getByRole('button', { name: '加入收藏' }))
   expect(mocks.add).toHaveBeenCalledWith('n')
   expect(await screen.findByText('已收藏')).toBeVisible()
+})
+
+it('撤销移出收藏时恢复私人备注、多重归类和置顶', async () => {
+  mocks.shelf.mockResolvedValue({ favorites: [{ novelId: 'n', title: '留在书架的书', note: '想二刷', groupIds: ['g'], pinned: true, organizationVersion: 2 }], thoughts: [] })
+  render(<MemoryRouter><Bookshelf /></MemoryRouter>)
+  await screen.findByText('留在书架的书')
+  await removeFromCard('取消收藏')
+  await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith('已移出书架', 'success', expect.anything()))
+  const options = mocks.toast.mock.calls.find(call => call[0] === '已移出书架')![2]
+  await act(async () => { options.action.onClick() })
+  await waitFor(() => expect(mocks.editOrganization).toHaveBeenCalledWith({ novelIds: ['n'], note: '想二刷', pinned: true, groupIds: ['g'], expectedVersion: 0 }, 'adult'))
 })

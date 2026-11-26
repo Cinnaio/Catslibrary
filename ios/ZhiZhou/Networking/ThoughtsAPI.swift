@@ -14,6 +14,7 @@ enum ThoughtsAPI {
             body: try APIClient.shared.jsonBody(payload),
             auth: true
         )
+        await MainActor.run { LibraryWidgetStore.shared.refresh(force: true) }
         return response.thought
     }
 
@@ -22,6 +23,7 @@ enum ThoughtsAPI {
             "/api/thoughts?id=\(encodeQueryValue(id))",
             auth: true
         )
+        await MainActor.run { LibraryWidgetStore.shared.invalidateQuotes() }
     }
 
     private static func encodeQueryValue(_ value: String) -> String {

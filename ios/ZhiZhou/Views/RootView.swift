@@ -158,6 +158,9 @@ struct MainTabView: View {
                     .environment(\.horizontalSizeClass, windowSizeClass)
             }
         }
+        .fullScreenCover(item: Binding(get: { LibraryWidgetStore.shared.route }, set: { LibraryWidgetStore.shared.route = $0 })) { route in
+            LibraryWidgetDestination(route: route)
+        }
         .tabViewStyle(.tabBarOnly)
         // 仅标签栏使用紧凑排列以留在底部，各页面恢复窗口的真实尺寸类别。
         .environment(\.horizontalSizeClass, ReadingSpaceWindowLayout.usesIPadLayout ? .compact : windowSizeClass)
