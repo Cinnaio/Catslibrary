@@ -62,7 +62,6 @@ struct AdminAIAgentConversationView: View {
         .background(usesWorkspaceSurface ? Color.clear : ReadingSpace.profilePaper)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.hidden, for: .tabBar)
         .toolbar(.visible, for: .navigationBar)
         .navigationDestination(item: $chapterLink) { link in
             SavedChapterDestination(novelID: link.novelID, chapterID: link.chapterID)

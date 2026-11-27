@@ -301,7 +301,6 @@ struct ReaderView: View {
         .scrollEdgeEffectHidden(true, for: .top)
         .toolbar(.visible, for: .navigationBar)
         .toolbar(.hidden, for: .bottomBar)
-        .toolbar(.hidden, for: .tabBar)
         .statusBarHidden(false)
         .persistentSystemOverlays(.automatic)
         .toolbar {

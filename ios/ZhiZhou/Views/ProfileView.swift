@@ -12,17 +12,32 @@ private enum ProfileSection: String, CaseIterable, Identifiable {
     }
 }
 
+enum ProfileRoute: Hashable {
+    case companion, account, contentMode, readingStats, messages
+    case bookmarks, thoughts, widgets, offline, storage, privacy, about, admin
+    case reader(ReaderLaunch)
+}
+
 struct ProfileView: View {
     let openBookshelf: () -> Void
     @Environment(AppState.self) private var appState
     @Environment(OfflineReadingStore.self) private var offlineStore
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var navigationPath: [ProfileRoute] = []
     @State private var showReaderSettings = false
     @State private var section: ProfileSection = .reading
     @Namespace private var sectionHighlight
 
     var body: some View {
+        NavigationStack(path: $navigationPath) {
+            profileContent
+                .navigationDestination(for: ProfileRoute.self, destination: destination)
+        }
+        .toolbarVisibility(navigationPath.isEmpty ? .visible : .hidden, for: .tabBar)
+    }
+
+    private var profileContent: some View {
         GeometryReader { geometry in
             let isIPad = ReadingSpaceWindowLayout.usesIPadLayout
             let contentWidth = min(geometry.size.width, isIPad ? 960 : 700)
@@ -60,6 +75,28 @@ struct ProfileView: View {
         }
     }
 
+    @ViewBuilder
+    private func destination(for route: ProfileRoute) -> some View {
+        switch route {
+        case .companion: WindowCompanionView()
+        case .account: ProfileAccountView().profileDestinationNavigation()
+        case .contentMode: ContentModeView().profileDestinationNavigation()
+        case .readingStats: ReadingStatsView().profileDestinationNavigation()
+        case .messages: MessageCenterView()
+        case .bookmarks: ReaderBookmarksView().profileDestinationNavigation()
+        case .thoughts: MyThoughtsView().profileDestinationNavigation()
+        case .widgets: LibraryWidgetsHelpView().profileDestinationNavigation()
+        case .offline: OfflineReadingView().profileDestinationNavigation()
+        case .storage: StorageManagerView().profileDestinationNavigation()
+        case .privacy: PrivacyNoticeView().profileDestinationNavigation()
+        case .about: ProfileAboutView().profileDestinationNavigation()
+        case .admin: AdminRootView().profileDestinationNavigation()
+        case .reader(let launch):
+            ReaderView(novel: launch.novel, chapterOrder: launch.chapterOrder)
+                .profileDestinationNavigation()
+        }
+    }
+
     private func profileCover(topInset: CGFloat, height: CGFloat, contentWidth: CGFloat) -> some View {
         GeometryReader { geometry in
             let pullDistance = max(0, geometry.frame(in: .named("profileScroll")).minY)
@@ -89,9 +126,7 @@ struct ProfileView: View {
                 let width = min(154, max(60, geometry.size.width / 2 - 60))
                 let portraitHeight = min(width * 0.86, height - topInset - 79)
 
-                NavigationLink {
-                    WindowCompanionView()
-                } label: {
+                NavigationLink(value: ProfileRoute.companion) {
                     WindowCompanionPortrait(coverCrop: CGSize(width: width, height: portraitHeight))
                         .overlay(alignment: .bottomTrailing) {
                             Image(systemName: "arrow.up.right")
@@ -159,7 +194,7 @@ struct ProfileView: View {
                     preferences
                     general
                     if appState.user?.isAdmin == true {
-                        NavigationLink { AdminRootView().profileDestinationNavigation() } label: {
+                        NavigationLink(value: ProfileRoute.admin) {
                             profileRow("管理后台", symbol: "slider.horizontal.3")
                         }
                     }
@@ -200,7 +235,7 @@ struct ProfileView: View {
         .padding(.top, compactSpacing ? 56 : 62)
         .overlay(alignment: .top) {
             if let user = appState.user {
-                NavigationLink { ProfileAccountView().profileDestinationNavigation() } label: {
+                NavigationLink(value: ProfileRoute.account) {
                     ProfileAvatar(user: user, size: 78)
                         .padding(5)
                         .background(ReadingSpace.profilePaper, in: Circle())
@@ -259,16 +294,16 @@ struct ProfileView: View {
 
     private var readingShortcuts: some View {
         VStack(spacing: 0) {
-            NavigationLink { ReaderBookmarksView().profileDestinationNavigation() } label: {
+            NavigationLink(value: ProfileRoute.bookmarks) {
                 profileRow("我的书签", symbol: "bookmark")
             }
             .accessibilityIdentifier("profile.bookmarks")
             Divider().overlay(ReadingSpace.profileLine)
-            NavigationLink { MyThoughtsView().profileDestinationNavigation() } label: {
+            NavigationLink(value: ProfileRoute.thoughts) {
                 profileRow("我的想法", symbol: "text.bubble")
             }
             .accessibilityIdentifier("profile.thoughts")
-            NavigationLink { LibraryWidgetsHelpView().profileDestinationNavigation() } label: {
+            NavigationLink(value: ProfileRoute.widgets) {
                 profileRow("桌面上的书房", symbol: "rectangle.grid.2x2", detail: "续读与划句")
             }
             Divider().overlay(ReadingSpace.profileLine)
@@ -284,11 +319,11 @@ struct ProfileView: View {
                 .accessibilityAddTraits(.isHeader)
             Text("喜欢的段落，和当时的心情。")
                 .font(.subheadline).foregroundStyle(ReadingSpace.profileMuted)
-            NavigationLink { ReaderBookmarksView().profileDestinationNavigation() } label: {
+            NavigationLink(value: ProfileRoute.bookmarks) {
                 profileRow("我的书签", symbol: "bookmark")
             }
             .accessibilityIdentifier("profile.bookmarks")
-            NavigationLink { MyThoughtsView().profileDestinationNavigation() } label: {
+            NavigationLink(value: ProfileRoute.thoughts) {
                 profileRow("我的想法", symbol: "text.bubble")
             }
             .accessibilityIdentifier("profile.thoughts")
@@ -297,10 +332,10 @@ struct ProfileView: View {
 
     private var preferences: some View {
         profileSection("关于我的小天地") {
-            NavigationLink { ProfileAccountView().profileDestinationNavigation() } label: {
+            NavigationLink(value: ProfileRoute.account) {
                 profileRow("账户与安全", symbol: "person.crop.circle")
             }
-            NavigationLink { ContentModeView().profileDestinationNavigation() } label: {
+            NavigationLink(value: ProfileRoute.contentMode) {
                 profileRow("内容模式", symbol: "eye",
                            detail: ContentAccessStore.shared.mode == "adult" ? "R18 · 在线" : "安全模式")
             }
@@ -314,7 +349,7 @@ struct ProfileView: View {
     }
 
     private var offlineLink: some View {
-        NavigationLink { OfflineReadingView().profileDestinationNavigation() } label: {
+        NavigationLink(value: ProfileRoute.offline) {
             profileRow("离线阅读", symbol: "arrow.down.circle",
                        detail: offlineStore.totalChapterCount > 0 ? "\(offlineStore.totalChapterCount) 章" : nil)
         }
@@ -323,9 +358,9 @@ struct ProfileView: View {
 
     private var general: some View {
         profileSection("通用") {
-            NavigationLink { StorageManagerView().profileDestinationNavigation() } label: { profileRow("存储管理", symbol: "internaldrive") }
-            NavigationLink { PrivacyNoticeView().profileDestinationNavigation() } label: { profileRow("隐私说明", symbol: "hand.raised") }
-            NavigationLink { ProfileAboutView().profileDestinationNavigation() } label: { profileRow("关于 Cat’s Library", symbol: "info.circle") }
+            NavigationLink(value: ProfileRoute.storage) { profileRow("存储管理", symbol: "internaldrive") }
+            NavigationLink(value: ProfileRoute.privacy) { profileRow("隐私说明", symbol: "hand.raised") }
+            NavigationLink(value: ProfileRoute.about) { profileRow("关于 Cat’s Library", symbol: "info.circle") }
         }
     }
 

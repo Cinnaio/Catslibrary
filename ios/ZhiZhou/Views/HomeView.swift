@@ -48,6 +48,9 @@ struct HomeView: View {
     private var searchTerm: String { search.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var showsSearchScopes: Bool { !searchSources.isEmpty && (isSearchPresented || !searchTerm.isEmpty) }
     private var isSearchingSources: Bool { showsSearchScopes && searchScope == .sources }
+    private var showsTabBar: Bool {
+        navigationPath.isEmpty && rankingsPresentation == nil && sourceSearchBook == nil
+    }
 
     private var recentReading: RecentItem? {
         bookshelf?.recent.first { ContentAccessStore.shared.mode == "adult" || !$0.asNovel.isRestricted }
@@ -82,7 +85,6 @@ struct HomeView: View {
     var body: some View {
         NavigationStack(path: $navigationPath) {
             homeList
-                .toolbar(.visible, for: .tabBar)
                 .navigationDestination(for: HomeRoute.self) { route in
                     switch route {
                     case .novel(let novel):
@@ -96,6 +98,7 @@ struct HomeView: View {
                     }
                 }
         }
+        .toolbarVisibility(showsTabBar ? .visible : .hidden, for: .tabBar)
     }
 
     private var homeScrollContent: some View {

@@ -173,7 +173,6 @@ struct NovelDetailView: View {
         .sensoryFeedback(.selection, trigger: interactionFeedback)
         .readerContentAccess(isRestricted: currentNovel.isRestricted)
         // 作品详情只保留阅读操作；返回发现或书架根页后由根页恢复主导航。
-        .toolbar(.hidden, for: .tabBar)
         .toolbar(ReadingSpaceWindowLayout.usesIPadLayout ? .visible : .automatic, for: .navigationBar)
         // 注册在完整页面外层，异步详情更新或内容门禁切换都不会移除目的地注册。
         // 同时应用最新作品分级，详情异步补全不能绕过门禁；返回时由系统清除请求。

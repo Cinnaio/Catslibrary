@@ -48,6 +48,8 @@ struct AdminAIAgentView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
+        // 历史抽屉开合时保持底部安全区高度。
+        .toolbarVisibility(isTabRoot ? (activeSession == nil ? .visible : .hidden) : .automatic, for: .tabBar)
         .task {
             if selectedID.isEmpty, let initialNovel { selectedID = initialNovel.id }
             await loadBooks()
@@ -149,8 +151,6 @@ struct AdminAIAgentView: View {
                 Rectangle().ignoresSafeArea(.container, edges: .vertical)
             }
             .background(ReadingSpace.canvas.ignoresSafeArea(.container))
-            // Drawer visibility must not change the tab bar's safe-area height during the slide.
-            .toolbar(activeSession != nil ? .hidden : (isTabRoot ? .visible : .automatic), for: .tabBar)
             .onChange(of: isWide) { _, wide in
                 if wide { showHistory = false }
             }
@@ -229,8 +229,6 @@ struct AdminAIAgentView: View {
                 Rectangle().ignoresSafeArea(.container, edges: .vertical)
             }
             .background(ReadingSpace.canvas.ignoresSafeArea(.container))
-            // Drawer visibility must not change the tab bar's safe-area height during the slide.
-            .toolbar(activeSession != nil ? .hidden : (isTabRoot ? .visible : .automatic), for: .tabBar)
             .onChange(of: isWide) { _, wide in
                 if wide { showHistory = false }
             }

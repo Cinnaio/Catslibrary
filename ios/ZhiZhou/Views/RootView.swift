@@ -154,7 +154,7 @@ struct MainTabView: View {
                 }
             }
             Tab("我的", systemImage: "person", value: "profile") {
-                NavigationStack { ProfileView(openBookshelf: { selectedTab = "shelf" }) }
+                ProfileView(openBookshelf: { selectedTab = "shelf" })
                     .environment(\.horizontalSizeClass, windowSizeClass)
             }
         }

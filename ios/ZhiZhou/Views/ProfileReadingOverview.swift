@@ -26,7 +26,7 @@ struct ProfileReadingOverview: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            NavigationLink { ReadingStatsView().profileDestinationNavigation() } label: { summary }
+            NavigationLink(value: ProfileRoute.readingStats) { summary }
                 .accessibilityIdentifier("profile.reading-stats")
             if statsError != nil, statsScope == scope {
                 Button("重新加载阅读统计") { Task { await loadStats() } }
@@ -54,10 +54,8 @@ struct ProfileReadingOverview: View {
             .padding(.bottom, 6)
             if recentScope == scope {
                 if let recent {
-                    NavigationLink {
-                        ReaderView(novel: recent.asNovel, chapterOrder: recent.chapterOrder)
-                            .profileDestinationNavigation()
-                    } label: { continueReading(recent) }
+                    let launch = ReaderLaunch(novel: recent.asNovel, chapterOrder: recent.chapterOrder)
+                    NavigationLink(value: ProfileRoute.reader(launch)) { continueReading(recent) }
                     .accessibilityIdentifier("profile.continue-reading")
                 } else if let recentError {
                     LoadErrorNotice(message: recentError, isLoading: loadingRecent) { Task { await loadRecent() } }

@@ -220,7 +220,7 @@ struct MessageCenterEntry: View {
     @State private var unread = 0
     private var scope: String { "\(appState.user?.id ?? "")|\(ServerConfig.serverURL)|\(ContentAccessStore.shared.mode)" }
     var body: some View {
-        NavigationLink { MessageCenterView() } label: {
+        NavigationLink(value: ProfileRoute.messages) {
             AppAdaptiveRow { Label("消息中心", systemImage: "bell"); Spacer(); if unread > 0 { Text("\(unread) 条未读").font(.caption).foregroundStyle(.secondary) }; Image(systemName: "chevron.right").font(.caption) }.padding(.vertical, 10)
         }.accessibilityIdentifier("messages.entry").task(id: scope) { await refresh() }.onChange(of: scenePhase) { _, value in if value == .active { Task { await refresh() } } }
     }

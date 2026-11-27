@@ -76,8 +76,13 @@ struct BookshelfView: View {
         [searchTerm, sort, reading, ContentAccessStore.shared.mode, groupID]
     }
 
+    private var showsTabBar: Bool {
+        navigationPath.isEmpty && compactDetailNovel == nil && !showOrganizer
+    }
+
     var body: some View {
         adaptiveBookshelf
+            .toolbarVisibility(showsTabBar ? .visible : .hidden, for: .tabBar)
             .sheet(isPresented: $showOrganizer, onDismiss: {
                 shelfSection = .favorites
                 Task { await load(); await loadPrivateGroups() }
@@ -95,7 +100,7 @@ struct BookshelfView: View {
                     .frame(maxWidth: .infinity)
                     .background(ReadingSpace.profilePaper)
             }
-            .toolbar(.visible, for: .navigationBar, .tabBar)
+            .toolbar(.visible, for: .navigationBar)
             .navigationDestination(for: BookshelfRoute.self) { route in
                 Self.destination(for: route)
             }

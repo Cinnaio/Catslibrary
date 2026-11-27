@@ -214,8 +214,10 @@ final class FrontendAuditTests: XCTestCase {
         tap(app.buttons["书籍详情"])
         XCTAssertTrue(app.buttons["detail.read"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.staticTexts["海边书店"].firstMatch.isHittable)
+        XCTAssertFalse(app.tabBars.firstMatch.isHittable, "从书架长按打开的详情也隐藏底部主导航")
         tap(app.buttons["关闭"])
         XCTAssertTrue(secondRecent.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.tabBars.buttons["书架"].isHittable)
         secondRecent.press(forDuration: 1)
         tap(app.buttons["删除阅读记录"])
         let recentConfirmation = app.staticTexts["将删除《长街灯火里的旧日时光》的最近阅读记录"]
@@ -407,6 +409,8 @@ final class FrontendAuditTests: XCTestCase {
             selectTab("我的", app: app)
             let entry = app.buttons["messages.entry"]
             reveal(entry, app: app); tap(entry)
+            XCTAssertTrue(app.staticTexts["消息中心"].firstMatch.waitForExistence(timeout: 10))
+            XCTAssertFalse(app.tabBars.firstMatch.isHittable, "从我的进入消息中心后隐藏底部主导航")
             tap(app.buttons["messages.settings.entry"])
             let preview = app.switches["messages.settings.preview"]
             reveal(preview, app: app)
@@ -418,6 +422,7 @@ final class FrontendAuditTests: XCTestCase {
             let reminder = app.buttons["messages.settings.reminder"]
             reveal(reminder, app: app); tap(reminder)
             XCTAssertTrue(app.staticTexts["阅读提醒"].waitForExistence(timeout: 10))
+            XCTAssertFalse(app.tabBars.firstMatch.isHittable, "进入多级个人内页时保持隐藏")
             tap(app.navigationBars.buttons.firstMatch)
             for _ in 0..<10 {
                 if preview.isHittable { break }
@@ -425,6 +430,13 @@ final class FrontendAuditTests: XCTestCase {
             }
             XCTAssertEqual(preview.value as? String, editedValue, "进入子页再返回不能覆盖未保存的偏好")
             XCTAssertTrue(preview.isHittable)
+            XCTAssertFalse(app.tabBars.firstMatch.isHittable, "返回通知设置仍隐藏底部主导航")
+            tap(app.navigationBars.buttons.firstMatch)
+            XCTAssertTrue(app.buttons["messages.settings.entry"].waitForExistence(timeout: 10))
+            tap(app.navigationBars.buttons.firstMatch)
+            let profileTab = app.tabBars.buttons["我的"]
+            XCTAssertTrue(profileTab.waitForExistence(timeout: 10))
+            XCTAssertTrue(profileTab.isHittable, "返回我的首页后恢复底部主导航")
         }
     }
 
@@ -442,6 +454,8 @@ final class FrontendAuditTests: XCTestCase {
                 selectTab("发现", app: app)
                 if entry == "detail" {
                     tap(app.buttons["catalog.audit-book-1"])
+                    XCTAssertTrue(app.buttons["detail.read"].waitForExistence(timeout: 15))
+                    XCTAssertFalse(app.tabBars.firstMatch.isHittable, "iPhone 书籍详情不显示底部主导航")
                     let chapter = app.buttons["detail.chapter.2"]
                     reveal(chapter, app: app)
                     tap(chapter)
@@ -462,6 +476,7 @@ final class FrontendAuditTests: XCTestCase {
             tap(app.navigationBars.buttons.firstMatch)
             if entry == "detail" {
                 XCTAssertTrue(app.buttons["detail.read"].waitForExistence(timeout: 10))
+                XCTAssertFalse(app.tabBars.firstMatch.isHittable, "从阅读器返回详情仍隐藏底部主导航")
                 tap(app.navigationBars.buttons.firstMatch)
             }
             XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 10))
