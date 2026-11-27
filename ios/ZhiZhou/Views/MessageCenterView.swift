@@ -214,15 +214,19 @@ private struct MessageDetailView: View {
     }
 }
 
-struct MessageCenterEntry: View {
+struct MessageCenterEntry<RowLabel: View>: View {
+    @ViewBuilder let label: (Int) -> RowLabel
     @Environment(AppState.self) private var appState
     @Environment(\.scenePhase) private var scenePhase
     @State private var unread = 0
     private var scope: String { "\(appState.user?.id ?? "")|\(ServerConfig.serverURL)|\(ContentAccessStore.shared.mode)" }
     var body: some View {
-        NavigationLink(value: ProfileRoute.messages) {
-            AppAdaptiveRow { Label("消息中心", systemImage: "bell"); Spacer(); if unread > 0 { Text("\(unread) 条未读").font(.caption).foregroundStyle(.secondary) }; Image(systemName: "chevron.right").font(.caption) }.padding(.vertical, 10)
-        }.accessibilityIdentifier("messages.entry").task(id: scope) { await refresh() }.onChange(of: scenePhase) { _, value in if value == .active { Task { await refresh() } } }
+        NavigationLink(value: ProfileRoute.messages) { label(unread) }
+            .accessibilityIdentifier("messages.entry")
+            .task(id: scope) { await refresh() }
+            .onChange(of: scenePhase) { _, value in
+                if value == .active { Task { await refresh() } }
+            }
     }
     private func refresh() async {
         let owner = scope; unread = 0

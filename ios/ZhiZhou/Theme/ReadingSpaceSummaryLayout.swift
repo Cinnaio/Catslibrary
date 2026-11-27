@@ -62,6 +62,7 @@ struct ReadingSpaceSummaryRow: View {
     var detail = ""
     var isBookTitle = false
     var valueTint = ReadingSpace.ink
+    var showsDivider = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -88,10 +89,12 @@ struct ReadingSpaceSummaryRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.bottom, 6)
         .overlay(alignment: .bottom) {
-            Divider()
-                .overlay(ReadingSpace.profileLine)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
+            if showsDivider {
+                Divider()
+                    .overlay(ReadingSpace.profileLine)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
         }
         .accessibilityElement(children: .combine)
     }

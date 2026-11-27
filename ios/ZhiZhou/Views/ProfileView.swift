@@ -179,7 +179,6 @@ struct ProfileView: View {
     private func profilePaper(contentWidth: CGFloat, compactSpacing: Bool) -> some View {
         VStack(spacing: 0) {
             profileIdentity(compactSpacing: compactSpacing)
-            if appState.user != nil { MessageCenterEntry().padding(.horizontal, 24) }
             sectionPicker
                 .padding(.top, compactSpacing ? 12 : 16)
                 .padding(.bottom, compactSpacing ? 16 : 18)
@@ -298,7 +297,6 @@ struct ProfileView: View {
                 profileRow("我的书签", symbol: "bookmark")
             }
             .accessibilityIdentifier("profile.bookmarks")
-            Divider().overlay(ReadingSpace.profileLine)
             NavigationLink(value: ProfileRoute.thoughts) {
                 profileRow("我的想法", symbol: "text.bubble")
             }
@@ -306,7 +304,11 @@ struct ProfileView: View {
             NavigationLink(value: ProfileRoute.widgets) {
                 profileRow("桌面上的书房", symbol: "rectangle.grid.2x2", detail: "续读与划句")
             }
-            Divider().overlay(ReadingSpace.profileLine)
+            if appState.user != nil {
+                MessageCenterEntry { unread in
+                    profileRow("消息中心", symbol: "bell", detail: unread > 0 ? "\(unread) 条未读" : nil)
+                }
+            }
             offlineLink
         }
     }

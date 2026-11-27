@@ -598,7 +598,8 @@ private struct ReadingStatsWorkRow: View {
             title: book.title,
             value: ReadingStats.duration(book.milliseconds),
             detail: detail,
-            isBookTitle: true
+            isBookTitle: true,
+            showsDivider: false
         )
     }
 
