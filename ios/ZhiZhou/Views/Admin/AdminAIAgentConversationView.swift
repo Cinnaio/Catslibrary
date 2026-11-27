@@ -167,6 +167,12 @@ private struct AgentMessagesView: View {
 
     private var usesSolidBar: Bool { reduceTransparency || contrast == .increased }
 
+    private struct TranscriptLayout: Equatable {
+        let contentSize: CGSize
+        let containerSize: CGSize
+        let contentInsets: EdgeInsets
+    }
+
     private var scrollMarker: String {
         "\(model.events.last?.id ?? 0):\(model.activeTask?.id ?? ""):\(model.activeTask?.status ?? ""):\(model.activeTask?.step ?? ""):\(model.liveReply?.progress?.updatedAt ?? 0):\(model.interruptedReply?.taskId ?? ""):\(!model.streamErrors.isEmpty)"
     }
@@ -174,11 +180,12 @@ private struct AgentMessagesView: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView { transcript }
+            .defaultScrollAnchor(.top, for: .alignment)
             .scrollDismissesKeyboard(.interactively)
             .onScrollPhaseChange { previous, phase in
                 scrollPhase = phase
                 if previous == .animating && phase == .idle && followsBottom && !readingOverlay {
-                    proxy.scrollTo("agent-bottom", anchor: .bottom)
+                    proxy.scrollTo("agent-bottom")
                 }
             }
             .onScrollGeometryChange(for: Bool.self) { geometry in
@@ -190,11 +197,20 @@ private struct AgentMessagesView: View {
                 default: break
                 }
             }
+            .onScrollGeometryChange(for: TranscriptLayout.self) { geometry in
+                TranscriptLayout(contentSize: geometry.contentSize, containerSize: geometry.containerSize,
+                                 contentInsets: geometry.contentInsets)
+            } action: { _, _ in
+                guard followsBottom, scrollPhase == .idle, !readingOverlay else { return }
+                // Reply replacement and keyboard resizing must settle before following the laid-out end.
+                proxy.scrollTo("agent-bottom")
+            }
             .onChange(of: scrollMarker, initial: true) { old, new in
                 if readingOverlay {
                     if old != new { followsBottom = false }
                 } else if followsBottom && scrollPhase == .idle {
-                    proxy.scrollTo("agent-bottom", anchor: .bottom)
+                    // A forced bottom anchor displaces short conversations when the preview is replaced.
+                    proxy.scrollTo("agent-bottom")
                 }
             }
             .scrollEdgeEffectStyle(.soft, for: .bottom)
@@ -234,8 +250,7 @@ private struct AgentMessagesView: View {
                 .font(.subheadline).foregroundStyle(ReadingSpace.ink)
             }
             if model.events.isEmpty {
-                ContentUnavailableView("一起把故事往下写", systemImage: "sparkles",
-                    description: Text("可以聊情节、调整草稿，也可以描述你想要的封面。"))
+                AgentConversationWelcomeView()
             }
             ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
                 VStack(alignment: .leading, spacing: 12) {
@@ -314,7 +329,7 @@ private struct AgentMessagesView: View {
                 Button {
                     followsBottom = true
                     withAnimation(reduceMotion ? nil : AppMotion.structural) {
-                        proxy.scrollTo("agent-bottom", anchor: .bottom)
+                        proxy.scrollTo("agent-bottom")
                     }
                 } label: {
                     Label("回到最新", systemImage: "arrow.down")
@@ -334,6 +349,34 @@ private struct AgentMessagesView: View {
             if usesSolidBar { ReadingSpace.profilePaper.ignoresSafeArea(.container, edges: .bottom) }
         }
         .animation(reduceMotion ? nil : AppMotion.panel, value: followsBottom)
+    }
+}
+
+private struct AgentConversationWelcomeView: View {
+    var body: some View {
+        VStack(spacing: 18) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 30, weight: .regular))
+                .foregroundStyle(AppTheme.primary.opacity(0.65))
+                .accessibilityHidden(true)
+            VStack(spacing: 10) {
+                Text("一起把故事往下写")
+                    .font(serifFont(.title2, .medium))
+                    .foregroundStyle(ReadingSpace.ink)
+                    .accessibilityAddTraits(.isHeader)
+                Text("聊聊情节，打磨文字，\n或一起构思故事的封面。")
+                    .font(.subheadline)
+                    .foregroundStyle(ReadingSpace.profileMuted)
+                    .lineSpacing(5)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .multilineTextAlignment(.center)
+        .padding(.horizontal, 12)
+        .padding(.top, 88)
+        .padding(.bottom, 32)
+        .frame(maxWidth: .infinity)
+        .accessibilityIdentifier("agent.welcome")
     }
 }
 
@@ -743,32 +786,22 @@ private struct AgentComposerView: View {
                     .accessibilityLabel("消息")
                     .accessibilityIdentifier("agent.composer")
                 if dynamicTypeSize >= .xxxLarge {
-                    modelMenu
-                    HStack(spacing: 12) {
-                        memoryButton
-                        chapterPlanButton
-                        Spacer(minLength: 0)
-                        messageAction
-                    }
+                    expandedControls
                 } else {
-                    HStack(spacing: 12) {
-                        memoryButton
-                        chapterPlanButton
-                        modelMenu
-                        Spacer(minLength: 0)
-                        messageAction
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 10) {
+                            composerTools
+                            modelMenu.fixedSize(horizontal: true, vertical: false)
+                            Spacer(minLength: 0)
+                            messageAction
+                        }
+                        expandedControls
                     }
                 }
             }
             .padding(.horizontal, 12).padding(.top, 6).padding(.bottom, 4)
             .appGlassEffect(.regular, fallback: ReadingSpace.paper,
                             in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-            if model.supportsWritingReferences {
-                Button { showReferences = true } label: {
-                    Label(model.selectedReferences.isEmpty ? "写作参考" : "写作参考 · " + model.selectedReferences.map(\.title).joined(separator: "、"), systemImage: "books.vertical")
-                        .font(.caption).lineLimit(2).frame(minHeight: 44)
-                }.disabled(!model.canChangeChapterPlan)
-            }
             if model.localDraft.input.utf16.count > 8_000 {
                 Text("消息最多 8000 字，请缩短后发送。").font(.caption).foregroundStyle(.red)
             }
@@ -782,6 +815,64 @@ private struct AgentComposerView: View {
             }
             Button("取消", role: .cancel) {}
         } message: { Text("服务器可能已接收此消息。结束重试不会停止任务，再次发送会创建新的一轮。") }
+    }
+
+    @ViewBuilder private var composerTools: some View {
+        memoryButton
+        chapterPlanButton
+        referencesButton
+    }
+
+    private var expandedControls: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            modelMenu
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) {
+                    composerTools
+                    Spacer(minLength: 0)
+                    messageAction
+                }
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 10) {
+                        memoryButton
+                        chapterPlanButton
+                        Spacer(minLength: 0)
+                    }
+                    HStack(spacing: 10) {
+                        referencesButton
+                        Spacer(minLength: 0)
+                        messageAction
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var referencesButton: some View {
+        if model.supportsWritingReferences {
+            Button { showReferences = true } label: {
+                Label(model.selectedReferences.isEmpty ? "参考" : "参考 \(model.selectedReferences.count)",
+                      systemImage: "books.vertical")
+                    .labelStyle(AgentComposerToolLabelStyle())
+                    .font(.caption).foregroundStyle(AppTheme.primary)
+                    .frame(minWidth: 44, minHeight: AppLayout.minimumTouchTarget)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!model.canChangeChapterPlan)
+            .accessibilityLabel("写作参考")
+            .accessibilityValue(referenceSummary)
+            .accessibilityHint("查看、选择写作参考及使用范围")
+            .accessibilityIdentifier("agent.writingReferences")
+        }
+    }
+
+    private var referenceSummary: String {
+        guard !model.selectedReferences.isEmpty else { return "未选择参考" }
+        let titles = model.selectedReferences.map(\.title).joined(separator: "、")
+        let scope = model.referenceSelection?.scope == "session" ? "持续用于本次对话" : "仅用于下一次发送"
+        return "已选择 \(model.selectedReferences.count) 项：\(titles)；\(scope)"
     }
 
     @ViewBuilder private var messageAction: some View {
@@ -858,7 +949,7 @@ private struct AgentComposerView: View {
     @ViewBuilder private var chapterPlanButton: some View {
         if model.supportsChapterPlan {
             Button(action: showChapterPlan) {
-                Label("章节计划", systemImage: "list.bullet.rectangle")
+                Label("计划", systemImage: "list.bullet.rectangle")
                     .labelStyle(AgentComposerToolLabelStyle())
                     .font(.caption).foregroundStyle(AppTheme.primary)
                     .frame(minWidth: 44, minHeight: AppLayout.minimumTouchTarget)
