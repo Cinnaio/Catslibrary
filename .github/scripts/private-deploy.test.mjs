@@ -6,7 +6,7 @@ import { mkdtemp, readFile, rm, writeFile, mkdir, access } from 'node:fs/promise
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { assertCurrent, childEnvironment, cleanup, main, quote, readState, resolveAdapterRef, runPrivate, selectAdapterRef, validateConnection, verifyArtifact, workDirectory } from './private-deploy.mjs'
+import { assertCurrent, childEnvironment, cleanup, main, quote, readState, resolveAdapterRef, runBoundedChecks, runPrivate, verifyBuild, selectAdapterRef, validateConnection, verifyArtifact, workDirectory } from './private-deploy.mjs'
 const core = 'a'.repeat(40), adapter = 'b'.repeat(40), newer = 'c'.repeat(40)
 const state = { releaseSha: core, sourceAdapterRevision: adapter }
 const here = dirname(fileURLToPath(import.meta.url))
@@ -95,4 +95,81 @@ test('公开私有合并发布不上传工件或缓存；普通公开验收固�
   const publicVerify = await readFile(resolve(here, '../workflows/release-verify.yml'), 'utf8')
   assert.ok(publicVerify.includes("CATSLIBRARY_PRIVATE_SOURCES: '0'"))
   assert.ok(publicVerify.includes('check-public-source-build.mjs'))
+})
+
+const deferred = () => {
+  let resolve, reject
+  const promise = new Promise((resolvePromise, rejectPromise) => { resolve = resolvePromise; reject = rejectPromise })
+  return { promise, resolve, reject }
+}
+const nextTurn = () => new Promise(resolveTurn => setImmediate(resolveTurn))
+
+test('发布检查最多并行两项，空出位置才启动下一项且不遗漏检查', async () => {
+  const gates = Array.from({ length: 5 }, deferred), started = [], completed = []
+  let active = 0, peak = 0
+  const pending = runBoundedChecks(gates.map((gate, index) => async () => {
+    started.push(index)
+    peak = Math.max(peak, ++active)
+    await gate.promise
+    active--
+    completed.push(index)
+  }))
+  assert.deepEqual(started, [0, 1])
+  for (const index of [0, 1, 2]) {
+    gates[index].resolve()
+    await nextTurn()
+    assert.equal(started.length, index + 3)
+  }
+  gates[3].resolve()
+  gates[4].resolve()
+  await pending
+  assert.equal(peak, 2)
+  assert.equal(active, 0)
+  assert.deepEqual(completed.sort(), [0, 1, 2, 3, 4])
+})
+test('发布检查失败后停止调度，等待在途检查退出才拒绝后续打包', async () => {
+  const first = deferred(), second = deferred(), started = []
+  let settled = false, failure
+  const pending = runBoundedChecks([
+    async () => { started.push(1); await first.promise },
+    async () => { started.push(2); await second.promise },
+    async () => { started.push(3) },
+  ]).then(() => { settled = true }, error => { settled = true; failure = error })
+  first.reject(new Error('private check failed'))
+  await nextTurn()
+  assert.deepEqual(started, [1, 2])
+  assert.equal(settled, false)
+  second.resolve()
+  await pending
+  assert.ok(failure instanceof AggregateError)
+  assert.equal(failure.errors.length, 1)
+  assert.deepEqual(started, [1, 2])
+})
+test('合并验收保留八项门禁，两套 Vitest 回归不会同时访问工作区', async () => {
+  const calls = [], finished = new Set()
+  let active = 0, peak = 0
+  await verifyBuild(async (label, command, args) => {
+    peak = Math.max(peak, ++active)
+    calls.push({ label, command, args })
+    if (label === '适配器回归') assert.ok(finished.has('API 关键回归'))
+    await nextTurn()
+    finished.add(label)
+    active--
+  })
+  assert.equal(peak, 2)
+  assert.equal(calls.length, 8)
+  assert.deepEqual([...finished].sort(), ['核心 Lint', '核心类型检查', 'API 关键回归', '适配器回归', 'Agent 评估类型检查', '适配器类型检查', '发布失败恢复回归', '私有部署策略回归'].sort())
+  for (const call of calls.filter(call => ['API 关键回归', '适配器回归'].includes(call.label))) {
+    assert.ok(call.args.includes('--maxWorkers=2'))
+  }
+})
+test('API 回归失败时不启动适配器回归，合并验收不能成功', async () => {
+  const called = []
+  await assert.rejects(verifyBuild(async label => {
+    called.push(label)
+    await nextTurn()
+    if (label === 'API 关键回归') throw new Error('failed')
+  }), AggregateError)
+  assert.ok(called.includes('API 关键回归'))
+  assert.ok(!called.includes('适配器回归'))
 })

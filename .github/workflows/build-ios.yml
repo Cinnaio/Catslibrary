@@ -6,12 +6,20 @@
 
 name: Build and Test iOS (unsigned IPA)
 run-name: >-
-  Build iOS · ${{ github.ref_name }} · #${{ github.run_number }} · ${{ inputs.run_title || github.sha }}
+  Build iOS · ${{ inputs.build_mode || 'release' }} · ${{ github.ref_name }} · #${{ github.run_number }} · ${{ inputs.run_title || github.sha }}
 
 on:
   # 在 Actions 中选择分支并手动运行，推送与 PR 均不自动构建 IPA。
   workflow_dispatch:
     inputs:
+      build_mode:
+        description: 'release：正式优化（默认）；fast：日常验收，增量编译且关闭 Swift 优化'
+        required: true
+        default: release
+        type: choice
+        options:
+          - release
+          - fast
       run_title:
         description: '标题说明（可选，如 commit 标题或版本备注；留空显示提交 SHA）'
         required: false
@@ -26,7 +34,7 @@ defaults:
     working-directory: ios
 
 concurrency:
-  group: ios-build-${{ github.ref }}
+  group: ios-build-${{ github.ref }}-${{ inputs.build_mode || 'release' }}
   cancel-in-progress: true
 
 jobs:
@@ -37,12 +45,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check CI cache and source timestamps
+        run: python3 -B scripts/test-ci-build-cache.py
+
       - name: Run unit tests
         run: swift test --package-path ZhiZhouCore
 
   build:
-    name: Build unsigned IPA
+    name: Build unsigned IPA (${{ inputs.build_mode || 'release' }})
     runs-on: macos-15
+    env:
+      IOS_BUILD_MODE: ${{ inputs.build_mode || 'release' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -70,8 +83,13 @@ jobs:
       - name: Identify build cache
         id: build-cache
         run: |
+          case "$IOS_BUILD_MODE" in
+            release|fast) ;;
+            *) echo "::error::无效构建模式"; exit 1 ;;
+          esac
           TOOLCHAIN=$(xcodebuild -version | shasum -a 256 | cut -d ' ' -f 1)
           echo "toolchain=$TOOLCHAIN" >> "$GITHUB_OUTPUT"
+          python3 scripts/ci-build-cache.py >> "$GITHUB_OUTPUT"
 
       - name: Restore Release DerivedData
         id: derived-data
@@ -80,9 +98,9 @@ jobs:
           path: |
             ios/DerivedData
             ios/.ci-cache/source-mtimes.json
-          key: ios-release-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.build-cache.outputs.toolchain }}-${{ hashFiles('ios/project.yml', 'ios/ZhiZhouCore/Package.swift', 'ios/**/Package.resolved', '.github/workflows/build-ios.yml', 'ios/scripts/ci-source-mtimes.py') }}-${{ github.sha }}
+          key: ios-build-v3-${{ runner.os }}-${{ runner.arch }}-${{ env.IOS_BUILD_MODE }}-${{ steps.build-cache.outputs.toolchain }}-${{ steps.build-cache.outputs.fingerprint }}-${{ github.sha }}
           restore-keys: |
-            ios-release-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.build-cache.outputs.toolchain }}-${{ hashFiles('ios/project.yml', 'ios/ZhiZhouCore/Package.swift', 'ios/**/Package.resolved', '.github/workflows/build-ios.yml', 'ios/scripts/ci-source-mtimes.py') }}-
+            ios-build-v3-${{ runner.os }}-${{ runner.arch }}-${{ env.IOS_BUILD_MODE }}-${{ steps.build-cache.outputs.toolchain }}-${{ steps.build-cache.outputs.fingerprint }}-
 
       - name: Restore timestamps of unchanged build inputs
         run: python3 scripts/ci-source-mtimes.py restore
@@ -99,6 +117,12 @@ jobs:
         run: |
           set -o pipefail
           STARTED=$(date +%s)
+          COMPILATION_MODE=wholemodule
+          OPTIMIZATION_LEVEL=-O
+          if [ "$IOS_BUILD_MODE" = fast ]; then
+            COMPILATION_MODE=incremental
+            OPTIMIZATION_LEVEL=-Onone
+          fi
           xcodebuild \
             -project ZhiZhou.xcodeproj \
             -scheme ZhiZhou \
@@ -106,15 +130,24 @@ jobs:
             -derivedDataPath DerivedData \
             -destination 'generic/platform=iOS' \
             -showBuildTimingSummary \
+            SWIFT_COMPILATION_MODE="$COMPILATION_MODE" \
+            SWIFT_OPTIMIZATION_LEVEL="$OPTIMIZATION_LEVEL" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             build 2>&1 | tee "$RUNNER_TEMP/ios-release-build.log"
-          echo "### Release build" >> "$GITHUB_STEP_SUMMARY"
+          echo "### iOS build ($IOS_BUILD_MODE)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Swift compilation: $COMPILATION_MODE / $OPTIMIZATION_LEVEL" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$IOS_BUILD_MODE" = fast ]; then
+            echo "- 日常验收包：关闭 Swift 优化，不用于运行性能验收或正式交付。" >> "$GITHUB_STEP_SUMMARY"
+          fi
           echo "- Build seconds: $(($(date +%s) - STARTED))" >> "$GITHUB_STEP_SUMMARY"
           echo "- Restored cache: ${{ steps.derived-data.outputs.cache-matched-key }}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verify Release bundle
+        env:
+          EXPECTED_VERSION: ${{ steps.build-cache.outputs.marketing-version }}
+          EXPECTED_BUILD: ${{ steps.build-cache.outputs.build-number }}
         run: |
           APP_PATH=$(find DerivedData/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" -print -quit)
           if [ -z "$APP_PATH" ]; then
@@ -126,6 +159,8 @@ jobs:
           plutil -lint "$APP_PATH/PlugIns/ZhiZhouWidgets.appex/Info.plist"
           test "$(plutil -extract CFBundleShortVersionString raw -o - "$APP_PATH/Info.plist")" = "$(plutil -extract CFBundleShortVersionString raw -o - "$APP_PATH/PlugIns/ZhiZhouWidgets.appex/Info.plist")"
           test "$(plutil -extract CFBundleVersion raw -o - "$APP_PATH/Info.plist")" = "$(plutil -extract CFBundleVersion raw -o - "$APP_PATH/PlugIns/ZhiZhouWidgets.appex/Info.plist")"
+          test "$(plutil -extract CFBundleShortVersionString raw -o - "$APP_PATH/Info.plist")" = "$EXPECTED_VERSION"
+          test "$(plutil -extract CFBundleVersion raw -o - "$APP_PATH/Info.plist")" = "$EXPECTED_BUILD"
           test -f "$APP_PATH/PrivacyInfo.xcprivacy"
           plutil -lint "$APP_PATH/PrivacyInfo.xcprivacy"
           if plutil -extract NSAppTransportSecurity.NSAllowsArbitraryLoads raw -o - "$APP_PATH/Info.plist" >/dev/null 2>&1; then
@@ -149,7 +184,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ZhiZhou-unsigned-ipa
+          name: ${{ env.IOS_BUILD_MODE == 'fast' && 'ZhiZhou-unsigned-ipa-fast' || 'ZhiZhou-unsigned-ipa' }}
           path: ios/ZhiZhou-unsigned.ipa
           if-no-files-found: error
 

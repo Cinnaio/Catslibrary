@@ -129,27 +129,53 @@ async function loadPlan(env) {
   readState(JSON.stringify(plan.initial))
   return { directory, plan, source: join(directory, 'core') }
 }
+// Keep at most two check tasks active, and drain them before rejecting so cleanup
+// cannot race a still-running private check. Stop scheduling after a failure.
+export async function runBoundedChecks(checks, concurrency = 2) {
+  assert.ok(Number.isInteger(concurrency) && concurrency > 0)
+  let next = 0
+  const failures = []
+  const worker = async () => {
+    while (failures.length === 0 && next < checks.length) {
+      const check = checks[next++]
+      try { await check() } catch (error) { failures.push(error) }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, checks.length) }, worker))
+  if (failures.length) throw new AggregateError(failures, '发布校验失败；原始输出未公开')
+}
+export async function verifyBuild(run) {
+  await runBoundedChecks([
+    () => run('核心 Lint', 'npm', ['run', 'lint', '--', '--quiet', '--ignore-pattern', 'api/private-sources/**']),
+    () => run('核心类型检查', 'npm', ['run', 'typecheck']),
+    // Both Vitest invocations share a workspace/cache; keep them in one lane.
+    async () => {
+      await run('API 关键回归', 'npm', ['run', 'test', '--workspace=@zhi-zhou/api', '--', 'src/services/readiness.test.ts', 'src/routes/auth.test.ts', 'src/routes/account-security.test.ts', 'src/routes/browser-security.test.ts', 'src/services/scraper/fetch.test.ts', 'src/services/outbound-fetch.test.ts', 'src/routes/web.test.ts', 'src/routes/ai-agent.test.ts', '--maxWorkers=2', '--minWorkers=1'])
+      await run('适配器回归', 'npm', ['run', 'test', '--workspace=@zhi-zhou/api', '--', '--config', 'private-sources/vitest.config.ts', 'private-sources/tests', '--maxWorkers=2', '--minWorkers=1'])
+    },
+    () => run('Agent 评估类型检查', 'npm', ['run', 'eval:agent:check']),
+    () => run('适配器类型检查', 'node', ['node_modules/typescript/bin/tsc', '-p', 'api/private-sources/tsconfig.json', '--noEmit']),
+    () => run('发布失败恢复回归', 'python3', ['scripts/test-release.py']),
+    () => run('私有部署策略回归', 'node', ['--test', 'scripts/test-private-deploy.mjs']),
+  ])
+}
 async function buildPhase(env, phase) {
   const { directory, plan, source } = await loadPlan(env)
   const buildEnv = { ...childEnvironment(env), RELEASE_SHA: plan.coreSha, CATSLIBRARY_SOURCE_ADAPTER_SHA: plan.adapterSha, CATSLIBRARY_PRIVATE_SOURCES: '1', npm_config_cache: join(directory, 'npm-cache') }
-  const run = (label, command, args, extra = {}) => {
+  const run = async (label, command, args, extra = {}) => {
+    const started = performance.now()
     console.log(label)
-    return runPrivate(command, args, { cwd: source, env: buildEnv, log: join(directory, 'private.log'), label, ...extra })
+    try {
+      return await runPrivate(command, args, { cwd: source, env: buildEnv, log: join(directory, 'private.log'), label, ...extra })
+    } finally {
+      // Labels are trusted constants; never include private output or arguments.
+      console.log(`${label} 耗时：${((performance.now() - started) / 1000).toFixed(1)} 秒`)
+    }
   }
   const pinnedNode = (await readFile(join(source, '.node-version'), 'utf8')).trim()
   assert.equal(process.versions.node, pinnedNode)
   if (phase === 'install') return run('安装构建依赖', 'npm', ['ci', '--no-audit', '--no-fund'])
-  if (phase === 'verify') {
-    await run('核心类型检查', 'npm', ['run', 'typecheck'])
-    await run('Agent 评估类型检查', 'npm', ['run', 'eval:agent:check'])
-    await run('适配器类型检查', 'node', ['node_modules/typescript/bin/tsc', '-p', 'api/private-sources/tsconfig.json', '--noEmit'])
-    await run('核心 Lint', 'npm', ['run', 'lint', '--', '--quiet', '--ignore-pattern', 'api/private-sources/**'])
-    await run('发布失败恢复回归', 'python3', ['scripts/test-release.py'])
-    await run('私有部署策略回归', 'node', ['--test', 'scripts/test-private-deploy.mjs'])
-    await run('API 关键回归', 'npm', ['run', 'test', '--workspace=@zhi-zhou/api', '--', 'src/services/readiness.test.ts', 'src/routes/auth.test.ts', 'src/routes/account-security.test.ts', 'src/routes/browser-security.test.ts', 'src/services/scraper/fetch.test.ts', 'src/services/outbound-fetch.test.ts', 'src/routes/web.test.ts', 'src/routes/ai-agent.test.ts', '--maxWorkers=2', '--minWorkers=1'])
-    await run('适配器回归', 'npm', ['run', 'test', '--workspace=@zhi-zhou/api', '--', '--config', 'private-sources/vitest.config.ts', 'private-sources/tests', '--maxWorkers=2', '--minWorkers=1'])
-    return
-  }
+  if (phase === 'verify') return verifyBuild(run)
   await run('合并构建 Web 与 API', 'npm', ['run', 'build'])
   await run('打包 Linux 生产依赖与 Node', 'npm', ['run', 'release:package', '--', '--output', join(directory, 'package')])
   await run('生成完整发布归档', 'tar', ['-czf', join(directory, 'release.tgz'), '-C', join(directory, 'package'), 'web/dist', 'api/dist'])

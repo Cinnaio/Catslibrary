@@ -1,5 +1,27 @@
 # 发布与版本管理
 
+## 构建与部署耗时优化（2026-11-27，待云端验证）
+
+排查基线为 `7e1c5d07`：GitHub Actions 网站部署 #108 共 305 秒，其中校验 167 秒、构建打包及冒烟 36 秒、生产激活 50 秒；iOS #76 共 879 秒，Xcode 构建 832 秒，其中 Swift 整模块编译 789.9 秒。两项等待 runner 分别只有 3 秒与 4 秒。上述基线运行成功，不代表本节改动已通过云端构建或部署。
+
+### iOS 构建模式与缓存
+
+- Actions → `Build and Test iOS (unsigned IPA)` → `Run workflow` 的 `build_mode` 可选 `release`（默认）或 `fast`。`release` 显式使用 `SWIFT_COMPILATION_MODE=wholemodule` 与 `SWIFT_OPTIMIZATION_LEVEL=-O`；`fast` 使用 `incremental` 与 `-Onone`，适合日常功能／界面验收。两者均为 Release 配置，快速模式不引入 DEBUG 模拟接口，也不开放 ATS。
+- 正式包仍为 `ZhiZhou-unsigned-ipa`，快速包为 `ZhiZhou-unsigned-ipa-fast`；包内 IPA 文件名保持 `ZhiZhou-unsigned.ipa`。快速模式关闭 Swift 优化，应用运行速度及体积可能不同，不用于性能验收或正式交付。默认模式需在同一源码云端对比后再考虑调整。
+- 两种模式的并发组和缓存分别隔离。缓存 v3 按 OS、架构、Xcode 工具链、模式与配置指纹恢复，末尾 SHA 用于保存各次成功构建；首次切换到 v3 或首次运行一种模式需要建立新缓存。
+- `ios/scripts/ci-build-cache.py` 仅从指纹中归一化 `project.yml` 的数字 `MARKETING_VERSION` 与 `CURRENT_PROJECT_VERSION`，不改写实际工程。其余工程设置、Swift 包声明／锁文件、工作流与缓存脚本变化仍更新指纹；不一致或非数字版本立即失败。
+- 源文件与生成工程仍按实际字节内容恢复时间戳：改过的文件不伪装成旧输入。产物校验同时核对主 App、Widget 和本次源码版本，因此版本号变化可复用缓存，却不能跳过版本注入与核对。
+
+### 网站发布的有限并行校验
+
+- 原有八项门禁全部保留：三类类型检查、Lint、发布恢复回归、私有部署策略回归、API 关键回归和私有适配器回归。最多并行两项，耗时较长的检查优先开始；两次 Vitest 调用在同一队列任务中顺序运行，避免共享工作区／缓存冲突。
+- 失败后停止领取新的队列任务，等待已运行任务退出再使步骤失败，防止清理与私有子进程相互竞争。后续构建、完整归档校验和生产激活继续受 GitHub 步骤成功状态约束。
+- 每项检查输出固定名称和耗时，子进程仍接收经过过滤的环境，原始 stdout／stderr 仍写入临时私有日志；不增加公开缓存或工件。
+
+本地验证：`node --test .github/scripts/private-deploy.test.mjs scripts/test-private-deploy.mjs` 的 15 项回归、`python -B ios/scripts/test-ci-build-cache.py` 的 5 项缓存／时间戳回归全部通过；Actionlint 1.7.12 检查 iOS 与部署工作流通过，14 个 iOS shell 步骤的 Bash 语法检查、Node 脚本语法检查与 `git diff --check` 通过。
+
+用户已授权提交、推送并进行云端验证。源码基于 `7e1c5d07`，实际源码以包含本节的提交为准；主 App 与 Widget 为新的构建源码同步递增至 iOS `1.4.1 / build 34`，API／Web 版本不变。计划在同一 SHA 执行 `release`、`fast`，并重复 `fast` 验证缓存复用；网站使用 `build_only=true`，不切换生产版本。当前仅本地验证通过，Actions 编译、归档验收和实际提速待运行结果确认，未签名安装或真机验收。
+
 ## iOS 1.4.1 / build 33 加载状态（2026-11-27，源码候选）
 
 - 书源详情采用已有书目和静态占位。发现、书架、阅读、书房、账户与部分管理页面使用共享加载提示，等待文案随字号换行，减少动态效果时显示静态图标。

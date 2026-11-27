@@ -88,6 +88,12 @@ ZhiZhouCore/
 3. Windows 上安装 Sideloadly（或 AltStore）→ 输入 Apple ID 签名 → USB 安装到 iPhone
 ```
 
+### 日常快速构建
+
+手动运行时，`build_mode` 默认 `release`，保留正式 Swift 优化；日常功能或界面验收可选 `fast`，使用增量编译并关闭 Swift 优化。两种模式都使用 Release 配置，保留包内版本、Widget、隐私清单和 ATS 校验。
+
+`release` 下载 `ZhiZhou-unsigned-ipa`，`fast` 下载 `ZhiZhou-unsigned-ipa-fast`；两者内部文件名均为 `ZhiZhou-unsigned.ipa`。快速包不用于运行性能验收或正式交付。首次使用新缓存需要重新编译，实际收益须以云端日志为准；详细缓存规则和交付状态见[发布与版本管理](../docs/releasing.md)。
+
 ### 自签的三种方式
 
 | 方式 | 费用 | 有效期 | 限制 | 建议 |
