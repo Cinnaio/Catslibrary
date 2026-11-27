@@ -1,6 +1,6 @@
 # 发布与版本管理
 
-## 构建与部署耗时优化（2026-11-27，待云端验证）
+## 构建与部署耗时优化（2026-11-27，云端验证通过）
 
 排查基线为 `7e1c5d07`：GitHub Actions 网站部署 #108 共 305 秒，其中校验 167 秒、构建打包及冒烟 36 秒、生产激活 50 秒；iOS #76 共 879 秒，Xcode 构建 832 秒，其中 Swift 整模块编译 789.9 秒。两项等待 runner 分别只有 3 秒与 4 秒。上述基线运行成功，不代表本节改动已通过云端构建或部署。
 
@@ -20,7 +20,22 @@
 
 本地验证：`node --test .github/scripts/private-deploy.test.mjs scripts/test-private-deploy.mjs` 的 15 项回归、`python -B ios/scripts/test-ci-build-cache.py` 的 5 项缓存／时间戳回归全部通过；Actionlint 1.7.12 检查 iOS 与部署工作流通过，14 个 iOS shell 步骤的 Bash 语法检查、Node 脚本语法检查与 `git diff --check` 通过。
 
-用户已授权提交、推送并进行云端验证。源码基于 `7e1c5d07`，实际源码以包含本节的提交为准；主 App 与 Widget 为新的构建源码同步递增至 iOS `1.4.1 / build 34`，API／Web 版本不变。计划在同一 SHA 执行 `release`、`fast`，并重复 `fast` 验证缓存复用；网站使用 `build_only=true`，不切换生产版本。当前仅本地验证通过，Actions 编译、归档验收和实际提速待运行结果确认，未签名安装或真机验收。
+源码提交 `2ab0bfcaa240e35db539885531429703ee3a369b` 已推送到 `main`；主 App 与 Widget 同步更新为 iOS `1.4.1 / build 34`，API／Web 版本不变。以下四次 Actions 均使用该源码并成功，时间为北京时间 2026-11-27：
+
+| 验证 | 运行 | 开始时间 | 总耗时 | 关键步骤 |
+| --- | --- | --- | --- | --- |
+| iOS 正式优化，冷缓存 | [#77](https://github.com/Cinnaio/Catslibrary/actions/runs/45998300866) | 20:23:56 | 8 分 27 秒 | Xcode 构建 469 秒 |
+| iOS 快速模式，冷缓存 | [#78](https://github.com/Cinnaio/Catslibrary/actions/runs/45998346830) | 20:24:15 | 2 分 32 秒 | Xcode 构建 122 秒 |
+| 网站仅构建验收 | [#109](https://github.com/Cinnaio/Catslibrary/actions/runs/45998356942) | 20:24:19 | 3 分 23 秒 | 发布校验 115 秒；构建、打包及 PostgreSQL 冒烟 34 秒 |
+| 同一提交快速模式，热缓存 | [#79](https://github.com/Cinnaio/Catslibrary/actions/runs/45998992955) | 20:28:57 | 2 分 31 秒 | Xcode 构建 103 秒；恢复全部 250 个输入时间戳 |
+
+- 本次同一源码的冷缓存对比中，快速模式总耗时比正式模式少约 70%；正式模式仍保持默认。该比较包含 runner 性能波动，单次测量不保证以后固定耗时。正式模式相对历史 #76 的变快不能全部归因于本轮改动。
+- 热缓存明确命中 #78 的缓存，只重新编译 `GeneratedAssetSymbols.swift`，`SwiftCompile` 任务累计 1.576 秒；整条流程没有进一步明显缩短，主要剩余耗时是资源目录编译 63.615 秒及环境／构建准备。并行任务的 Build Timing Summary 累计时间不等于墙钟耗时。纯版本号变化的缓存兼容已通过本地回归，本次未额外发布另一构建号进行云端验证。
+- 网站校验阶段相对之前 #108 的 167 秒减少到 115 秒，约少 31%。此次 `build_only=true`，生产激活与线上检查步骤明确跳过；不能将 203 秒与包含 50 秒生产激活的旧部署总耗时直接作为加速比例。完整归档、原生依赖与临时 PostgreSQL 验收成功，生产版本未切换。
+- #77、#78、#79 的核心测试、缓存脚本测试、编译、主 App／Widget 版本核对、隐私及 ATS 校验、IPA 打包和工件上传均通过。已下载 #77 正式包与 #78 快速包，核对 GitHub 工件 SHA-256、ZIP／IPA CRC、两端 `1.4.1 (34)`、隐私清单和 ATS；未签名、未安装或真机验收。
+- 正式 IPA 为 22,267,399 字节，SHA-256 `b0adaf7161dd02311015ff588d51cd63b74ef74b92b89a681ba2a434652608cb`；快速 IPA 为 25,234,325 字节，SHA-256 `206ab50bd564c96f1a0a853060d2010255aa2c5a61e0877bcc2efda268187269`。快速模式关闭优化，包体与运行性能不能等同正式模式。
+
+本次验证后仅补充发布记录，不改构建或产品源码，不要求重新生成 IPA。
 
 ## iOS 1.4.1 / build 33 加载状态（2026-11-27，源码候选）
 
