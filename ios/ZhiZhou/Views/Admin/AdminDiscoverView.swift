@@ -133,7 +133,7 @@ struct AdminDiscoverView: View {
                     Task { await refreshAvailableSources() }
                 }
             } else if !hasLoadedCapabilities || (isLoadingCapabilities && sources.isEmpty) {
-                ProgressView("正在读取书源…")
+                AppLoadingState("正在读取书源…", placement: .inline)
             }
 
             if mode == .search {
@@ -259,8 +259,7 @@ struct AdminDiscoverView: View {
     @ViewBuilder
     private var resultsSection: some View {
         if isLoading {
-            ProgressView(mode == .list ? "正在读取榜单…" : "正在搜索书源…")
-                .controlSize(.small)
+            AppLoadingState(mode == .list ? "正在读取榜单…" : "正在搜索书源…", placement: .inline)
         }
         if let errorMessage {
             LoadErrorNotice(
@@ -747,8 +746,7 @@ struct DiscoverDetailSheet: View {
                     AdminStatusBadge("已收录", tint: AppTheme.success, systemImage: "checkmark")
                 }
                 if loading {
-                    ProgressView("正在读取书籍资料…")
-                        .frame(maxWidth: .infinity, minHeight: 140)
+                    AppLoadingState("正在读取书籍资料…", placement: .inline)
                 } else if let error {
                     ContentUnavailableView {
                         Label("获取详情失败", systemImage: "wifi.slash")

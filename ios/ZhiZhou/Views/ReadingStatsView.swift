@@ -216,13 +216,7 @@ struct ReadingStatsView: View {
             }
         }
         if loading && (stats == nil || retrying) {
-            HStack(spacing: 10) {
-                ProgressView().controlSize(.small)
-                Text(retrying ? "正在重试…" : "正在读取统计…")
-                    .font(.footnote)
-                    .foregroundStyle(ReadingSpace.profileMuted)
-            }
-            .frame(minHeight: 44, alignment: .leading)
+            AppLoadingState(retrying ? "正在重试…" : "正在读取统计…", placement: .inline)
         }
     }
 

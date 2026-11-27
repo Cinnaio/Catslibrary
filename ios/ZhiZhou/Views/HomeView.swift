@@ -388,8 +388,8 @@ struct HomeView: View {
     @ViewBuilder
     private var catalogContent: some View {
         if isLoading && novels.isEmpty {
-            ProgressView("加载中…")
-                .frame(maxWidth: .infinity, minHeight: 220)
+            AppLoadingState("正在读取书库…")
+                .frame(minHeight: 220)
         } else if let errorMessage, novels.isEmpty {
             ContentUnavailableView {
                 Label("加载失败", systemImage: "wifi.slash")
@@ -412,11 +412,8 @@ struct HomeView: View {
                     }
                 }
                 if isLoading && (displayedQuery != catalogQuery || errorMessage != nil) {
-                    ProgressView(errorMessage == nil ? "正在载入结果…" : "正在重试…")
-                        .font(.footnote)
-                        .foregroundStyle(ReadingSpace.profileMuted)
-                        .frame(maxWidth: .infinity)
-                        .padding(.bottom, 16)
+                    AppLoadingState(errorMessage == nil ? "正在载入结果…" : "正在重试…", placement: .inline)
+                        .padding(.bottom, 8)
                 }
                 Group {
                     if usesCoverGrid {
@@ -438,8 +435,7 @@ struct HomeView: View {
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: displayedQuery != catalogQuery)
 
                 if isLoadingMore {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, minHeight: 44)
+                    AppLoadingState("正在加载更多作品…", placement: .inline)
                 } else if let loadMoreError {
                     Button(loadMoreError) { loadMoreIfNeeded() }
                         .font(.footnote.weight(.medium))

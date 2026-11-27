@@ -65,12 +65,8 @@ struct ProfileReadingOverview: View {
                         .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
                 }
             } else {
-                HStack(spacing: 10) {
-                    ProgressView().controlSize(.small)
-                    Text("正在寻找上次读到的地方…").font(.footnote)
-                }
-                .foregroundStyle(ReadingSpace.profileMuted)
-                .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
+                AppLoadingState("正在寻找上次读到的地方…", placement: .inline)
+                    .frame(minHeight: 60, alignment: .leading)
             }
         }
         .task(id: refreshScope) { if scenePhase == .active { await loadStats() } }
@@ -104,11 +100,8 @@ struct ProfileReadingOverview: View {
                 Text("点此查看详情，或稍后重试。")
                     .font(.footnote).foregroundStyle(ReadingSpace.summarySecondary)
             } else {
-                HStack(spacing: 10) {
-                    ProgressView().tint(ReadingSpace.onSummary)
-                    Text("正在读取阅读记录…").font(.subheadline)
-                }
-                .frame(minHeight: 78)
+                AppLoadingState("正在读取阅读记录…", placement: .inline, tint: ReadingSpace.summarySecondary)
+                    .frame(minHeight: 78)
             }
         }
         .foregroundStyle(ReadingSpace.onSummary)

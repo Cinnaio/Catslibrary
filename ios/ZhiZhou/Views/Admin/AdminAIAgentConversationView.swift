@@ -54,7 +54,8 @@ struct AdminAIAgentConversationView: View {
                     Label("暂时无法读取对话", systemImage: "bubble.left.and.exclamationmark.bubble.right")
                 } description: { Text(error) } actions: { Button("重试") { Task { await model.refresh() } } }
             } else {
-                ProgressView("读取对话…").frame(maxWidth: .infinity, maxHeight: .infinity)
+                AppLoadingState("正在读取对话…")
+                    .frame(maxHeight: .infinity)
             }
         }
         .toolbarBackground(.hidden, for: .navigationBar)
@@ -286,7 +287,7 @@ private struct AgentMessagesView: View {
         } else if let task = model.activeTask, task.isRunning || task.status == "failed" || task.status == "cancelled" {
             AgentTaskStatusView(task: task, showsDetailedProgress: false)
         } else if model.replying {
-            ProgressView("正在读取回复状态…").font(.footnote)
+            AppLoadingState("正在读取回复状态…", placement: .inline)
         }
     }
 

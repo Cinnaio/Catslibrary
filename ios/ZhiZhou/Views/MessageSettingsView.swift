@@ -37,7 +37,7 @@ private struct MessageSettingsContent: View {
         AccountSettingsPage {
             AccountSettingsHeading("通知设置", detail: "选择想收到的消息，安排安静的时间。")
                 .readingSpaceEntrance(0)
-            if form == nil && busy { ProgressView("正在读取设置…") }
+            if form == nil && busy { AppLoadingState("正在读取通知设置…") }
             if form != nil {
                 AccountSettingsSection("推送种类") {
                     Toggle("评论回复", isOn: binding(\.replies))

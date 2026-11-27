@@ -673,9 +673,8 @@ struct ReaderView: View {
     @ViewBuilder
     private func readingContent(width: CGFloat) -> some View {
         if isLoading && chapter == nil {
-            ProgressView("加载中…")
-                .tint(ink)
-                .frame(maxWidth: .infinity, minHeight: 300)
+            AppLoadingState("正在读取本章…", tint: ink)
+                .frame(minHeight: 300)
         } else if let errorMessage, chapter == nil {
             ContentUnavailableView {
                 Label("无法打开这一章", systemImage: "exclamationmark.triangle")
@@ -1049,9 +1048,8 @@ struct ReaderView: View {
 
         return Group {
             if isLoading && chapter == nil {
-                ProgressView("加载中…")
-                    .tint(ink)
-                    .frame(maxWidth: .infinity, minHeight: 300)
+                AppLoadingState("正在读取本章…", tint: ink)
+                    .frame(minHeight: 300)
             } else if let errorMessage, chapter == nil {
                 ContentUnavailableView {
                     Label("无法打开这一章", systemImage: "exclamationmark.triangle")
@@ -1064,9 +1062,8 @@ struct ReaderView: View {
                 .foregroundStyle(ink)
                 .frame(maxWidth: .infinity, minHeight: 300)
             } else if pages.isEmpty {
-                ProgressView("正在排版…")
-                    .tint(ink)
-                    .frame(maxWidth: .infinity, minHeight: 300)
+                AppLoadingState("正在排版本章…", tint: ink)
+                    .frame(minHeight: 300)
             } else {
                 TabView(selection: $currentPage) {
                     ForEach(pages.indices, id: \.self) { index in

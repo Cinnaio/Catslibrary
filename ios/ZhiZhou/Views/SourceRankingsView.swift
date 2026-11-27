@@ -183,6 +183,9 @@ struct SourceRankingsView: View {
             LoadErrorNotice(message: errorMessage, isLoading: isLoading) { attempt += 1 }
         }
         if let response, !response.entries.isEmpty, let selected {
+            if isLoading && !matches {
+                AppLoadingState("正在读取榜单…", placement: .inline)
+            }
             LazyVStack(alignment: .leading, spacing: 0) {
                 if let time = selected.refreshedAt {
                     let date = Date(timeIntervalSince1970: Double(time) / 1000)
@@ -200,16 +203,14 @@ struct SourceRankingsView: View {
             .id(selected.id)
             .opacity(matches ? 1 : 0.4)
             .disabled(!matches)
-        } else if !isLoading, errorMessage == nil {
+        } else if isLoading {
+            AppLoadingState("正在读取榜单…")
+        } else if errorMessage == nil {
             ContentUnavailableView(
                 selected?.refreshedAt == nil && selected != nil ? "榜单等待更新" : "暂无可展示的上榜作品",
                 systemImage: "list.number"
             )
             .frame(maxWidth: .infinity)
-        }
-        if isLoading && (response?.entries.isEmpty != false || !matches) {
-            ProgressView("正在读取榜单…")
-                .frame(maxWidth: .infinity, minHeight: 80)
         }
     }
 
@@ -339,10 +340,11 @@ struct SourceRankingDetail: View {
                 NovelDetailView(novel: novel)
             } else if entry.novelId != nil {
                 ReaderPanelPage {
+                    bookHeader
                     if let errorMessage {
                         LoadErrorNotice(message: errorMessage, isLoading: false) { attempt += 1 }
                     } else {
-                        ProgressView("正在打开作品…")
+                        SourceRankingDetailLoading("正在打开作品…", showsSynopsis: true)
                     }
                 }
             } else {
@@ -364,10 +366,6 @@ struct SourceRankingDetail: View {
                 bookHeader
                 if let errorMessage {
                     LoadErrorNotice(message: errorMessage, isLoading: isLoadingInfo) { attempt += 1 }
-                } else if isLoadingInfo, bookInfo == nil {
-                    ProgressView("正在读取源站简介和目录…")
-                        .font(.footnote)
-                        .foregroundStyle(ReadingSpace.profileMuted)
                 }
                 if !description.isEmpty || bookInfo != nil {
                     SourceRankingSynopsis(text: description) {
@@ -380,6 +378,12 @@ struct SourceRankingDetail: View {
                         scroll.scrollTo(SectionAnchor.directory, anchor: .top)
                     }
                     .id(SectionAnchor.directory)
+                } else if errorMessage == nil, entry.resourcePath("detail") != nil {
+                    let showsSynopsis = description.isEmpty
+                    SourceRankingDetailLoading(
+                        showsSynopsis ? "正在读取源站简介和目录…" : "正在读取源站目录…",
+                        showsSynopsis: showsSynopsis
+                    )
                 }
             }
         }
@@ -390,7 +394,7 @@ struct SourceRankingDetail: View {
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 16))
             : AnyLayout(HStackLayout(alignment: .center, spacing: 17))
         return layout {
-            SourceRankingCover(entry: entry, size: CGSize(width: 88, height: 124))
+            bookCover
                 .shadow(color: AppTheme.cardShadow, radius: 7, y: 4)
             VStack(alignment: .leading, spacing: 8) {
                 Text(entry.title)
@@ -403,10 +407,10 @@ struct SourceRankingDetail: View {
                         .font(.subheadline)
                         .foregroundStyle(ReadingSpace.profileMuted)
                 }
-                Text("未收录")
+                Text(entry.novelId == nil ? "未收录" : "已收录")
                     .font(.caption)
                     .foregroundStyle(ReadingSpace.profileMuted)
-                if AppState.shared.user?.isAdmin == true,
+                if entry.novelId == nil, AppState.shared.user?.isAdmin == true,
                    ContentAccessStore.shared.mode == "adult", let url = entry.sourceUrl {
                     Button {
                         importItem = DiscoverNovel(bookId: nil, title: entry.title, author: entry.author,
@@ -427,6 +431,16 @@ struct SourceRankingDetail: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(ReadingSpace.profileFill.opacity(0.55), in: RoundedRectangle(cornerRadius: 18))
+    }
+
+    @ViewBuilder
+    private var bookCover: some View {
+        let size = CGSize(width: 88, height: 124)
+        if let id = entry.novelId {
+            NovelCoverView(novelID: id, updatedAt: entry.updatedAt ?? 0, size: size)
+        } else {
+            SourceRankingCover(entry: entry, size: size)
+        }
     }
 
     private func directorySection(_ directory: SourceRankingBookInfo.Directory?, onCollapse: @escaping () -> Void) -> some View {
@@ -518,6 +532,49 @@ struct SourceRankingDetail: View {
         } catch {
             if !Task.isCancelled { errorMessage = AppCopy.friendlyError(error) }
         }
+    }
+}
+
+private struct SourceRankingDetailLoading: View {
+    private let title: String
+    private let showsSynopsis: Bool
+    @ScaledMetric(relativeTo: .body) private var lineHeight: CGFloat = 8
+
+    init(_ title: String, showsSynopsis: Bool) {
+        self.title = title
+        self.showsSynopsis = showsSynopsis
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            AppLoadingState(title, placement: .inline)
+            VStack(alignment: .leading, spacing: 12) {
+                if showsSynopsis {
+                    VStack(alignment: .leading, spacing: 10) {
+                        line(maxWidth: 88)
+                        line(maxWidth: .infinity)
+                        line(maxWidth: 236)
+                    }
+                    .padding(.bottom, 12)
+                }
+                ForEach(0..<3) { row in
+                    HStack(spacing: 12) {
+                        line(maxWidth: 16)
+                        line(maxWidth: row == 1 ? 152 : 220)
+                    }
+                    .padding(.vertical, 5)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityHidden(true)
+        }
+    }
+
+    private func line(maxWidth: CGFloat) -> some View {
+        Capsule()
+            .fill(ReadingSpace.profileLine)
+            .frame(maxWidth: maxWidth)
+            .frame(height: lineHeight)
     }
 }
 

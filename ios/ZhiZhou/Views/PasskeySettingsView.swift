@@ -33,10 +33,7 @@ struct PasskeySettingsView: View {
                 .padding(.bottom, 20)
             }
             if isLoading && configuration == nil && errorMessage == nil {
-                ProgressView("加载 Passkey 设置…")
-                    .font(.footnote)
-                    .foregroundStyle(ReadingSpace.profileMuted)
-                    .padding(.vertical, 16)
+                AppLoadingState("正在读取 Passkey 设置…")
             }
 
             if let configuration, !configuration.enabled {
@@ -103,9 +100,7 @@ struct PasskeySettingsView: View {
             .padding(.bottom, 8)
         if passkeys.isEmpty {
             if isLoading && errorMessage == nil {
-                ProgressView("读取已注册的 Passkey…")
-                    .font(.footnote)
-                    .padding(.vertical, 16)
+                AppLoadingState("正在读取已注册的 Passkey…", placement: .inline)
             } else if errorMessage == nil {
                 AccountSettingsNote("还没有注册 Passkey。")
                     .padding(.vertical, 16)

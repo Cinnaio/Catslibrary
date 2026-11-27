@@ -74,8 +74,8 @@ struct ChapterListView: View {
         NavigationStack {
             Group {
                 if isLoading && availableChapters.isEmpty {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    AppLoadingState("正在读取目录…")
+                        .frame(maxHeight: .infinity)
                 } else if let errorMessage, availableChapters.isEmpty {
                     ContentUnavailableView {
                         Label("目录加载失败", systemImage: "wifi.slash")
@@ -197,8 +197,7 @@ struct ChapterListView: View {
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
             if isLoading {
-                ProgressView("正在更新目录…")
-                    .font(.footnote)
+                AppLoadingState("正在更新目录…", placement: .inline)
                     .listRowInsets(EdgeInsets(top: 12, leading: 22, bottom: 12, trailing: 22))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)

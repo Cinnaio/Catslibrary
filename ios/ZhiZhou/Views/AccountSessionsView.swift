@@ -40,10 +40,7 @@ struct AccountSessionsView: View {
                 .padding(.bottom, 20)
             }
             if loading && sessions.isEmpty && error == nil {
-                ProgressView("加载登录设备…")
-                    .font(.footnote)
-                    .foregroundStyle(ReadingSpace.profileMuted)
-                    .padding(.vertical, 16)
+                AppLoadingState("正在读取登录设备…")
             } else if !loading && sessions.isEmpty && error == nil {
                 AccountSettingsNote("暂无可显示的登录设备，下拉可重新读取。")
                     .padding(.vertical, 16)

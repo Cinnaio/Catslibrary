@@ -25,7 +25,11 @@ struct LibraryWidgetDestination: View {
                         Button("重试") { retry += 1 }
                         Button("回到书房") { dismiss() }
                     }
-                } else { ProgressView("正在翻到那一页…") }
+                } else {
+                    AppLoadingState("正在翻到那一页…")
+                        .frame(maxHeight: .infinity)
+                        .background(ReadingSpace.profilePaper)
+                }
             }
             .toolbar { ToolbarItem(placement: .topBarLeading) { Button("返回书房", systemImage: "chevron.down") { dismiss() } } }
             .task(id: retry) { await resolve() }

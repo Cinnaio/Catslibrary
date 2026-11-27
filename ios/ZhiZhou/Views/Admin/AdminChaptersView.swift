@@ -163,8 +163,8 @@ struct AdminChaptersView: View {
     @ViewBuilder
     private var chapterResults: some View {
         if isLoading && chapters.isEmpty {
-            ProgressView(selectedNovel == nil ? "加载中…" : "加载章节…")
-                .frame(maxWidth: .infinity, minHeight: 160)
+            AppLoadingState(selectedNovel == nil ? "正在读取作品…" : "正在读取章节…")
+                .frame(minHeight: 160)
         } else if let errorMessage, chapters.isEmpty {
             ContentUnavailableView {
                 Label("加载失败", systemImage: "wifi.slash")
@@ -977,8 +977,7 @@ private struct ChapterEditSheet: View {
                 }
                 AdminWorkspaceSection("正文") {
                     if loadingDetail {
-                        ProgressView("加载正文…")
-                            .frame(maxWidth: .infinity, minHeight: 80)
+                        AppLoadingState("正在读取正文…", placement: .inline)
                     } else if !isEditing || detailLoaded {
                         AccountSettingsField("章节内容", isFocused: focusedField == .content) {
                             TextEditor(text: $content)

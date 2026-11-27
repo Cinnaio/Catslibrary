@@ -256,8 +256,7 @@ struct NovelDetailView: View {
     @ViewBuilder
     private var chapterEmptyState: some View {
         if isLoading {
-            ProgressView("正在加载章节")
-                .frame(maxWidth: .infinity, minHeight: 88)
+            AppLoadingState("正在读取章节目录…", placement: .inline)
         } else if let errorMessage {
             ContentUnavailableView {
                 Label("章节加载失败", systemImage: "wifi.slash")

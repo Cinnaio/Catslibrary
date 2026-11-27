@@ -55,8 +55,7 @@ struct ReaderRecapView: View {
                     }
                 }
                 if loading {
-                    ProgressView("读取已保存的提要…")
-                        .font(.subheadline).tint(AppTheme.primary)
+                    AppLoadingState("正在读取已保存的提要…", placement: .inline)
                 }
                 if let error {
                     VStack(alignment: .leading, spacing: 12) {

@@ -49,8 +49,8 @@ struct AdminDashboardView: View {
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
             } else {
-                ProgressView("正在读取后台总览…")
-                    .frame(maxWidth: .infinity, minHeight: 160)
+                AppLoadingState("正在读取后台总览…")
+                    .frame(minHeight: 160)
                     .listRowBackground(Color.clear)
             }
         }

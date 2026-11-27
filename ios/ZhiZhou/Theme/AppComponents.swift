@@ -43,6 +43,70 @@ enum AppLayout {
     }
 }
 
+/// 用于等待页面内容或局部结果的未知时长状态。
+struct AppLoadingState: View {
+    enum Placement { case page, inline }
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private let title: String
+    private let placement: Placement
+    private let tint: Color?
+
+    init(_ title: String, placement: Placement = .page, tint: Color? = nil) {
+        self.title = title
+        self.placement = placement
+        self.tint = tint
+    }
+
+    var body: some View {
+        Group {
+            switch placement {
+            case .page:
+                VStack(spacing: 12) {
+                    indicator
+                        .frame(width: 48, height: 48)
+                        .background((tint ?? AppTheme.primary).opacity(0.10), in: Circle())
+                    statusText
+                        .font(.subheadline.weight(.medium))
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 20)
+                .frame(maxWidth: .infinity, minHeight: 136)
+            case .inline:
+                HStack(spacing: 10) {
+                    indicator.frame(width: 20, height: 20)
+                    statusText.font(.footnote)
+                }
+                .padding(.vertical, 4)
+                .frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var statusText: some View {
+        Text(title)
+            .foregroundStyle(tint ?? AppTheme.textSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var indicator: some View {
+        Group {
+            if reduceMotion {
+                Image(systemName: "ellipsis")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(tint ?? AppTheme.primary)
+            } else {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(tint ?? AppTheme.primary)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
 struct AppIconLabel: View {
     let title: String
     let systemImage: String

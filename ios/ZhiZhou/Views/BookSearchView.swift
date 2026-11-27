@@ -299,14 +299,8 @@ struct BookSearchView: View {
 
     @ViewBuilder private var resultStatus: some View {
         if busy {
-            HStack(spacing: 10) {
-                ProgressView().controlSize(.small)
-                Text(cursor == nil ? "正在搜索本书正文…" : "正在检索后续章节…")
-                    .font(.footnote)
-                    .foregroundStyle(ReadingSpace.profileMuted)
-            }
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .accessibilityIdentifier("bookSearch.loading")
+            AppLoadingState(cursor == nil ? "正在搜索本书正文…" : "正在检索后续章节…", placement: .inline)
+                .accessibilityIdentifier("bookSearch.loading")
         } else if let error {
             LoadErrorNotice(message: error, isLoading: false) { search(more: cursor != nil) }
         } else if paused {

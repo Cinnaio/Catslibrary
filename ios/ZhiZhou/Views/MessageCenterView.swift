@@ -59,7 +59,10 @@ private struct MessageInboxView: View {
                 .padding(.bottom, 16)
                 .accessibilityIdentifier("messages.settings.entry")
             }
-            if requests.isLoading { ProgressView(items.isEmpty ? "正在读取消息…" : "正在更新消息…") }
+            if requests.isLoading {
+                AppLoadingState(items.isEmpty ? "正在读取消息…" : "正在更新消息…",
+                                placement: items.isEmpty ? .page : .inline)
+            }
             if !items.isEmpty && !resultsCurrent {
                 Text("当前显示上次载入的消息，筛选成功后可继续操作。")
                     .font(.footnote).foregroundStyle(.secondary)
@@ -194,7 +197,7 @@ private struct MessageDetailView: View {
                 }
             } else {
                 AccountSettingsHeading("消息详情")
-                if error == nil { ProgressView("正在读取消息…") }
+                if error == nil { AppLoadingState("正在读取消息详情…") }
             }
             if let error {
                 AccountSettingsNote(error, isError: true)

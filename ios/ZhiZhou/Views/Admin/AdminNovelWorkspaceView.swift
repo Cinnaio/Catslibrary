@@ -199,7 +199,7 @@ struct AdminNovelWorkspaceLoader: View {
                 ContentUnavailableView {
                     Label("无法打开作品", systemImage: "book.closed")
                 } description: { Text(error) } actions: { Button("重试") { Task { await load() } } }
-            } else { ProgressView("正在读取作品…") }
+            } else { AppLoadingState("正在读取作品…") }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(ReadingSpace.profilePaper)

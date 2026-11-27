@@ -237,9 +237,10 @@ struct BookshelfView: View {
         }
         shelfHeading
         if isLoading && (response == nil || displayedQuery != shelfQuery || errorMessage != nil) {
-            ProgressView(response == nil ? "正在加载书架…" : (errorMessage == nil ? "正在载入结果…" : "正在重试…"))
-                .font(.footnote)
-                .frame(maxWidth: .infinity)
+            AppLoadingState(
+                errorMessage != nil ? "正在重试…" : response == nil ? "正在读取书架…" : "正在载入结果…",
+                placement: response == nil ? .page : .inline
+            )
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
         }

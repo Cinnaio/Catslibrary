@@ -42,7 +42,10 @@ private struct MessageBookSubscriptionsContent: View {
             AccountSettingsHeading("书架追更提醒", detail: "仅订阅收藏的书。保存新章节后合并提醒；补录已有章节不通知。目录未知或更换书源时，首次检查只建立记录。")
                 .padding(.bottom, 24)
                 .readingSpaceEntrance(0)
-            if requests.isLoading { ProgressView(items.isEmpty ? "正在读取收藏…" : "正在更新结果…") }
+            if requests.isLoading {
+                AppLoadingState(items.isEmpty ? "正在读取收藏…" : "正在更新结果…",
+                                placement: items.isEmpty ? .page : .inline)
+            }
             if displayedQuery != nil && !resultsCurrent {
                 Text("当前显示上次载入的收藏，检索成功后可继续操作。")
                     .font(.footnote).foregroundStyle(.secondary)

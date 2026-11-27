@@ -34,7 +34,7 @@ struct AdminRecordList<Item: Decodable & Identifiable, Row: View>: View where It
             if let error {
                 LoadErrorNotice(message: error, isLoading: loading) { Task { await load(more: retryMore) } }
             }
-            if loading && items.isEmpty { ProgressView("加载中…") }
+            if loading && items.isEmpty { AppLoadingState("正在读取记录…") }
             if !loading && error == nil && items.isEmpty {
                 ContentUnavailableView("暂无记录", systemImage: "tray")
                     .listRowBackground(Color.clear)

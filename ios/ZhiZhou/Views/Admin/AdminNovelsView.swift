@@ -38,8 +38,8 @@ struct AdminNovelsView: View {
             listContext
             if isLoading && novels.isEmpty {
                 Section {
-                    ProgressView("加载中…")
-                        .frame(maxWidth: .infinity, minHeight: 160)
+                    AppLoadingState("正在读取作品列表…")
+                        .frame(minHeight: 160)
                         .listRowBackground(Color.clear)
                 }
             } else if let errorMessage, novels.isEmpty {

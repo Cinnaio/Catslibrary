@@ -20,7 +20,11 @@ struct SavedChapterDestination: View {
                 } description: { Text(error) } actions: {
                     Button("重试") { attempt += 1 }
                 }
-            } else { ProgressView("打开章节…") }
+            } else {
+                AppLoadingState("正在打开章节…")
+                    .frame(maxHeight: .infinity)
+                    .background(ReadingSpace.profilePaper)
+            }
         }
         .task(id: "\(ContentAccessStore.shared.revision):\(attempt)") {
             launch = nil
@@ -65,8 +69,7 @@ struct ReaderBookmarksView: View {
                     .listRowSeparator(.hidden)
             }
             if loading && items.isEmpty {
-                ProgressView("加载书签…")
-                    .frame(maxWidth: .infinity, minHeight: 88)
+                AppLoadingState("正在读取书签…")
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
             }
@@ -198,7 +201,7 @@ struct BookmarkEditorView: View {
                             .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                     ReaderPanelNote("每章保留一个书签，打开时进入该章节。备注会在 Web 与 iOS 之间同步。")
-                    if busy { ProgressView("正在更新书签…").font(.footnote) }
+                    if busy { AppLoadingState("正在更新书签…", placement: .inline) }
                 }
 
                 if let error {
@@ -210,7 +213,7 @@ struct BookmarkEditorView: View {
                         }
                     }
                 }
-                if !loaded && error == nil { ProgressView("加载书签…") }
+                if !loaded && error == nil { AppLoadingState("正在读取书签…", placement: .inline) }
                 if existing != nil {
                     Button("删除书签", role: .destructive) { confirmDelete = true }
                         .buttonStyle(ReaderPanelButtonStyle())
@@ -341,8 +344,7 @@ struct MyThoughtsView: View {
                 .listRowSeparatorTint(ReadingSpace.profileLine)
             }
             if loading {
-                ProgressView("加载想法…")
-                    .frame(maxWidth: .infinity, minHeight: 44)
+                AppLoadingState("正在读取想法…", placement: items.isEmpty ? .page : .inline)
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
             }

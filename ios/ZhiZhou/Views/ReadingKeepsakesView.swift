@@ -104,7 +104,7 @@ struct ReadingKeepsakesView: View {
         NavigationStack {
             ReaderPanelPage {
                 ReaderPanelHeading("合上书以后", detail: "为这次阅读，留一页余温。只有你能看到，日后还可以再留一张。")
-                if busy { ProgressView("正在整理这一页…").font(.footnote) }
+                if busy { AppLoadingState("正在整理这一页…", placement: .inline) }
                 if let error { ReaderPanelNote(error, color: AppTheme.danger) }
                 if context == nil && !busy && !unavailable {
                     Button("重新打开") { requestTask = Task { await load() } }

@@ -182,9 +182,7 @@ struct SourceSearchResults: View {
                     .readingSpaceEntrance(index)
             }
             if result.isLoading {
-                ProgressView(result.page == 0 ? "正在搜索…" : "正在加载…")
-                    .font(.footnote)
-                    .foregroundStyle(ReadingSpace.profileMuted)
+                AppLoadingState(result.page == 0 ? "正在搜索…" : "正在加载更多…", placement: .inline)
             } else if let error = result.error {
                 LoadErrorNotice(message: error, isLoading: false) { loadNext(source.id, run: run) }
             } else {

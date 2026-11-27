@@ -52,7 +52,7 @@ struct PrivateBookshelfView: View {
                     Button("管理私人分组", systemImage: "folder.badge.gearshape") { showGroups = true }
                 }
                 if let error { Section { Text(error).foregroundStyle(.red); Button("重新读取") { Task { await run { try await fetch() } } } } }
-                if busy && !loaded { ProgressView("正在打开书架…") }
+                if busy && !loaded { AppLoadingState("正在打开书架…") }
                 if !selectedIDs.isEmpty {
                     Section("已选 \(selectedIDs.count) 本") {
                         Picker("批量归入", selection: $batchGroup) {
