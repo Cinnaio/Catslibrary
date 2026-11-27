@@ -277,6 +277,17 @@ private final class VisualAuditProtocol: URLProtocol {
                 body = ["novels": books.map(Self.json), "total": books.count, "page": 1,
                         "limit": 20, "totalPages": 1, "hasMore": false, "availableCategories": ["文学", "故事"]]
             }
+        case ("GET", "/api/novels/source-search/sources"):
+            let sources = VisualAudit.scenario == "discovery-source-search"
+                ? [["id": "fixture", "name": "示例书源"]] : []
+            body = ["sources": sources]
+        case ("GET", "/api/novels/source-search"):
+            let matches = VisualAudit.scenario == "discovery-source-search" && queryValue("source") == "fixture"
+                && queryValue("q") == "audit" && queryValue("type") == "title" && queryValue("page") == "1"
+            let entries: [[String: Any]] = matches ? [[
+                "rank": 1, "title": "书源搜索示例作品", "author": "林溪", "novelId": VisualAudit.books[0].id,
+            ]] : []
+            body = ["entries": entries, "hasMore": false]
         case ("GET", let path) where path.hasPrefix("/api/novels/"):
             body = ["novel": Self.json(VisualAudit.books.first { path.hasSuffix($0.id) } ?? VisualAudit.books[0])]
         case ("GET", "/api/chapters"):

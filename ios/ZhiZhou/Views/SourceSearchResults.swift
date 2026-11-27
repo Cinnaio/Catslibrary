@@ -69,6 +69,10 @@ struct SourceSearchResults: View {
         sources.filter { sourceID.isEmpty || $0.id == sourceID }
     }
 
+    private var sourceName: String {
+        sources.first { $0.id == sourceID }?.name ?? "全部书源"
+    }
+
     private var activeRun: SearchRun? {
         guard let run, run.query == query, run.type == searchType, run.sourceID == sourceID,
               run.revision == ContentAccessStore.shared.revision else { return nil }
@@ -77,33 +81,26 @@ struct SourceSearchResults: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            AppAdaptiveRow(spacing: 12) {
-                Picker("书源", selection: $sourceID) {
-                    Text("全部书源").tag("")
-                    ForEach(sources) { source in Text(source.name).tag(source.id) }
-                }
-                .pickerStyle(.menu)
-                Picker("搜索方式", selection: $searchType) {
-                    ForEach(SearchType.allCases, id: \.self) { type in Text("按\(type.label)").tag(type) }
-                }
-                .pickerStyle(.menu)
-            }
+            searchOptions
             if let activeRun {
                 ForEach(selectedSources) { source in
                     resultSection(source, run: activeRun)
                 }
-            } else if !query.isEmpty {
-                if query.utf16.count > 100 {
-                    ReaderPanelNote("搜索词最多 100 个字符。")
-                } else {
-                    Button("搜索书源", systemImage: "magnifyingglass") { submit() }
-                        .buttonStyle(ReaderPanelButtonStyle())
-                }
+            } else if query.isEmpty {
+                ReaderPanelHeading("从书源查找", detail: "输入\(searchType.label)后，按搜索键或点「搜索书源」。")
+                    .padding(.top, 12)
+            } else if query.utf16.count > 100 {
+                ReaderPanelNote("搜索词最多 100 个字符。")
+            } else {
+                Button("搜索书源", systemImage: "magnifyingglass", action: submit)
+                    .buttonStyle(ReaderPanelButtonStyle(prominent: true))
+                    .accessibilityIdentifier("discovery.source.submit")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .onChange(of: submission) { _, _ in submit() }
-        .onChange(of: query) { _, _ in clearSearch() }
+        .onChange(of: query) { _, _ in
+            if activeRun == nil { clearSearch() }
+        }
         .onChange(of: sourceID) { _, _ in clearSearch() }
         .onChange(of: searchType) { _, _ in clearSearch() }
         .onChange(of: ContentAccessStore.shared.revision) { _, _ in clearSearch() }
@@ -111,10 +108,65 @@ struct SourceSearchResults: View {
             if !sourceID.isEmpty && !ids.contains(sourceID) { sourceID = "" }
             clearSearch()
         }
+        .onChange(of: submission) { _, _ in submit() }
         .task(id: activeRun) {
             guard let run = activeRun else { return }
             await loadInitial(run)
         }
+    }
+
+    private var searchOptions: some View {
+        AppAdaptiveRow(spacing: 8) {
+            Menu {
+                Picker("搜索来源", selection: $sourceID) {
+                    Text("全部书源").tag("")
+                    ForEach(sources) { source in Text(source.name).tag(source.id) }
+                }
+                .pickerStyle(.inline)
+            } label: {
+                optionLabel(sourceName, symbol: "globe")
+            }
+            .accessibilityLabel("搜索来源")
+            .accessibilityValue(sourceName)
+            .accessibilityIdentifier("discovery.source.provider")
+
+            Menu {
+                Picker("搜索方式", selection: $searchType) {
+                    ForEach(SearchType.allCases, id: \.self) { type in
+                        Text("按\(type.label)").tag(type)
+                    }
+                }
+                .pickerStyle(.inline)
+            } label: {
+                optionLabel("按\(searchType.label)", symbol: "text.magnifyingglass")
+            }
+            .accessibilityLabel("搜索方式")
+            .accessibilityValue("按\(searchType.label)")
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func optionLabel(_ title: String, symbol: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: symbol)
+                .foregroundStyle(ReadingSpace.profileMuted)
+                .accessibilityHidden(true)
+            Text(title)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.down")
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(ReadingSpace.profileMuted)
+                .accessibilityHidden(true)
+        }
+        .font(.subheadline.weight(.medium))
+        .foregroundStyle(ReadingSpace.ink)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget, alignment: .leading)
+        .background(ReadingSpace.profileFill, in: RoundedRectangle(cornerRadius: 12))
+        .contentShape(Rectangle())
     }
 
     private func resultSection(_ source: SourceSearchOptions.Source, run: SearchRun) -> some View {

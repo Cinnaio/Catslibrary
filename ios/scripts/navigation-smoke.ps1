@@ -83,7 +83,7 @@ Require-NavigationPattern 'iPad bottom tabs restore the real window size class f
     ([regex]::Matches($rootView, '\.environment\(\\.horizontalSizeClass, windowSizeClass\)').Count -eq 4)
 )
 Require-NavigationPattern 'iPad discovery and bookshelf search live inside their content bounds' (
-    $homeView -match '(?s)private var homeScrollContent.*?LazyVStack.*?ReadingSpaceSearchField.*?\.padding\(\.horizontal, 22\)' -and
+    $homeView -match '(?s)private var searchHeader.*?ReadingSpaceSearchField.*?\.padding\(\.horizontal, 22\).*?\.frame\(maxWidth: 760\)' -and
     $bookshelfView -match '(?s)private func bookshelfRows.*?ReadingSpaceSearchField' -and
     $bookshelfView -match '(?s)private func searchableBookshelfContent.*?if ReadingSpaceWindowLayout\.usesIPadLayout.*?else \{.*?\.searchable'
 )

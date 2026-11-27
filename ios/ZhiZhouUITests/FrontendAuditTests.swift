@@ -1095,16 +1095,47 @@ final class FrontendAuditTests: XCTestCase {
     }
 
     @MainActor
+    func testDiscoverySourceSearchSwitchesOnFirstTap() {
+        let app = launch("discovery-source-search")
+        let search = app.searchFields["discovery.search"]
+        let open = app.buttons["discovery.search.open"]
+        let catalog = app.buttons["discovery.scope.catalog"]
+        let sources = app.buttons["discovery.scope.sources"]
+
+        tap(UIDevice.current.userInterfaceIdiom == .pad ? search : open)
+        XCTAssertTrue(catalog.waitForExistence(timeout: 10))
+        XCTAssertTrue(catalog.isSelected)
+        tap(sources)
+        XCTAssertTrue(app.buttons["discovery.source.provider"].waitForExistence(timeout: 10),
+                      "空关键词时首次点按书源应直接切换")
+        XCTAssertTrue(sources.isSelected)
+        XCTAssertTrue(app.staticTexts["从书源查找"].exists)
+
+        search.typeText("audit")
+        tap(app.buttons["discovery.source.submit"])
+        let sourceBook = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "书源搜索示例作品")).firstMatch
+        XCTAssertTrue(sourceBook.waitForExistence(timeout: 10))
+        XCTAssertTrue(sources.isSelected, "提交后收起键盘仍应保留书源范围")
+        tap(catalog)
+        XCTAssertEqual(search.value as? String, "audit", "切换范围继续使用同一个关键词")
+        tap(app.buttons["discovery.search.close"])
+        XCTAssertTrue(app.buttons["catalog.audit-book-1"].waitForExistence(timeout: 15))
+
+        tap(UIDevice.current.userInterfaceIdiom == .pad ? search : open)
+        XCTAssertTrue(catalog.waitForExistence(timeout: 10))
+        XCTAssertTrue(catalog.isSelected, "关闭再打开时从书库开始")
+    }
+
+    @MainActor
     func testDiscoveryRefreshFailureRetriesFirstPage() {
         let app = launch("refresh-error")
         XCTAssertTrue(app.buttons["catalog.audit-book-1"].waitForExistence(timeout: 15))
         // Short fixture lists cannot always enter the native pull-to-refresh
         // threshold. Changing the query exercises the same first-page reload
         // path with a deterministic user action.
-        let search = app.searchFields.firstMatch
-        if !search.exists || !search.isHittable {
-            let searchButton = app.buttons["搜索"].firstMatch
-            if searchButton.exists { tap(searchButton) }
+        let search = app.searchFields["discovery.search"]
+        if UIDevice.current.userInterfaceIdiom == .phone {
+            tap(app.buttons["discovery.search.open"])
         }
         tap(search)
         search.typeText("山")
@@ -1112,7 +1143,11 @@ final class FrontendAuditTests: XCTestCase {
         capture("discovery-refresh-error", app: app)
         tap(app.buttons["重试"])
         XCTAssertTrue(app.staticTexts["暂时无法刷新书单"].waitForNonExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["catalog.audit-book-1"].exists)
+        tap(app.buttons["catalog.audit-book-1"])
+        XCTAssertTrue(app.buttons["detail.read"].waitForExistence(timeout: 10))
+        tap(app.navigationBars.buttons.firstMatch)
+        XCTAssertTrue(search.waitForExistence(timeout: 10))
+        XCTAssertEqual(search.value as? String, "山", "从搜索结果进入作品再返回时保留关键词")
     }
 
     @MainActor

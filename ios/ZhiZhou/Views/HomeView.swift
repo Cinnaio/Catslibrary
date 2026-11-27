@@ -13,9 +13,8 @@ struct HomeView: View {
     @State private var selectedSort = "updated_at"
     @State private var navigationPath: [HomeRoute] = []
     @State private var search = ""
-    @State private var isSearchPresented = false
-    @State private var inlineSearchFocused = false
-    @FocusState private var searchFocused: Bool
+    @State private var isSearchOpen = false
+    @State private var searchFieldFocused = false
     @State private var searchScope: SearchScope = .catalog
     @State private var searchSources: [SourceSearchOptions.Source] = []
     @State private var sourceSearchSubmission: UUID?
@@ -43,10 +42,15 @@ struct HomeView: View {
         case reader(ReaderLaunch)
     }
 
-    private enum SearchScope: Hashable { case catalog, sources }
+    private enum SearchScope: String, CaseIterable, Hashable {
+        case catalog, sources
+
+        var title: String { self == .catalog ? "书库" : "书源" }
+        var symbol: String { self == .catalog ? "books.vertical" : "globe" }
+    }
 
     private var searchTerm: String { search.trimmingCharacters(in: .whitespacesAndNewlines) }
-    private var showsSearchScopes: Bool { !searchSources.isEmpty && (isSearchPresented || !searchTerm.isEmpty) }
+    private var showsSearchScopes: Bool { isSearchOpen && !searchSources.isEmpty }
     private var isSearchingSources: Bool { showsSearchScopes && searchScope == .sources }
     private var showsTabBar: Bool {
         navigationPath.isEmpty && rankingsPresentation == nil && sourceSearchBook == nil
@@ -104,37 +108,29 @@ struct HomeView: View {
     private var homeScrollContent: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
-                if ReadingSpaceWindowLayout.usesIPadLayout {
-                    ReadingSpaceSearchField(
-                        text: $search,
-                        isFocused: $inlineSearchFocused,
-                        prompt: "搜索书名或作者",
-                        accessibilityID: "discovery.search",
-                        onSubmit: submitSearch
-                    )
-                    .padding(.bottom, 24)
-                }
-                Text("发现")
-                    .font(serifFont(.largeTitle, .medium))
-                    .foregroundStyle(ReadingSpace.ink)
-                    .accessibilityAddTraits(.isHeader)
-                    .padding(.bottom, 20)
-                if showsSearchScopes {
-                    Picker("搜索范围", selection: $searchScope) {
-                        Text("书库").tag(SearchScope.catalog)
-                        Text("书源").tag(SearchScope.sources)
-                    }
-                    .pickerStyle(.segmented)
-                    .padding(.bottom, 18)
+                if !isSearchOpen {
+                    Text("发现")
+                        .font(serifFont(.largeTitle, .medium))
+                        .foregroundStyle(ReadingSpace.ink)
+                        .accessibilityAddTraits(.isHeader)
+                        .padding(.bottom, 20)
                 }
 
                 if isSearchingSources {
                     SourceSearchResults(sources: searchSources, query: searchTerm, submission: sourceSearchSubmission, onSubmit: {
-                        searchFocused = false
-                        inlineSearchFocused = false
+                        searchFieldFocused = false
                     }) { entry in
                         sourceSearchBook = SourceSearchBookPresentation(entry: entry, revision: ContentAccessStore.shared.revision)
                     }
+                    .readingSpaceEntrance()
+                } else if isSearchOpen && searchTerm.isEmpty {
+                    ContentUnavailableView(
+                        "搜索书库",
+                        systemImage: "books.vertical",
+                        description: Text("输入书名或作者，查找已收录的作品。")
+                    )
+                    .frame(maxWidth: .infinity)
+                    .readingSpaceEntrance()
                 } else {
                     catalogSections
                 }
@@ -146,7 +142,7 @@ struct HomeView: View {
             .frame(maxWidth: .infinity)
         }
         .scrollIndicators(.hidden)
-        .scrollDismissesKeyboard(ReadingSpaceWindowLayout.usesIPadLayout ? .interactively : .automatic)
+        .scrollDismissesKeyboard(.interactively)
         .scrollBounceBehavior(.always, axes: .vertical)
         // Liquid Glass TabBar floats over the scroll content on iOS 26;
         // reserve a small tail so the final row can rest clear of the bar.
@@ -156,15 +152,93 @@ struct HomeView: View {
         }
     }
 
-    @ViewBuilder
-    private var searchableHomeContent: some View {
-        if ReadingSpaceWindowLayout.usesIPadLayout {
-            homeScrollContent
-        } else {
-            homeScrollContent
-                .searchable(text: $search, isPresented: $isSearchPresented, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "搜索书名或作者")
-                .searchFocused($searchFocused)
+    private var searchHeader: some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 8) {
+                ReadingSpaceSearchField(
+                    text: Binding(get: { search }, set: { value in
+                        if isSearchOpen || searchFieldFocused { search = value }
+                    }),
+                    isFocused: $searchFieldFocused,
+                    prompt: "搜索书名或作者",
+                    accessibilityID: "discovery.search",
+                    onSubmit: submitSearch
+                )
+                if isSearchOpen {
+                    Button(action: closeSearch) {
+                        Image(systemName: "xmark")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(ReadingSpace.ink)
+                            .frame(width: AppLayout.minimumTouchTarget, height: AppLayout.minimumTouchTarget)
+                            .background(ReadingSpace.profileFill, in: Circle())
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(ScaleButtonStyle(pressedScale: 0.98))
+                    .keyboardShortcut(.cancelAction)
+                    .accessibilityLabel("关闭搜索")
+                    .accessibilityIdentifier("discovery.search.close")
+                }
+            }
+            if showsSearchScopes {
+                HStack(spacing: 16) {
+                    ForEach(SearchScope.allCases, id: \.self) { scope in
+                        searchScopeButton(scope)
+                    }
+                }
+                .background(alignment: .bottom) {
+                    Rectangle().fill(ReadingSpace.profileLine).frame(height: 1)
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("搜索范围")
+            }
         }
+        .padding(.horizontal, 22)
+        .padding(.top, 8)
+        .padding(.bottom, isSearchOpen ? 4 : 8)
+        .frame(maxWidth: 760)
+        .frame(maxWidth: .infinity)
+    }
+
+    private func searchScopeButton(_ scope: SearchScope) -> some View {
+        let selected = searchScope == scope
+        return Button {
+            guard !selected else { return }
+            searchScope = scope
+            interactionFeedback &+= 1
+        } label: {
+            HStack(spacing: 6) {
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Image(systemName: scope.symbol)
+                        .accessibilityHidden(true)
+                }
+                Text(scope.title)
+            }
+            .font(.subheadline.weight(selected ? .semibold : .regular))
+            .foregroundStyle(selected ? AppTheme.primary : ReadingSpace.profileMuted)
+            .frame(maxWidth: .infinity, minHeight: AppLayout.minimumTouchTarget)
+            .contentShape(Rectangle())
+            .overlay(alignment: .bottom) {
+                if selected {
+                    Capsule().fill(AppTheme.primary).frame(width: 24, height: 2)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
+        .accessibilityIdentifier("discovery.scope.\(scope.rawValue)")
+    }
+
+    private func openSearch() {
+        isSearchOpen = true
+        searchFieldFocused = true
+    }
+
+    private func closeSearch() {
+        isSearchOpen = false
+        searchFieldFocused = false
+        search = ""
+        searchScope = .catalog
+        sourceSearchSubmission = nil
     }
 
     private func submitSearch() {
@@ -172,19 +246,28 @@ struct HomeView: View {
     }
 
     private var homeList: some View {
-        searchableHomeContent
+        VStack(spacing: 0) {
+            if isSearchOpen || ReadingSpaceWindowLayout.usesIPadLayout {
+                searchHeader
+            }
+            homeScrollContent
+        }
         .background(ReadingSpace.profilePaper)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar(ReadingSpaceWindowLayout.usesIPadLayout ? .visible : .automatic, for: .navigationBar)
-        .onSubmit(of: .search, submitSearch)
-        .onChange(of: inlineSearchFocused) { _, focused in
-            isSearchPresented = focused
+        .toolbarVisibility(isSearchOpen && navigationPath.isEmpty ? .hidden : .visible, for: .navigationBar)
+        .onChange(of: searchFieldFocused) { _, focused in
+            if focused { isSearchOpen = true }
         }
         .toolbar {
-            if !isSearchingSources {
-                ToolbarItem(placement: .navigationBarTrailing) {
+            if !isSearchOpen {
+                ToolbarItemGroup(placement: .topBarTrailing) {
                     categoryMenu
+                    if !ReadingSpaceWindowLayout.usesIPadLayout {
+                        Button("搜索", systemImage: "magnifyingglass", action: openSearch)
+                            .labelStyle(.iconOnly)
+                            .accessibilityIdentifier("discovery.search.open")
+                    }
                 }
             }
         }
@@ -249,9 +332,6 @@ struct HomeView: View {
             if searchesSources { reloadTask?.cancel() }
             else if catalogQuery != displayedQuery { scheduleReload() }
         }
-        .onChange(of: isSearchPresented) { _, isPresented in
-            if !isPresented && searchTerm.isEmpty { searchScope = .catalog }
-        }
         .onChange(of: selectedCategory) { _, _ in
             scheduleReload()
         }
@@ -287,8 +367,13 @@ struct HomeView: View {
                 .padding(.bottom, 18)
         }
 
-        sectionHeader(catalogTitle, trailing: displayedQuery == catalogQuery ? "\(totalNovelCount) 本" : nil)
-            .padding(.bottom, 16)
+        HStack(spacing: 8) {
+            sectionHeader(catalogTitle, trailing: displayedQuery == catalogQuery ? "\(totalNovelCount) 本" : nil)
+            if isSearchOpen {
+                categoryMenu
+            }
+        }
+        .padding(.bottom, 16)
 
         catalogContent
     }
@@ -380,6 +465,7 @@ struct HomeView: View {
     @ViewBuilder
     private func novelRow(_ novel: Novel) -> some View {
         Button {
+            searchFieldFocused = false
             navigationPath.append(.novel(novel))
         } label: {
             NovelCardView(
@@ -573,6 +659,9 @@ struct HomeView: View {
                 ? "line.3.horizontal.decrease.circle"
                 : "line.3.horizontal.decrease.circle.fill")
                 .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
+                .frame(width: isSearchOpen ? AppLayout.minimumTouchTarget : nil,
+                       height: isSearchOpen ? AppLayout.minimumTouchTarget : nil)
+                .contentShape(Rectangle())
         }
         .accessibilityLabel("筛选与排序")
     }
@@ -654,6 +743,7 @@ struct HomeView: View {
             let options = try await SourceSearchOptions.load()
             guard !Task.isCancelled else { return }
             searchSources = options.sources
+            if searchSources.isEmpty { searchScope = .catalog }
         } catch {
             // The discovery catalog still works with a server that has no source search endpoint.
         }
