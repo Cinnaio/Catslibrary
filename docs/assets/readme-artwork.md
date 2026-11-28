@@ -1,5 +1,27 @@
 # README 插画
 
+## 2026-11-28 · 花影书房横幅
+
+- 现用横幅为 [flower-library.webp](readme/flower-library.webp)，以用户提供的银粉色猫娘三视图和原立绘为角色参考。
+- 使用内置 `image_gen` 生成并调整构图，原尺寸为 2172 × 724。将 PNG 编码为 WebP，保留完整画面。
+- [书架](readme/bookshelf.webp)和[阅读器](readme/reader.webp)是本地 Web 界面截图，书目、封面与章节使用示例内容。
+
+### 生成提示词
+
+```text
+Use case: illustration-story. Create a polished wide 3:1 landscape banner for a GitHub README, approximately 2400 × 800. The two local images are reference material only. Reference 1 is the user's original character turnaround for costume and flourishes, and reference 2 is the user's original single character illustration for her recognizable face, soft delicate rendering, and distinctive over-the-shoulder glance. Create an entirely fresh setting and composition while faithfully preserving her silver-blush long wavy hair, braided circlet, large pale cat ears with pink inside, rose-pink eyes, five-petal white-blush flowers beside the nearer ear, flowing pink silk ribbons and pendants, ivory floral neck ornament, delicate ivory and blush layered dress, ruffle sleeves, and a glimpse of a fluffy pale tail if it fits naturally.
+Composition: approximately 55% on the left is a spacious warm ivory paper field. On the right, a waist-up view of her seated sideways at a subtly rendered desk, gently looking back toward the viewer as if called while turning the pages of an open book. Keep her full ears, head silhouette and hands comfortably inside the frame, no cut ear tips, hands anatomically coherent. Her calm subtle expression echoes the reference. One thin pink ribbon bookmark. Behind her, a very subtle dusty lilac-gray window shadow and soft blossom shadows separate the light hair and ears from the background; let the warm paper field blend seamlessly into the soft setting. Airy and refined anime illustration, fine hair and fabric, muted blush with warm white #FAF9F6, gray mauve and little other color. One coherent quiet illustration, no dark reference backdrop, no busy bookshelves, other characters or ornate frames.
+Text exactly two lines, on the left near the vertical middle: “Cat’s Library” in generous editorial serif lettering in dark plum-grey, and on the line below “故事翻到这里，刚好遇见你。” in legible smaller Chinese serif letters in muted plum-grey. The quote marks in this instruction are delimiters only. No extra text, badges, symbols or watermarks. Give the text and character generous safety margins for the full wide composition.
+```
+
+### 构图调整提示词
+
+```text
+Make a targeted framing correction to this existing GitHub README banner, keeping its 3:1 aspect ratio and exact text, “Cat’s Library” and “故事翻到这里，刚好遇见你。”. Move the whole illustrated scene very slightly down and zoom the right-side scene out by about 12–15%, so the previously clipped tall rear cat ear is now fully visible with at least 45 pixels of clear paper/window air above both ear tips at a 2160 × 720 size. Extend the existing soft warm paper and window shadow naturally into the top of the frame, and preserve the complete illustrated open book and both hands. Retain the exact silver-pink cat-girl character, identity, over-the-shoulder face, small smile, braid, flowers and dangling ribbons, the soft lilac window shadows, the warm ivory paper texture, and the overall composition. Keep the typography and layout otherwise as close to the input as possible. The two quoted lines are the only text and must be reproduced exactly without their enclosing quotes.
+```
+
+## 2026-11-06 · 书房猫咪系列
+
 - 用途：Cat’s Library 项目首页横幅与「阅读／收藏／创作」三联插画，均为品牌插画，不是产品界面截图。
 - 生成日期：2026-11-06。
 - 来源：内置 `image_gen` 工具；未使用 CLI/API 回退模式，无外部参考图片。
