@@ -5,7 +5,7 @@ import { requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { AiError, isTextAiConfigured } from '../services/ai/client'
 import { withProviderSnapshot } from '../services/ai/provider-snapshot'
 import { clientIpFromContext } from '../services/ai/audit-context'
-import { createAnalysis, editAnalysis, listAnalyses, readAnalysis, requireAnalysis, resumeAnalysis, stopAnalysis } from '../services/ai/novel-analysis-store'
+import { createAnalysis, deleteAnalysis, editAnalysis, listAnalyses, readAnalysis, requireAnalysis, resumeAnalysis, stopAnalysis } from '../services/ai/novel-analysis-store'
 import { runNovelAnalysis } from '../services/ai/novel-analysis'
 import { applyAnalysisFinding, createAnalysisReview, previewAnalysisReview, runAnalysisReview, stopAnalysisReview } from '../services/ai/novel-analysis-review'
 
@@ -62,6 +62,10 @@ novelAnalysisRoutes.get('/:novelId/:id/sources/:sourceId', async c => {
   const source = report.source_json.find(item => item.id === c.req.param('sourceId'))
   if (!source) throw new AiError('invalid', '来源不在本报告中', 404)
   return c.json(source)
+})
+novelAnalysisRoutes.delete('/:novelId/:id', async c => {
+  await deleteAnalysis(getDb(), c.req.param('novelId'), c.req.param('id'))
+  return c.json({ ok: true })
 })
 novelAnalysisRoutes.patch('/:novelId/:id', async c => {
   const body = await c.req.json().catch(() => ({}))

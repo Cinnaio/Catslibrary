@@ -22,6 +22,8 @@ export default function NovelAnalysisPanel(props: AnalysisPanelProps) {
 }
 function AnalysisWorkspace({ novelId, reportId, onSelectReport, active = true }: AnalysisPanelProps) {
   const selectReport = useRef(onSelectReport)
+  const selectedReport = useRef(reportId)
+  useEffect(() => { selectedReport.current = reportId }, [reportId])
   useEffect(() => { selectReport.current = onSelectReport }, [onSelectReport])
   const pendingKey = analysisPendingKey(novelId)
   const [pending, setPending] = useState<PendingAnalysis | null>(() => readPendingAnalysis(pendingKey))
@@ -41,20 +43,29 @@ function AnalysisWorkspace({ novelId, reportId, onSelectReport, active = true }:
   const [busy, setBusy] = useState(false)
   const mounted = useRef(true)
   const submitting = useRef(false)
+  const listVersion = useRef(0)
   const formRef = useRef<HTMLFormElement>(null)
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   useEffect(() => {
     let alive = true
+    const version = ++listVersion.current
     if (!novelId || !active) return
     void Promise.all([chaptersApi.list(novelId), api.list(novelId, offset)]).then(([book, history]) => {
-      if (!alive) return
+      if (!alive || version !== listVersion.current) return
       setChapters(book.chapters)
       setReports(history.reports); setHasMore(history.hasMore); setError('')
       setInput(previous => previous.startChapterId ? previous : { ...previous, startChapterId: book.chapters[0]?.id || '', endChapterId: book.chapters[Math.min(2, book.chapters.length - 1)]?.id || '' })
-    }).catch(e => { if (alive) setError(failure(e)) }).finally(() => { if (alive) setLoadedKey(loadKey) })
+    }).catch(e => { if (alive && version === listVersion.current) setError(failure(e)) }).finally(() => { if (alive && version === listVersion.current) setLoadedKey(loadKey) })
     return () => { alive = false }
   }, [novelId, offset, refresh, loadKey, active])
   const onReportChange = useCallback((next: AnalysisReport) => setReports(previous => previous.map(item => item.id === next.id && item.updatedAt <= next.updatedAt ? next : item)), [])
+  const onReportDelete = useCallback((id: string) => {
+    if (!mounted.current) return
+    ++listVersion.current
+    setReports(previous => previous.filter(item => item.id !== id))
+    if (selectedReport.current === id) selectReport.current('')
+    setOffset(0); setRefresh(v => v + 1); setSubmitNotice('分析报告已删除。')
+  }, [])
   function chooseReport(id: string) {
     selectReport.current(id)
   }
@@ -124,7 +135,7 @@ function AnalysisWorkspace({ novelId, reportId, onSelectReport, active = true }:
           <div className={styles.actions}><Button variant="ghost" size="sm" disabled={loading || offset === 0} onClick={() => setOffset(v => Math.max(0, v - 20))}>上一页</Button>
             <Button variant="ghost" size="sm" disabled={loading || !hasMore} onClick={() => setOffset(v => v + 20)}>下一页</Button></div>
         </aside>
-        {reportId ? <NovelAnalysisReport key={reportId} novelId={novelId} reportId={reportId} active={active} onChange={onReportChange} onReanalyze={request => {
+        {reportId ? <NovelAnalysisReport key={reportId} novelId={novelId} reportId={reportId} active={active} onChange={onReportChange} onDelete={onReportDelete} onReanalyze={request => {
           if (pending) { setSubmitError('请先确认上次提交，再创建另一份报告。'); return }
           setInput(request); setForceRefresh(true); setSubmitNotice(''); formRef.current?.scrollIntoView({ block: 'start' }); formRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
         }} /> : <div className={styles.empty}>生成报告或选择一份历史记录，阅读结论并逐条查看原文。</div>}

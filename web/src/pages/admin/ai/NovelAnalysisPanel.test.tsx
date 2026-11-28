@@ -1,11 +1,12 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, useNavigate, useSearchParams } from 'react-router-dom'
 import { beforeEach, expect, it, vi } from 'vitest'
 import type { AnalysisReport } from '@shared/novel-analysis'
 import NovelAnalysisPanel from './NovelAnalysisPanel'
 import { setStorageUser } from '@/lib/storage'
+import { analysisPendingKey, readAnalysisDraft, savePendingAnalysisReview } from './analysis-request-state'
 
-const api = vi.hoisted(() => ({ list: vi.fn(), read: vi.fn(), create: vi.fn(), source: vi.fn(), edit: vi.fn(), stop: vi.fn(), resume: vi.fn() }))
+const api = vi.hoisted(() => ({ list: vi.fn(), read: vi.fn(), create: vi.fn(), source: vi.fn(), edit: vi.fn(), stop: vi.fn(), resume: vi.fn(), delete: vi.fn() }))
 vi.mock('@/lib/novel-analysis-api', () => ({ novelAnalysisApi: api }))
 vi.mock('@/lib/api', () => ({ chaptersApi: { list: vi.fn().mockResolvedValue({ chapters: [{ id: 'c1', title: '第一章' }, { id: 'c2', title: '第二章' }] }) }, newOperationId: () => `analysis_${Math.random().toString(36).slice(2)}` }))
 vi.mock('@/components/shared/SearchSelect', () => ({ default: ({ options, value, onChange, disabled, placeholder }: { options: Array<{ value: string; label: string }>; value: string; onChange: (id: string) => void; disabled?: boolean; placeholder?: string }) =>
@@ -160,4 +161,125 @@ it('旧任务缺少阶段信息时不把满额阅读误报为报告完成', asyn
   await screen.findByText('本次输出未完成')
   expect(screen.getByRole('list', { name: '分析阶段' })).toHaveTextContent('1. 阅读原文已完成2. 整理记录待完成3. 生成报告待完成')
   expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+})
+
+
+it('删除先确认，取消不发请求并保留修订草稿', async () => {
+  open()
+  fireEvent.click(await screen.findByRole('button', { name: '修订报告' }))
+  fireEvent.change(screen.getByRole('textbox', { name: '修订报告（Markdown）' }), { target: { value: '待保存的修订' } })
+  fireEvent.click(screen.getByRole('button', { name: '删除报告' }))
+  const dialog = screen.getByRole('alertdialog')
+  expect(dialog).toHaveTextContent('删除后无法恢复')
+  expect(dialog).toHaveTextContent('本地尚未保存的修订也会清除')
+  expect(dialog).toHaveTextContent('第一章 — 第一章')
+  expect(api.delete).not.toHaveBeenCalled()
+  fireEvent.click(within(dialog).getByRole('button', { name: '取消' }))
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  expect(screen.getByRole('textbox', { name: '修订报告（Markdown）' })).toHaveValue('待保存的修订')
+})
+
+it('确认删除后清除选中报告、修订与待核查缓存，并刷新历史', async () => {
+  open()
+  fireEvent.click(await screen.findByRole('button', { name: '修订报告' }))
+  fireEvent.change(screen.getByRole('textbox', { name: '修订报告（Markdown）' }), { target: { value: '要清除的草稿' } })
+  const key = analysisPendingKey('book')
+  savePendingAnalysisReview(`${key}:review:report`, { requestId: 'review-pending', revision: 2 })
+  api.list.mockResolvedValue({ reports: [], hasMore: false })
+  fireEvent.click(screen.getByRole('button', { name: '删除报告' }))
+  fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: '确认删除' }))
+  await screen.findByText('分析报告已删除。')
+  await screen.findByText('还没有分析报告。')
+  expect(api.delete).toHaveBeenCalledExactlyOnceWith('book', 'report')
+  expect(readAnalysisDraft(`${key}:draft:report`)).toBeNull()
+  expect(sessionStorage.getItem(`${key}:review:report`)).toBeNull()
+  await waitFor(() => expect(screen.queryByRole('article', { name: '分析报告' })).not.toBeInTheDocument())
+  expect(api.read).toHaveBeenCalledTimes(1)
+  expect(api.list).toHaveBeenLastCalledWith('book', 0)
+})
+
+it('删除失败保留弹窗和草稿，删除进行中禁止重复点击', async () => {
+  let reject!: (error: Error) => void
+  api.delete.mockReturnValue(new Promise((_resolve, failure) => { reject = failure }))
+  open()
+  fireEvent.click(await screen.findByRole('button', { name: '修订报告' }))
+  fireEvent.change(screen.getByRole('textbox', { name: '修订报告（Markdown）' }), { target: { value: '失败时保留的草稿' } })
+  fireEvent.click(screen.getByRole('button', { name: '删除报告' }))
+  fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: '确认删除' }))
+  expect(screen.getByRole('button', { name: '正在删除…' })).toBeDisabled()
+  expect(within(screen.getByRole('alertdialog')).getByRole('button', { name: '取消' })).toBeDisabled()
+  await act(async () => reject(new Error('暂时无法删除')))
+  expect(await screen.findByRole('alert')).toHaveTextContent('删除失败：暂时无法删除')
+  expect(screen.getByRole('button', { name: '确认删除' })).toBeEnabled()
+  fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: '取消' }))
+  expect(screen.getByRole('textbox', { name: '修订报告（Markdown）' })).toHaveValue('失败时保留的草稿')
+  expect(readAnalysisDraft(`${analysisPendingKey('book')}:draft:report`)?.content).toBe('失败时保留的草稿')
+  expect(api.delete).toHaveBeenCalledTimes(1)
+})
+
+it('删除末页最后一条报告后回到第一页，忽略删除前迟到的历史读取', async () => {
+  let resolveHistory!: (value: { reports: AnalysisReport[]; hasMore: boolean }) => void
+  const last = { ...report('last'), chapterCount: 7 }
+  api.list.mockResolvedValueOnce({ reports: [report()], hasMore: true })
+    .mockResolvedValueOnce({ reports: [last], hasMore: false })
+    .mockReturnValueOnce(new Promise(resolve => { resolveHistory = resolve }))
+    .mockResolvedValue({ reports: [report()], hasMore: false })
+  open()
+  fireEvent.click(await screen.findByRole('button', { name: '下一页' }))
+  await waitFor(() => expect(api.list).toHaveBeenCalledWith('book', 20))
+  await waitFor(() => expect(screen.getByRole('button', { name: '上一页' })).toBeEnabled())
+  fireEvent.click(within(screen.getByRole('complementary', { name: '历史分析报告' })).getByRole('button', { name: /情节分析/ }))
+  await screen.findByText(/last 的分析结论/)
+  fireEvent.click(screen.getByRole('button', { name: '刷新' }))
+  fireEvent.click(screen.getByRole('button', { name: '删除报告' }))
+  fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: '确认删除' }))
+  await screen.findByText('分析报告已删除。')
+  await waitFor(() => expect(api.list).toHaveBeenLastCalledWith('book', 0))
+  await act(async () => resolveHistory({ reports: [last], hasMore: false }))
+  expect(screen.getByRole('button', { name: '上一页' })).toBeDisabled()
+  expect(screen.queryByText(/last 的分析结论/)).not.toBeInTheDocument()
+  expect(within(screen.getByRole('complementary', { name: '历史分析报告' })).queryByText(/7 章/)).not.toBeInTheDocument()
+  expect(api.delete).toHaveBeenCalledExactlyOnceWith('book', 'last')
+})
+
+it('未完成报告也能删除，重试遇到已被删除的报告时清理页面', async () => {
+  api.read.mockResolvedValue({ ...report(), content: '', status: 'running', phase: 'reading' })
+  api.delete.mockRejectedValue(Object.assign(new Error('报告不存在'), { status: 404 }))
+  api.list.mockResolvedValue({ reports: [], hasMore: false })
+  open()
+  fireEvent.click(await screen.findByRole('button', { name: '删除报告' }))
+  expect(screen.getByRole('alertdialog')).toHaveTextContent('进行中的分析与核查会停止')
+  fireEvent.click(screen.getByRole('button', { name: '确认删除' }))
+  await screen.findByText('分析报告已删除。')
+  await waitFor(() => expect(screen.queryByRole('article', { name: '分析报告' })).not.toBeInTheDocument())
+})
+
+it('删除响应晚于切书时不清空新书选中报告', async () => {
+  let resolveDelete!: () => void
+  api.delete.mockReturnValue(new Promise<void>(resolve => { resolveDelete = resolve }))
+  open()
+  fireEvent.click(await screen.findByRole('button', { name: '删除报告' }))
+  fireEvent.click(screen.getByRole('button', { name: '确认删除' }))
+  fireEvent.click(screen.getByText('切书'))
+  await screen.findByText(/other-report 的分析结论/)
+  await act(async () => resolveDelete())
+  expect(screen.getByText(/other-report 的分析结论/)).toBeInTheDocument()
+  expect(screen.queryByText('分析报告已删除。')).not.toBeInTheDocument()
+})
+
+
+it('删除成功后迟到轮询结果不会重新显示报告或继续轮询', async () => {
+  let resolveRead!: (value: AnalysisReport) => void
+  api.read.mockResolvedValueOnce({ ...report(), content: '', status: 'running', phase: 'reading' })
+    .mockReturnValueOnce(new Promise(resolve => { resolveRead = resolve }))
+  api.list.mockResolvedValue({ reports: [], hasMore: false })
+  open()
+  await screen.findByRole('button', { name: '删除报告' })
+  await waitFor(() => expect(api.read).toHaveBeenCalledTimes(2), { timeout: 4000 })
+  fireEvent.click(screen.getByRole('button', { name: '删除报告' }))
+  fireEvent.click(screen.getByRole('button', { name: '确认删除' }))
+  await waitFor(() => expect(screen.queryByRole('article', { name: '分析报告' })).not.toBeInTheDocument())
+  await act(async () => resolveRead(report()))
+  expect(screen.queryByText(/report 的分析结论/)).not.toBeInTheDocument()
+  expect(api.read).toHaveBeenCalledTimes(2)
 })

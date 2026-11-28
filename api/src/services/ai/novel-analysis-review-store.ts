@@ -26,7 +26,8 @@ export async function saveAnalysisEvidence(db: DbClient, row: ReviewReport & { s
   if (saved) return saved.result_json
   const result = checkAnalysisEvidence(row.edited_content ?? row.content, row.source_json)
   await run(db, `INSERT INTO novel_analysis_reviews(id,report_id,report_revision,content_hash,source_fingerprint,checker_version,kind,result_json,created_at)
-    VALUES($6,$1,$2,$3,$4,$5,'citation',$7::jsonb,$8) ON CONFLICT DO NOTHING`, [...binding, newId('areview'), JSON.stringify(result), Date.now()])
+    SELECT $6,live.id,$2,$3,$4,$5,'citation',$7::jsonb,$8
+    FROM (SELECT id FROM novel_analysis_reports WHERE id=$1 FOR KEY SHARE) live ON CONFLICT DO NOTHING`, [...binding, newId('areview'), JSON.stringify(result), Date.now()])
   return result
 }
 export async function readAnalysisReviews(db: DbClient, report: ReviewReport, sourceChanged = false): Promise<AnalysisReview[]> {

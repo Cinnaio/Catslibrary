@@ -28,7 +28,7 @@ function report(overrides: Partial<AnalysisReport> = {}): AnalysisReport {
 }
 const onChange = vi.fn()
 function View({ active = true, reportId = 'report', novelId = 'book' }: { active?: boolean; reportId?: string; novelId?: string }) {
-  return <MemoryRouter><NovelAnalysisReport key={`${novelId}:${reportId}`} novelId={novelId} reportId={reportId} active={active} onChange={onChange} onReanalyze={() => {}} /></MemoryRouter>
+  return <MemoryRouter><NovelAnalysisReport key={`${novelId}:${reportId}`} novelId={novelId} reportId={reportId} active={active} onChange={onChange} onReanalyze={() => {}} onDelete={() => {}} /></MemoryRouter>
 }
 function expand(text: string | RegExp) { fireEvent.click(screen.getByText(text, { selector: 'summary' })) }
 

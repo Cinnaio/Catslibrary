@@ -8,6 +8,7 @@ export const novelAnalysisApi = {
   create: (novelId: string, input: AnalysisRequest, requestId: string, forceRefresh = false) => request<{ reportId: string; taskId: string; created: boolean; reused: boolean }>('POST', path(novelId), { request: input, requestId, forceRefresh }, true),
   source: (novelId: string, id: string, sourceId: string) => request<AnalysisSource>('GET', `${path(novelId, id)}/sources/${encodeURIComponent(sourceId)}`, null, true),
   edit: (novelId: string, id: string, content: string, revision: number) => request('PATCH', path(novelId, id), { content, revision }, true),
+  delete: (novelId: string, id: string) => request<{ ok: true }>('DELETE', path(novelId, id), null, true),
   stop: (novelId: string, id: string) => request('POST', `${path(novelId, id)}/stop`, {}, true),
   resume: (novelId: string, id: string) => request('POST', `${path(novelId, id)}/resume`, {}, true),
   reviewPreview: (novelId: string, id: string, paragraphStarts?: number[]) => request<AnalysisReviewPreview>('GET', `${path(novelId, id)}/review-preview${paragraphStarts ? `?paragraphStarts=${paragraphStarts.join(',')}` : ''}`, null, true),

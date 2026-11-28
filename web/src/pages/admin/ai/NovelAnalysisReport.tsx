@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ANALYSIS_KINDS, type AnalysisEvidenceMatch, type AnalysisReport, type AnalysisRequest, type AnalysisSource } from '@shared/novel-analysis'
 import { novelAnalysisApi as api } from '@/lib/novel-analysis-api'
+import type { ApiError } from '@/lib/api'
+import { ConfirmationDialog } from '@/components/shared/ConfirmationDialog'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog } from '@/components/ui/dialog'
@@ -12,15 +14,15 @@ import NovelAnalysisProgress from './NovelAnalysisProgress'
 import NovelAnalysisMarkdown from './NovelAnalysisMarkdown'
 import NovelAnalysisEvidence from './NovelAnalysisEvidence'
 import { taskStatusLabel } from './labels'
-import { analysisPendingKey, readAnalysisDraft, saveAnalysisDraft } from './analysis-request-state'
+import { analysisPendingKey, readAnalysisDraft, saveAnalysisDraft, savePendingAnalysisReview } from './analysis-request-state'
 import styles from './novel-analysis.module.css'
 
 const failure = (error: unknown) => error instanceof Error ? error.message : '操作失败，请稍后重试'
 const running = (report: AnalysisReport) => ['queued', 'running'].includes(report.status)
 
-export default function NovelAnalysisReport({ novelId, reportId, onChange, onReanalyze, active = true }: {
+export default function NovelAnalysisReport({ novelId, reportId, onChange, onReanalyze, onDelete, active = true }: {
   novelId: string; reportId: string; onChange: (report: AnalysisReport) => void; onReanalyze: (request: AnalysisRequest) => void
-  active?: boolean
+  onDelete: (id: string) => void; active?: boolean
 }) {
   const scopeKey = analysisPendingKey(novelId)
   const draftKey = scopeKey ? `${scopeKey}:draft:${reportId}` : ''
@@ -29,6 +31,8 @@ export default function NovelAnalysisReport({ novelId, reportId, onChange, onRea
   const [error, setError] = useState('')
   const [loadError, setLoadError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
   const [refresh, setRefresh] = useState(0)
   const [editing, setEditing] = useState(!!savedDraft)
   const [draft, setDraft] = useState(savedDraft?.content || '')
@@ -40,19 +44,21 @@ export default function NovelAnalysisReport({ novelId, reportId, onChange, onRea
   const [sourceRefresh, setSourceRefresh] = useState(0)
   const mounted = useRef(true)
   const mutation = useRef(false)
+  const deleted = useRef(false)
   const loadVersion = useRef(0)
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   const receive = useCallback((next: AnalysisReport) => {
-    if (!mounted.current) return
+    if (!mounted.current || deleted.current) return
     setReport(previous => previous && previous.updatedAt > next.updatedAt ? previous : next)
     onChange(next)
   }, [onChange])
   useEffect(() => {
-    if (!active) return
+    if (!active || deleted.current || mutation.current) return
     let alive = true
     let timer: ReturnType<typeof setTimeout> | undefined
     const version = ++loadVersion.current
     async function load() {
+      if (!alive || version !== loadVersion.current || deleted.current || mutation.current) return
       try {
         const next = await api.read(novelId, reportId)
         if (!alive || version !== loadVersion.current) return
@@ -82,6 +88,24 @@ export default function NovelAnalysisReport({ novelId, reportId, onChange, onRea
       if (mounted.current) { setBusy(false); setRefresh(v => v + 1) }
     }
   }
+  async function remove() {
+    if (mutation.current || deleted.current) return
+    mutation.current = true; setBusy(true); setDeleteError('')
+    ++loadVersion.current
+    try {
+      try { await api.delete(novelId, reportId) }
+      catch (e) { if ((e as ApiError).status !== 404) throw e }
+      deleted.current = true
+      saveAnalysisDraft(draftKey, null)
+      savePendingAnalysisReview(scopeKey ? `${scopeKey}:review:${reportId}` : '', null)
+      if (mounted.current) setDeleteOpen(false)
+      onDelete(reportId)
+    } catch (e) { if (mounted.current) setDeleteError(failure(e)) }
+    finally {
+      mutation.current = false
+      if (mounted.current && !deleted.current) { setBusy(false); setRefresh(v => v + 1) }
+    }
+  }
   const markdown = (text: string) => <NovelAnalysisMarkdown content={text} sources={report?.sources || []} onSource={selectSource} />
   return <article className={styles.report} aria-label="分析报告">
     {(error || loadError) && <div className={styles.notice} role="alert">{error || loadError} <Button variant="ghost" size="sm" disabled={busy} onClick={() => setRefresh(v => v + 1)}>重新读取</Button></div>}
@@ -92,7 +116,10 @@ export default function NovelAnalysisReport({ novelId, reportId, onChange, onRea
           <h2>{ANALYSIS_KINDS[report.request.kind]}</h2>
           <p className={styles.meta}>{report.sources[0]?.chapterTitle} — {report.sources.at(-1)?.chapterTitle}</p>
         </div>
-        <Button variant="outline" size="sm" disabled={editing || busy} onClick={() => onReanalyze(report.request)}>按此范围新建报告</Button>
+        <div className={styles.actions}>
+          <Button variant="outline" size="sm" disabled={editing || busy} onClick={() => onReanalyze(report.request)}>按此范围新建报告</Button>
+          <Button variant="outline" size="sm" disabled={busy} onClick={() => { setDeleteError(''); setDeleteOpen(true) }}>删除报告</Button>
+        </div>
       </header>
       {report.request.question && <p className={styles.question}>{report.request.question}</p>}
       {!!report.reusedSources && <p className={styles.meta}>本次复用了 {report.reusedSources} 段阅读底稿，原文依据仍可逐条核对。</p>}
@@ -136,6 +163,14 @@ export default function NovelAnalysisReport({ novelId, reportId, onChange, onRea
         <p className={styles.meta}>模型撰写时额外回读 {report.checkedSourceIds.length} 段。回读次数不表示内容已经人工确认。</p>
       </MotionDetails>
     </>}
+    <ConfirmationDialog open={active && deleteOpen} onOpenChange={setDeleteOpen} title="删除这份分析报告？"
+      description={<>
+        删除后无法恢复。报告正文、人工修订、分段阅读记录和核查记录会一并删除，进行中的分析与核查会停止。原始章节、其他报告和用量记录保留。
+        {editing && ' 本地尚未保存的修订也会清除。'}
+        {deleteError && <span role="alert"> 删除失败：{deleteError}</span>}
+      </>}
+      items={report ? [`${ANALYSIS_KINDS[report.request.kind]} · ${report.chapterCount} 章 · ${new Date(report.createdAt).toLocaleString('zh-CN')}`, `${report.sources[0]?.chapterTitle || ''} — ${report.sources.at(-1)?.chapterTitle || ''}`] : []}
+      confirmText={busy ? '正在删除…' : '确认删除'} danger busy={busy} onConfirm={() => void remove()} />
     <Dialog open={active && !!sourceId} onOpenChange={open => { if (!open) setSourceId('') }}>
       <ReadingDialog title={source ? source.chapterTitle : '原文依据'} description={source ? `${source.id} · 第 ${source.part} 段 · 生成时的正文快照` : '正在读取本报告保存的来源'}
         footer={source && <Button asChild variant="outline"><Link target="_blank" rel="noopener noreferrer" to={`/read/${encodeURIComponent(novelId)}/${encodeURIComponent(source.chapterId)}`}>打开当前章节</Link></Button>}>

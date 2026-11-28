@@ -3,6 +3,7 @@ import { ANALYSIS_KINDS } from '@shared/novel-analysis'
 import type { Db, DbClient } from '../../db/pool'
 import { all, first, run, withTx } from '../../db/query'
 import { newId } from '../auth'
+import { publishAiTask } from './task-events'
 import { AiError } from './client'
 import { createAiTask, getAiTask, cancelAiTask, updateAiTask } from './tasks'
 import { analysisHash, analysisSourcesChanged, captureAnalysisSources, parseAnalysisRequest } from './novel-analysis-source'
@@ -118,6 +119,31 @@ export async function editAnalysis(db: Db, novelId: string, id: string, content:
 export async function stopAnalysis(db: Db, novelId: string, id: string) {
   const row = await requireAnalysis(db, novelId, id)
   await cancelAiTask(db, row.task_id)
+}
+/** Cancel owned work and remove the report atomically; retain usage and shared reading material. */
+export async function deleteAnalysis(db: Db, novelId: string, id: string) {
+  const cancelled = await withTx(db, async query => {
+    const tx = { query }
+    // Serialize creation/resume without blocking the worker cache foreign-key check.
+    // Checkpoints lock their analysis task before the report; reviews only lock their own task/row.
+    await query('SELECT id FROM novels WHERE id=$1 FOR NO KEY UPDATE', [novelId])
+    const row = await requireAnalysis(tx, novelId, id)
+    await query('SELECT id FROM ai_tasks WHERE id=$1 FOR UPDATE', [row.task_id])
+    await query('SELECT id FROM novel_analysis_reports WHERE id=$1 AND novel_id=$2 FOR UPDATE', [id, novelId])
+    await requireAnalysis(tx, novelId, id)
+    // The report lock also prevents a new review being created during deletion.
+    const reviews = await all<{ task_id: string }>(tx, "SELECT task_id FROM novel_analysis_reviews WHERE report_id=$1 AND kind='fact'", [id])
+    const taskIds = [...new Set([row.task_id, ...reviews.map(review => review.task_id)])].filter(Boolean)
+    await query('SELECT id FROM ai_tasks WHERE id=ANY($1::text[]) ORDER BY id FOR UPDATE', [taskIds])
+    const now = Date.now()
+    const tasks = await all<{ id: string }>(tx, `UPDATE ai_tasks SET status='cancelled',step='报告已删除',updated_at=$1,finished_at=$1
+      WHERE id=ANY($2::text[]) AND status IN ('queued','running') RETURNING id`, [now, taskIds])
+    // Reviews and request receipts cascade; chapters, shared notes and task/usage audits remain.
+    await run(tx, 'DELETE FROM novel_analysis_reports WHERE id=$1 AND novel_id=$2', [id, novelId])
+    return tasks.map(task => ({ id: task.id, now }))
+  })
+  // Notify observers only after commit, never for a rolled-back cancellation.
+  for (const task of cancelled) publishAiTask(task.id, { status: 'cancelled', step: '报告已删除', updatedAt: task.now, finishedAt: task.now })
 }
 export async function resumeAnalysis(db: Db, userId: string, novelId: string, id: string) {
   const settings = await getAiSettings(db)

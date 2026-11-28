@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest'
 import { createTestDb, type TestDb } from '../../test/db'
 import { first } from '../../db/query'
-import { createAnalysis, editAnalysis, listAnalyses, readAnalysis, requireAnalysis, resumeAnalysis, stopAnalysis } from './novel-analysis-store'
+import { createAnalysis, deleteAnalysis, editAnalysis, listAnalyses, readAnalysis, requireAnalysis, resumeAnalysis, stopAnalysis } from './novel-analysis-store'
 import { analysisSourcesChanged, captureAnalysisSources, parseAnalysisRequest, searchAnalysisSources } from './novel-analysis-source'
 import { runNovelAnalysis } from './novel-analysis'
 import { analysisPrompt } from './novel-analysis-prompts'
@@ -9,6 +9,9 @@ import { analysisGenerationKey, saveSharedAnalysisReading } from './novel-analys
 import { AiError, chat, type AiChatResult } from './client'
 import { withProviderSnapshot } from './provider-snapshot'
 import { getAiTask } from './tasks'
+import { subscribeAiTask } from './task-events'
+import { createAnalysisReview, runAnalysisReview } from './novel-analysis-review'
+import { saveAnalysisEvidence } from './novel-analysis-review-store'
 import { cleanStoryText } from './story-memory'
 import { app } from '../../app'
 import { setDbForTests } from '../../db/pool'
@@ -637,4 +640,116 @@ it('分段阅读使用独立上限，后续报告保留各自预算', async () =
     expect(readings).toBeGreaterThan(0)
     expect((await readAnalysis(t.db, 'book', receipt.reportId)).status).toBe('completed')
   } finally { await saveAiSettings(t.db, previous) }
+})
+
+
+it('删除报告按作品隔离，保留正文、其他报告、共享底稿和用量审计', async () => {
+  const receipt = await completeLongAnalysis()
+  const report = await readAnalysis(t.db, 'book', receipt.reportId)
+  const row = await requireAnalysis(t.db, 'book', receipt.reportId)
+  const review = await createAnalysisReview(t.db, 'admin', 'book', receipt.reportId, 'review-delete-01', report.revision)
+  const other = await createAnalysis(t.db, 'admin', 'other', { ...input, startChapterId: 'x', endChapterId: 'x' }, 'request-other')
+  const usage = await countRows('ai_usage'), readings = await countRows('novel_analysis_readings')
+  expect(readings).toBeGreaterThan(0)
+  await expect(deleteAnalysis(t.db, 'other', receipt.reportId)).rejects.toMatchObject({ status: 404 })
+  expect((await getAiTask(t.db, review.taskId))?.status).toBe('queued')
+  const events = vi.fn()
+  const unsubscribe = subscribeAiTask(review.taskId, events)
+  try { await deleteAnalysis(t.db, 'book', receipt.reportId) } finally { unsubscribe() }
+  await expect(requireAnalysis(t.db, 'book', receipt.reportId)).rejects.toMatchObject({ status: 404 })
+  expect((await listAnalyses(t.db, 'book')).reports).toHaveLength(0)
+  expect(await first(t.db, 'SELECT id FROM novel_analysis_reviews WHERE report_id=$1', [receipt.reportId])).toBeUndefined()
+  expect(await first(t.db, 'SELECT report_id FROM novel_analysis_requests WHERE report_id=$1', [receipt.reportId])).toBeUndefined()
+  expect((await getAiTask(t.db, review.taskId))?.status).toBe('cancelled')
+  expect((await getAiTask(t.db, receipt.taskId))?.status).toBe('completed')
+  expect(events).toHaveBeenCalledWith(expect.objectContaining({ status: 'cancelled' }))
+  expect((await getAiTask(t.db, other.taskId))?.status).toBe('queued')
+  expect(await requireAnalysis(t.db, 'other', other.reportId)).toBeTruthy()
+  expect(await countRows('ai_usage')).toBe(usage)
+  expect(await countRows('novel_analysis_readings')).toBe(readings)
+  expect(await first(t.db, "SELECT content FROM chapters WHERE id='c1'")).toMatchObject({ content: expect.stringContaining('青遥把钥匙交给阿宁') })
+  // A GET which captured the report before deletion cannot recreate citation rows.
+  await expect(saveAnalysisEvidence(t.db, row)).resolves.toBeTruthy()
+  expect(await first(t.db, 'SELECT id FROM novel_analysis_reviews WHERE report_id=$1', [receipt.reportId])).toBeUndefined()
+  await expect(deleteAnalysis(t.db, 'book', receipt.reportId)).rejects.toMatchObject({ status: 404 })
+})
+
+it('删除进行中报告后迟到阅读不能恢复报告或写入共享底稿，仍记录已发生的用量', async () => {
+  await useLongRange()
+  const receipt = await create()
+  const invoke = vi.fn<typeof chat>(async () => {
+    await deleteAnalysis(t.db, 'book', receipt.reportId)
+    return answer('迟到的阅读结果 [[S1]]')
+  })
+  await runNovelAnalysis(t.db, 'book', receipt.reportId, receipt.taskId, {}, invoke)
+  expect(invoke).toHaveBeenCalledTimes(1)
+  expect((await getAiTask(t.db, receipt.taskId))?.status).toBe('cancelled')
+  await expect(requireAnalysis(t.db, 'book', receipt.reportId)).rejects.toMatchObject({ status: 404 })
+  expect(await countRows('novel_analysis_readings')).toBe(0)
+  expect(await countRows('ai_usage')).toBe(1)
+  await expect(resumeAnalysis(t.db, 'admin', 'book', receipt.reportId)).rejects.toMatchObject({ status: 404 })
+  expect((await create('request-after-delete')).created).toBe(true)
+})
+
+it('删除报告同时停止运行中的核查，迟到核查不能写回结果', async () => {
+  const receipt = await create()
+  await runNovelAnalysis(t.db, 'book', receipt.reportId, receipt.taskId, {}, async () => answer('青遥把钥匙交给阿宁。[[S1]]'))
+  const report = await readAnalysis(t.db, 'book', receipt.reportId)
+  const review = await createAnalysisReview(t.db, 'admin', 'book', receipt.reportId, 'review-delete-02', report.revision)
+  const usage = await countRows('ai_usage')
+  const invoke = vi.fn<typeof chat>(async () => {
+    await deleteAnalysis(t.db, 'book', receipt.reportId)
+    return answer('{}')
+  })
+  await runAnalysisReview(t.db, 'book', receipt.reportId, review.reviewId, review.taskId, {}, invoke)
+  expect(invoke).toHaveBeenCalledTimes(1)
+  expect((await getAiTask(t.db, review.taskId))?.status).toBe('cancelled')
+  expect(await first(t.db, 'SELECT id FROM novel_analysis_reviews WHERE report_id=$1', [receipt.reportId])).toBeUndefined()
+  expect(await countRows('ai_usage')).toBe(usage + 1)
+  await expect(createAnalysisReview(t.db, 'admin', 'book', receipt.reportId, 'review-delete-03', report.revision)).rejects.toMatchObject({ status: 404 })
+})
+
+it('删除落库失败时回滚任务取消与报告删除，不提前发布取消事件', async () => {
+  const receipt = await create()
+  const events = vi.fn()
+  const unsubscribe = subscribeAiTask(receipt.taskId, events)
+  await t.db.query("CREATE FUNCTION reject_analysis_delete() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test-delete-failure'; END $$")
+  await t.db.query('CREATE TRIGGER reject_analysis_delete BEFORE DELETE ON novel_analysis_reports FOR EACH ROW EXECUTE FUNCTION reject_analysis_delete()')
+  try {
+    await expect(deleteAnalysis(t.db, 'book', receipt.reportId)).rejects.toThrow('test-delete-failure')
+    expect((await getAiTask(t.db, receipt.taskId))?.status).toBe('queued')
+    expect(await requireAnalysis(t.db, 'book', receipt.reportId)).toBeTruthy()
+    expect(events).not.toHaveBeenCalled()
+  } finally {
+    unsubscribe()
+    await t.db.query('DROP TRIGGER reject_analysis_delete ON novel_analysis_reports')
+    await t.db.query('DROP FUNCTION reject_analysis_delete()')
+  }
+})
+
+it('删除接口要求管理员并校验作品，重复删除返回不存在', async () => {
+  const previousUrl = process.env.DATABASE_URL
+  process.env.DATABASE_URL = 'postgres://isolated/test'
+  setDbForTests(t.db)
+  try {
+    const receipt = await create()
+    await t.db.query("INSERT INTO users(id,username,role,password_hash,password_salt,created_at,updated_at) VALUES('reader','reader','reader','test','test',1,1) ON CONFLICT DO NOTHING")
+    const admin = await createSession(t.db, 'admin', 'test', loadConfig().sessionHashSalt)
+    const reader = await createSession(t.db, 'reader', 'test', loadConfig().sessionHashSalt)
+    const base = `/api/ai/analysis/book/${receipt.reportId}`
+    const remove = (path: string, token = '') => app.request(path, { method: 'DELETE', headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    expect((await remove(base)).status).toBe(401)
+    expect((await remove(base, reader)).status).toBe(403)
+    expect((await remove(base.replace('/book/', '/other/'), admin)).status).toBe(404)
+    expect((await getAiTask(t.db, receipt.taskId))?.status).toBe('queued')
+    const response = await remove(base, admin)
+    expect(response.status).toBe(200)
+    expect(response.headers.get('cache-control')).toContain('no-store')
+    expect(await response.json()).toEqual({ ok: true })
+    expect((await remove(base, admin)).status).toBe(404)
+  } finally {
+    setDbForTests(null)
+    if (previousUrl === undefined) delete process.env.DATABASE_URL
+    else process.env.DATABASE_URL = previousUrl
+  }
 })
