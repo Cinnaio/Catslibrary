@@ -21,7 +21,7 @@ export interface WorkspaceNavItem {
   label: string
   to: string
   icon: LucideIcon
-  children?: Array<{ id: string; label: string; to: string }>
+  children?: Array<{ id: string; label: string; to: string; preserveSearchParams?: string[] }>
 }
 export interface WorkspaceNavGroup {
   label: string
@@ -55,6 +55,18 @@ function selectedPath(to: string, pathname: string, search: string) {
   return [...target.searchParams].every(([key, value]) => current.get(key) === value)
 }
 
+/** 同一路径的兄弟视图只携带入口显式声明的作品上下文。 */
+function navigationTarget(item: { to: string; preserveSearchParams?: string[] }, pathname: string, search: string) {
+  const target = new URL(item.to, 'https://workspace.local')
+  if (target.pathname !== pathname || !item.preserveSearchParams?.length) return item.to
+  const current = new URLSearchParams(search)
+  for (const key of item.preserveSearchParams) {
+    const value = current.get(key)
+    if (value && !target.searchParams.has(key)) target.searchParams.set(key, value)
+  }
+  return `${target.pathname}${target.search}${target.hash}`
+}
+
 function Navigation({ groups, onNavigate }: { groups: WorkspaceNavGroup[]; onNavigate?: () => void }) {
   const { pathname, search } = useLocation()
   const navigationId = useId()
@@ -66,6 +78,10 @@ function Navigation({ groups, onNavigate }: { groups: WorkspaceNavGroup[]; onNav
           <h2>{group.label}</h2>
           {group.items.map((item) => {
             const active = item.children?.some((child) => selectedPath(child.to, pathname, search)) || selectedPath(item.to, pathname, search)
+            // 更具体的视图入口优先，避免报告页与整个创作模块同时选中。
+            const activeChild = item.children
+              ?.filter(child => selectedPath(child.to, pathname, search))
+              .sort((a, b) => new URL(b.to, 'https://workspace.local').searchParams.size - new URL(a.to, 'https://workspace.local').searchParams.size)[0]
             const isOpen = expanded[item.id] ?? active
             return (
               <div key={item.id} className={styles.navEntry}>
@@ -100,11 +116,11 @@ function Navigation({ groups, onNavigate }: { groups: WorkspaceNavGroup[]; onNav
                   <MotionPresence asChild open={isOpen} mode="disclosure" keepMounted><div id={`${navigationId}-${item.id}`} className={styles.subnav}>
                     {item.children.map((child, index) => {
                       const childActive =
-                        selectedPath(child.to, pathname, search) ||
+                        child.id === activeChild?.id ||
                         (index === 0 && pathname === new URL(item.to, 'https://workspace.local').pathname && !new URLSearchParams(search).size)
                       return (
                         <Link
-                          to={child.to}
+                          to={navigationTarget(child, pathname, search)}
                           key={child.id}
                           data-active={childActive || undefined}
                           aria-current={childActive ? 'page' : undefined}

@@ -47,6 +47,7 @@ export interface AdminSubTab {
   id: string
   label: string
   to: string
+  preserveSearchParams?: string[]
 }
 
 export interface AdminNavItem {
@@ -96,7 +97,14 @@ export const NAV_GROUPS: Array<{ label: string; items: AdminNavItem[] }> = [
         icon: Sparkles,
         children: [
           { id: 'ai-agent', label: '对话创作', to: `${adminTabPath('ai')}?sub=agent` },
-          { id: 'ai-writing', label: 'AI 创作', to: `${adminTabPath('ai')}?sub=writing` },
+          {
+            id: 'ai-analysis', label: '分析报告', to: `${adminTabPath('ai')}?sub=writing&view=analysis`,
+            preserveSearchParams: ['novel', 'report', 'batch', 'afterChapterId', 'association'],
+          },
+          {
+            id: 'ai-writing', label: 'AI 创作', to: `${adminTabPath('ai')}?sub=writing`,
+            preserveSearchParams: ['novel', 'report', 'batch', 'afterChapterId', 'association'],
+          },
           { id: 'ai-cover', label: '封面生成', to: `${adminTabPath('ai')}?sub=cover` },
           { id: 'ai-content', label: '草稿与产出', to: `${adminTabPath('ai')}?sub=content` },
           { id: 'ai-graph', label: '故事档案', to: `${adminTabPath('ai')}?sub=graph` },
