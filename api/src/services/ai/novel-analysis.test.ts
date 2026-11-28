@@ -6,7 +6,7 @@ import { analysisSourcesChanged, captureAnalysisSources, parseAnalysisRequest, s
 import { runNovelAnalysis } from './novel-analysis'
 import { analysisPrompt } from './novel-analysis-prompts'
 import { analysisGenerationKey, saveSharedAnalysisReading } from './novel-analysis-reuse'
-import { AiError, chat, type AiChatResult } from './client'
+import { AiError, chat, textProvider, type AiChatResult } from './client'
 import { withProviderSnapshot } from './provider-snapshot'
 import { getAiTask } from './tasks'
 import { subscribeAiTask } from './task-events'
@@ -18,7 +18,12 @@ import { setDbForTests } from '../../db/pool'
 import { createSession } from '../sessions'
 import { loadConfig } from '../../config'
 import { getAiSettings, saveAiSettings } from './settings'
+import { withAnalysisProvider } from './novel-analysis-provider'
 
+const presetMock = vi.hoisted(() => vi.fn())
+vi.mock('./provider-presets', async importOriginal => ({
+  ...(await importOriginal<typeof import('./provider-presets')>()), getProviderPreset: presetMock,
+}))
 let t: TestDb
 const input = { kind: 'plot' as const, startChapterId: 'c1', endChapterId: 'c2', question: '' }
 const answer = (text: string): AiChatResult => ({ text, model: 'test', promptTokens: 10, completionTokens: 10, finishReason: 'stop', cost: 0, tokenUsageReported: true })
@@ -26,6 +31,10 @@ const create = (id = 'request-0001') => createAnalysis(t.db, 'admin', 'book', in
 const useLongRange = () => t.db.query("UPDATE chapters SET content=content || repeat('背景。',3650) WHERE novel_id='book'")
 beforeAll(async () => { t = await createTestDb(); await t.applyMigrations() })
 beforeEach(async () => {
+  presetMock.mockReset().mockImplementation((id: string) => {
+    if (!['primary', 'backup', 'image', 'empty'].includes(id)) throw new AiError('invalid', '端点预设不存在', 404)
+    return { id, name: id, scope: id === 'image' ? 'image' : 'text', baseUrl: `https://${id}.test/v1`, model: `model-${id}`, apiKey: id === 'empty' ? '' : `${id}-key` }
+  })
   await t.db.query('DELETE FROM novels')
   await t.db.query('DELETE FROM ai_tasks')
   await t.db.query('DELETE FROM ai_usage')
@@ -749,6 +758,118 @@ it('删除接口要求管理员并校验作品，重复删除返回不存在', a
     expect((await remove(base, admin)).status).toBe(404)
   } finally {
     setDbForTests(null)
+    if (previousUrl === undefined) delete process.env.DATABASE_URL
+    else process.env.DATABASE_URL = previousUrl
+  }
+})
+
+
+it('选中预设在分析期间固定模型且不修改默认，公开任务元数据不包含密钥', async () => {
+  await useLongRange()
+  const preset = { id: 'primary', name: '主模型', scope: 'text', baseUrl: 'https://primary.test/v1', model: 'model-primary', apiKey: 'primary-key' }
+  presetMock.mockReturnValue(preset)
+  const initial = { ...textProvider() }
+  let calls = 0
+  const receipt = await withAnalysisProvider('primary', async presetId => {
+    const receipt = await createAnalysis(t.db, 'admin', 'book', input, 'preset-request-01', false, presetId)
+    await runNovelAnalysis(t.db, 'book', receipt.reportId, receipt.taskId, {}, async options => {
+      calls++
+      expect(textProvider()).toEqual({ baseUrl: 'https://primary.test/v1', model: 'model-primary', apiKey: 'primary-key' })
+      // Editing the saved preset between reading requests must not redirect an active run.
+      Object.assign(preset, { baseUrl: 'https://changed.test/v1', model: 'changed', apiKey: 'changed-key' })
+      if (options.tools) return answer('报告结论 [[S1]] [[S2]]')
+      const payload = JSON.parse(options.messages[1]!.content)
+      return answer(payload.sources.map((source: { id: string }) => `阅读记录 [[${source.id}]]`).join('\n'))
+    })
+    return receipt
+  })
+  expect(calls).toBe(3)
+  expect(textProvider()).toEqual(initial)
+  const task = await getAiTask(t.db, receipt.taskId)
+  expect(JSON.parse(task!.params)).toMatchObject({ providerPresetId: 'primary', model: 'model-primary' })
+  expect(task!.params).not.toContain('primary-key')
+  expect(task!.params).not.toContain('https://')
+  expect(await readAnalysis(t.db, 'book', receipt.reportId)).toMatchObject({ model: 'model-primary', providerPresetId: 'primary' })
+  expect((await listAnalyses(t.db, 'book')).reports[0]).toMatchObject({ model: 'model-primary', providerPresetId: 'primary' })
+})
+
+it('跨预设恢复保留阅读与整理检查点，立即失效旧模型复用键，原请求仍绑定原预设', async () => {
+  await useLongRange()
+  const receipt = await withAnalysisProvider('primary', presetId => createAnalysis(t.db, 'admin', 'book', input, 'preset-request-02', false, presetId))
+  const notes = [{ sourceIds: ['S1', 'S2'], content: '原模型读完的记录 [[S1]] [[S2]]' }]
+  const synthesis = [{ sourceIds: ['S1', 'S2'], content: '已整理的材料 [[S1]] [[S2]]' }]
+  await t.db.query('UPDATE novel_analysis_reports SET notes_json=$1::jsonb,synthesis_json=$2::jsonb WHERE id=$3', [JSON.stringify(notes), JSON.stringify(synthesis), receipt.reportId])
+  await t.db.query('UPDATE ai_tasks SET result=$1 WHERE id=$2', [JSON.stringify({ reportId: receipt.reportId, phase: 'report' }), receipt.taskId])
+  await expect(withAnalysisProvider('backup', presetId => resumeAnalysis(t.db, 'admin', 'book', receipt.reportId, presetId))).rejects.toMatchObject({ status: 409 })
+  await stopAnalysis(t.db, 'book', receipt.reportId)
+  const next = await withAnalysisProvider('backup', async presetId => {
+    const next = await resumeAnalysis(t.db, 'admin', 'book', receipt.reportId, presetId)
+    expect(await requireAnalysis(t.db, 'book', receipt.reportId)).toMatchObject({ notes_json: notes, synthesis_json: synthesis, reuse_key: '' })
+    expect(await resumeAnalysis(t.db, 'admin', 'book', receipt.reportId, presetId)).toMatchObject({ taskId: next.taskId, created: false })
+    const invoke = vi.fn<typeof chat>(async () => {
+      expect(textProvider().model).toBe('model-backup')
+      return answer('备用模型完成报告 [[S1]] [[S2]]')
+    })
+    await runNovelAnalysis(t.db, 'book', receipt.reportId, next.taskId, {}, invoke)
+    expect(invoke).toHaveBeenCalledTimes(1)
+    expect(invoke.mock.calls[0]![0].messages.map(message => message.content).join('')).toContain('已整理的材料')
+    return next
+  })
+  expect(next.taskId).not.toBe(receipt.taskId)
+  expect(await readAnalysis(t.db, 'book', receipt.reportId)).toMatchObject({ status: 'completed', model: 'model-backup', providerPresetId: 'backup', notes })
+  await expect(withAnalysisProvider('backup', presetId => createAnalysis(t.db, 'admin', 'book', input, 'preset-request-02', false, presetId))).rejects.toMatchObject({ status: 409 })
+  expect(await withAnalysisProvider('primary', presetId => createAnalysis(t.db, 'admin', 'book', input, 'preset-request-02', false, presetId)))
+    .toMatchObject({ reportId: receipt.reportId, taskId: next.taskId, created: false })
+})
+
+it('新预设按实际端点与模型区分报告和阅读缓存，重复回执保留提交时选择', async () => {
+  const first = await withAnalysisProvider('primary', async presetId => {
+    const first = await createAnalysis(t.db, 'admin', 'book', input, 'preset-cache-01', false, presetId)
+    await runNovelAnalysis(t.db, 'book', first.reportId, first.taskId, {}, async () => answer('原模型报告 [[S1]]'))
+    return first
+  })
+  const reused = await withAnalysisProvider('primary', presetId => createAnalysis(t.db, 'admin', 'book', input, 'preset-cache-02', false, presetId))
+  expect(reused).toMatchObject({ reportId: first.reportId, reused: true })
+  await expect(withAnalysisProvider('backup', presetId => createAnalysis(t.db, 'admin', 'book', input, 'preset-cache-02', false, presetId))).rejects.toMatchObject({ status: 409 })
+  const next = await withAnalysisProvider('backup', presetId => createAnalysis(t.db, 'admin', 'book', input, 'preset-cache-03', false, presetId))
+  expect(next.created).toBe(true)
+  expect(next.reportId).not.toBe(first.reportId)
+  expect((await requireAnalysis(t.db, 'book', next.reportId)).generation_key).not.toBe((await requireAnalysis(t.db, 'book', first.reportId)).generation_key)
+})
+
+it('HTTP新建和继续使用所选文本预设，非法或图片预设不创建任务', async () => {
+  const previousUrl = process.env.DATABASE_URL
+  process.env.DATABASE_URL = 'postgres://isolated/test'
+  setDbForTests(t.db)
+  const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ choices: [{ message: { role: 'assistant', content: '完整报告 [[S1]]' }, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 12 }, model: 'model-backup' }), { headers: { 'content-type': 'application/json' } }))
+  vi.stubGlobal('fetch', fetchMock)
+  try {
+    const admin = await createSession(t.db, 'admin', 'test', loadConfig().sessionHashSalt)
+    const post = (path: string, body: unknown) => app.request(path, { method: 'POST', headers: { Authorization: `Bearer ${admin}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    for (const [providerPresetId, status] of [[42, 422], ['missing', 404], ['image', 422], ['empty', 503]] as const) {
+      expect((await post('/api/ai/analysis/book', { request: input, requestId: 'invalid-preset', providerPresetId })).status).toBe(status)
+    }
+    expect(await countRows('ai_tasks')).toBe(0)
+    const initial = { ...textProvider() }
+    const created = await post('/api/ai/analysis/book', { request: input, requestId: 'http-preset-01', providerPresetId: 'backup' })
+    expect(created.status).toBe(201)
+    const receipt = await created.json() as { reportId: string; taskId: string }
+    await vi.waitFor(async () => expect((await getAiTask(t.db, receipt.taskId))?.status).toBe('completed'))
+    const interrupted = await withAnalysisProvider('primary', presetId => createAnalysis(t.db, 'admin', 'book', input, 'http-preset-02', true, presetId))
+    await stopAnalysis(t.db, 'book', interrupted.reportId)
+    const resumed = await post(`/api/ai/analysis/book/${interrupted.reportId}/resume`, { providerPresetId: 'backup' })
+    expect(resumed.status).toBe(200)
+    const next = await resumed.json() as { taskId: string }
+    await vi.waitFor(async () => expect((await getAiTask(t.db, next.taskId))?.status).toBe('completed'))
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    for (const [url, init] of fetchMock.mock.calls) {
+      expect(String(url)).toContain('https://backup.test/v1/')
+      expect(JSON.parse(String(init?.body)).model).toBe('model-backup')
+      expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer backup-key')
+    }
+    expect(textProvider()).toEqual(initial)
+  } finally {
+    vi.unstubAllGlobals(); setDbForTests(null)
     if (previousUrl === undefined) delete process.env.DATABASE_URL
     else process.env.DATABASE_URL = previousUrl
   }

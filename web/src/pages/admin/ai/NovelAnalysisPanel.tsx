@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { MotionView } from '@/components/ui/motion'
 import FormField from '@/components/shared/FormField'
 import SearchSelect from '@/components/shared/SearchSelect'
+import AnalysisModelSelect from './AnalysisModelSelect'
 import NovelAnalysisReport from './NovelAnalysisReport'
 import { analysisPendingKey, readPendingAnalysis, savePendingAnalysis, type PendingAnalysis } from './analysis-request-state'
 import { taskStatusLabel } from './labels'
@@ -28,6 +29,7 @@ function AnalysisWorkspace({ novelId, reportId, onSelectReport, active = true }:
   const pendingKey = analysisPendingKey(novelId)
   const [pending, setPending] = useState<PendingAnalysis | null>(() => readPendingAnalysis(pendingKey))
   const [input, setInput] = useState<AnalysisRequest>(() => pending?.request || { kind: 'plot', startChapterId: '', endChapterId: '', question: '' })
+  const [providerPresetId, setProviderPresetId] = useState(pending?.providerPresetId || '')
   const [forceRefresh, setForceRefresh] = useState(pending?.forceRefresh ?? false)
   const [submitNotice, setSubmitNotice] = useState('')
   const [chapters, setChapters] = useState<ChapterMeta[]>([])
@@ -71,11 +73,11 @@ function AnalysisWorkspace({ novelId, reportId, onSelectReport, active = true }:
   }
   async function submit() {
     if (submitting.current) return
-    const operation = pending || { id: newOperationId('analysis'), request: input, forceRefresh }
+    const operation = pending || { id: newOperationId('analysis'), request: input, forceRefresh, providerPresetId }
     setPending(operation); savePendingAnalysis(pendingKey, operation)
     submitting.current = true; setBusy(true); setSubmitError(''); setSubmitNotice('')
     try {
-      const result = await api.create(novelId, operation.request, operation.id, operation.forceRefresh ?? false)
+      const result = await api.create(novelId, operation.request, operation.id, operation.forceRefresh ?? false, operation.providerPresetId || '')
       savePendingAnalysis(pendingKey, null)
       if (!mounted.current) return
       setForceRefresh(false)
@@ -112,6 +114,7 @@ function AnalysisWorkspace({ novelId, reportId, onSelectReport, active = true }:
           <span className={styles.meta}>重新分析，不使用已有报告和阅读底稿</span>
         </label>
         <p className={styles.meta}>默认复用正文未变、要求相同的报告；情节、人物和关系分析可共用已保存的阅读底稿。</p>
+        <AnalysisModelSelect value={providerPresetId} onChange={setProviderPresetId} disabled={busy || !!pending} active={active} />
         <div className={styles.actions}>
           <Button type="submit" disabled={busy || (!pending && !valid)}>{busy ? '正在提交…' : pending ? '重试并找回这次报告' : forceRefresh ? '重新生成分析报告' : '生成分析报告'}</Button>
           <span className={styles.meta}>{valid ? `已选 ${end - start + 1} 章。` : chapters.length ? '请选择有效的起止章节。' : '本书暂无可选章节。'}分析在后台进行，离开页面不会停止。</span>

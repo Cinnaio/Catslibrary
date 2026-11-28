@@ -1,7 +1,7 @@
 import { ANALYSIS_KINDS, type AnalysisRequest } from '@shared/novel-analysis'
 import { getStorageScope } from '@/lib/storage'
 
-export interface PendingAnalysis { id: string; request: AnalysisRequest; forceRefresh?: boolean }
+export interface PendingAnalysis { id: string; request: AnalysisRequest; forceRefresh?: boolean; providerPresetId?: string }
 export function analysisPendingKey(novelId: string) {
   const scope = getStorageScope()
   return scope.startsWith('user:') ? `novel-analysis:${JSON.stringify([scope, novelId])}` : ''
@@ -13,7 +13,8 @@ export function readPendingAnalysis(key: string): PendingAnalysis | null {
     return value && typeof value.id === 'string' && /^[a-zA-Z0-9_-]{8,160}$/.test(value.id)
       && r && Object.hasOwn(ANALYSIS_KINDS, r.kind) && typeof r.startChapterId === 'string'
       && typeof r.endChapterId === 'string' && typeof r.question === 'string' && r.question.length <= 2000
-      && (value.forceRefresh === undefined || typeof value.forceRefresh === 'boolean') ? value : null
+      && (value.forceRefresh === undefined || typeof value.forceRefresh === 'boolean')
+      && (value.providerPresetId === undefined || (typeof value.providerPresetId === 'string' && value.providerPresetId.length <= 160)) ? value : null
   } catch { return null }
 }
 export function savePendingAnalysis(key: string, value: PendingAnalysis | null) {

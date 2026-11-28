@@ -63,6 +63,9 @@ export interface AnalysisReportSummary {
   status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted'
   step: string
   phase?: AnalysisPhase
+  /** Model selected for the current/latest analysis attempt; absent for legacy tasks. */
+  providerPresetId?: string
+  model?: string
   error: string
   /** Number of source segments reused from the shared reading cache. */
   reusedSources?: number

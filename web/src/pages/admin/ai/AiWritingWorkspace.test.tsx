@@ -14,7 +14,7 @@ vi.mock('@/lib/novel-analysis-api', () => ({ novelAnalysisApi: api }))
 vi.mock('@/lib/admin-novel-index', () => ({ loadAdminNovelIndex: api.index }))
 vi.mock('@/lib/api', () => ({
   url: (path: string) => `/api${path}`,
-  aiApi: { settings: vi.fn().mockResolvedValue({ provider: null }) },
+  aiApi: { providerPresets: vi.fn().mockResolvedValue({ presets: [] }), status: vi.fn().mockResolvedValue({ model: 'default' }), settings: vi.fn().mockResolvedValue({ provider: null }) },
   chaptersApi: { list: vi.fn().mockResolvedValue({ chapters: [{ id: 'c1', title: '第一章' }, { id: 'c2', title: '第二章' }] }) },
   newOperationId: () => 'analysis-operation',
 }))

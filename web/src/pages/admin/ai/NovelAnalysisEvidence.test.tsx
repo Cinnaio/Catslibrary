@@ -7,7 +7,7 @@ import NovelAnalysisReport from './NovelAnalysisReport'
 
 const api = vi.hoisted(() => ({ read: vi.fn(), source: vi.fn(), edit: vi.fn(), stop: vi.fn(), resume: vi.fn(), reviewPreview: vi.fn(), review: vi.fn(), stopReview: vi.fn(), applyReview: vi.fn() }))
 vi.mock('@/lib/novel-analysis-api', () => ({ novelAnalysisApi: api }))
-vi.mock('@/lib/api', () => ({ newOperationId: () => `review_${Math.random().toString(36).slice(2)}` }))
+vi.mock('@/lib/api', () => ({ aiApi: { providerPresets: vi.fn().mockResolvedValue({ presets: [] }), status: vi.fn().mockResolvedValue({ model: 'default' }) }, newOperationId: () => `review_${Math.random().toString(36).slice(2)}` }))
 const original = '父母已经在场。'
 const match = { sourceIds: ['S1'], chapterId: 'c1', chapterTitle: '第一章', start: 0, end: 11, quote: '他担心父母会看见。' }
 const segment = { id: 'p1', start: 0, end: original.length, text: original, sourceIds: ['S1'] }

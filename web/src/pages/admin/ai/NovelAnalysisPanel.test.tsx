@@ -6,11 +6,12 @@ import NovelAnalysisPanel from './NovelAnalysisPanel'
 import { setStorageUser } from '@/lib/storage'
 import { analysisPendingKey, readAnalysisDraft, savePendingAnalysisReview } from './analysis-request-state'
 
+const providers = vi.hoisted(() => ({ providerPresets: vi.fn(), status: vi.fn() }))
 const api = vi.hoisted(() => ({ list: vi.fn(), read: vi.fn(), create: vi.fn(), source: vi.fn(), edit: vi.fn(), stop: vi.fn(), resume: vi.fn(), delete: vi.fn() }))
 vi.mock('@/lib/novel-analysis-api', () => ({ novelAnalysisApi: api }))
-vi.mock('@/lib/api', () => ({ chaptersApi: { list: vi.fn().mockResolvedValue({ chapters: [{ id: 'c1', title: '第一章' }, { id: 'c2', title: '第二章' }] }) }, newOperationId: () => `analysis_${Math.random().toString(36).slice(2)}` }))
-vi.mock('@/components/shared/SearchSelect', () => ({ default: ({ options, value, onChange, disabled, placeholder }: { options: Array<{ value: string; label: string }>; value: string; onChange: (id: string) => void; disabled?: boolean; placeholder?: string }) =>
-  <select aria-label={placeholder || '选项'} value={value} disabled={disabled} onChange={e => onChange(e.target.value)}>{options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select>,
+vi.mock('@/lib/api', () => ({ aiApi: providers, chaptersApi: { list: vi.fn().mockResolvedValue({ chapters: [{ id: 'c1', title: '第一章' }, { id: 'c2', title: '第二章' }] }) }, newOperationId: () => `analysis_${Math.random().toString(36).slice(2)}` }))
+vi.mock('@/components/shared/SearchSelect', () => ({ default: ({ options, value, onChange, disabled, placeholder }: { options: Array<{ value: string; label: string; disabled?: boolean }>; value: string; onChange: (id: string) => void; disabled?: boolean; placeholder?: string }) =>
+  <select aria-label={placeholder || '选项'} value={value} disabled={disabled} onChange={e => onChange(e.target.value)}>{options.map(o => <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>)}</select>,
 }))
 const report = (id = 'report', novelId = 'book'): AnalysisReport => ({
   id, novelId, taskId: 'task', status: 'completed', request: { kind: 'plot', startChapterId: 'c1', endChapterId: 'c2', question: '' },
@@ -28,6 +29,13 @@ const open = (query = 'novel=book&report=report') => render(<MemoryRouter initia
 beforeEach(() => {
   vi.clearAllMocks()
   for (const mock of Object.values(api)) mock.mockReset()
+  providers.providerPresets.mockReset().mockResolvedValue({ presets: [
+    { id: 'primary', name: '主模型', model: 'model-a', scope: 'text', hasApiKey: true },
+    { id: 'backup', name: '备用模型', model: 'model-b', scope: 'text', hasApiKey: true },
+    { id: 'image', name: '绘图模型', model: 'image-a', scope: 'image', hasApiKey: true },
+    { id: 'empty', name: '无密钥模型', model: 'empty', scope: 'text', hasApiKey: false },
+  ] })
+  providers.status.mockReset().mockResolvedValue({ model: 'default-model' })
   sessionStorage.clear(); localStorage.setItem('user_session_marker', 'analysis-test'); setStorageUser('admin')
   api.list.mockResolvedValue({ reports: [report()], hasMore: false })
   api.read.mockImplementation(async (novelId: string, id: string) => report(id, novelId))
@@ -282,4 +290,73 @@ it('删除成功后迟到轮询结果不会重新显示报告或继续轮询', a
   await act(async () => resolveRead(report()))
   expect(screen.queryByText(/report 的分析结论/)).not.toBeInTheDocument()
   expect(api.read).toHaveBeenCalledTimes(2)
+})
+
+
+it('新建分析使用文本预设，切换本身不生成且断流重试保留原选择', async () => {
+  api.create.mockRejectedValueOnce(new Error('连接中断')).mockResolvedValue({ reportId: 'report', taskId: 'task' })
+  const first = open('novel=book')
+  const choice = await screen.findByRole('combobox', { name: '分析模型预设' })
+  await screen.findByRole('option', { name: '备用模型 · model-b' })
+  expect(screen.queryByRole('option', { name: /绘图模型/ })).not.toBeInTheDocument()
+  expect(screen.getByRole('option', { name: '无密钥模型 · empty' })).toBeDisabled()
+  fireEvent.change(choice, { target: { value: 'backup' } })
+  expect(api.create).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: '生成分析报告' }))
+  await screen.findByText('连接中断')
+  const original = api.create.mock.calls[0]!
+  expect(original[4]).toBe('backup')
+  expect(choice).toBeDisabled()
+  first.unmount()
+  open('novel=book')
+  const restored = screen.getByRole('combobox', { name: '分析模型预设' })
+  expect(restored).toHaveValue('backup')
+  expect(restored).toBeDisabled()
+  fireEvent.click(screen.getByRole('button', { name: '重试并找回这次报告' }))
+  await screen.findByText(/report 的分析结论/)
+  expect(api.create.mock.calls[1]).toEqual(original)
+})
+
+it('失败报告默认选中上次预设，改用备用模型后显式继续并保留阅读记录', async () => {
+  api.read.mockResolvedValue({ ...report(), content: '', status: 'failed', providerPresetId: 'primary', model: 'model-a',
+    notes: [{ sourceIds: ['S1'], content: '已经阅读的记录' }], phase: 'report' })
+  open()
+  const choice = await screen.findByRole('combobox', { name: '继续分析模型预设' })
+  await screen.findByText('本次分析模型：model-a')
+  await waitFor(() => expect(choice).toHaveValue('primary'))
+  fireEvent.change(choice, { target: { value: 'backup' } })
+  expect(api.resume).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: '继续分析' }))
+  await waitFor(() => expect(api.resume).toHaveBeenCalledExactlyOnceWith('book', 'report', 'backup'))
+  expect(screen.getByText('已经阅读的记录')).toBeInTheDocument()
+})
+
+it('运行中不提供换模续跑入口，旧报告没有模型信息时跟随默认', async () => {
+  api.read.mockResolvedValue({ ...report(), content: '', status: 'running', model: 'model-a', providerPresetId: 'primary' })
+  const first = open()
+  await screen.findByRole('button', { name: '停止分析' })
+  expect(screen.queryByRole('combobox', { name: '继续分析模型预设' })).not.toBeInTheDocument()
+  first.unmount()
+  api.read.mockResolvedValue({ ...report(), content: '', status: 'failed' })
+  open()
+  expect(await screen.findByRole('combobox', { name: '继续分析模型预设' })).toHaveValue('__default__')
+  fireEvent.click(screen.getByRole('button', { name: '继续分析' }))
+  await waitFor(() => expect(api.resume).toHaveBeenCalledWith('book', 'report', ''))
+})
+
+it('原预设失效或列表加载失败时不静默改用默认，刷新可恢复候选', async () => {
+  providers.providerPresets.mockRejectedValue(new Error('列表离线'))
+  api.read.mockResolvedValue({ ...report(), content: '', status: 'failed', model: 'old-model', providerPresetId: 'missing' })
+  open()
+  const choice = await screen.findByRole('combobox', { name: '继续分析模型预设' })
+  await waitFor(() => expect(within(choice).getByRole('option', { name: '原预设不可用，请重新选择' })).toBeDisabled())
+  expect(choice).toHaveValue('missing')
+  expect(api.resume).not.toHaveBeenCalled()
+  providers.providerPresets.mockResolvedValue({ presets: [{ id: 'backup', name: '备用', model: 'model-b', scope: 'text', hasApiKey: true }] })
+  fireEvent.click(screen.getByRole('button', { name: '刷新继续分析模型预设' }))
+  await within(choice).findByRole('option', { name: '备用 · model-b' })
+  expect(choice).toHaveValue('missing')
+  fireEvent.change(choice, { target: { value: 'backup' } })
+  fireEvent.click(screen.getByRole('button', { name: '继续分析' }))
+  await waitFor(() => expect(api.resume).toHaveBeenCalledWith('book', 'report', 'backup'))
 })

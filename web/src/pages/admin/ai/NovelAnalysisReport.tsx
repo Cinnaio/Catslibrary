@@ -10,6 +10,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { MotionDetails } from '@/components/ui/motion'
 import FormField from '@/components/shared/FormField'
 import { ReadingDialog, ReadingDialogText } from '@/components/shared/ReadingDialog'
+import AnalysisModelSelect from './AnalysisModelSelect'
 import NovelAnalysisProgress from './NovelAnalysisProgress'
 import NovelAnalysisMarkdown from './NovelAnalysisMarkdown'
 import NovelAnalysisEvidence from './NovelAnalysisEvidence'
@@ -37,6 +38,7 @@ export default function NovelAnalysisReport({ novelId, reportId, onChange, onRea
   const [editing, setEditing] = useState(!!savedDraft)
   const [draft, setDraft] = useState(savedDraft?.content || '')
   const [baseRevision, setBaseRevision] = useState(savedDraft?.revision || 0)
+  const [providerPresetId, setProviderPresetId] = useState<string | null>(null)
   const [sourceId, setSourceId] = useState('')
   const [source, setSource] = useState<AnalysisSource | null>(null)
   const [sourceMatch, setSourceMatch] = useState<AnalysisEvidenceMatch | null>(null)
@@ -122,15 +124,19 @@ export default function NovelAnalysisReport({ novelId, reportId, onChange, onRea
         </div>
       </header>
       {report.request.question && <p className={styles.question}>{report.request.question}</p>}
+      {report.model && <p className={styles.meta}>本次分析模型：{report.model}</p>}
       {!!report.reusedSources && <p className={styles.meta}>本次复用了 {report.reusedSources} 段阅读底稿，原文依据仍可逐条核对。</p>}
       {report.sourceChanged && <p className={styles.notice}>正文或章节顺序已变化。这份报告仍对应生成时的原文；需要反映修改时，请新建报告。</p>}
       {!report.content && <div className={styles.progress}>
         <p role="status">{report.step || (report.status === 'interrupted' ? '任务记录已移除，可继续已保存的阅读记录' : taskStatusLabel(report.status))}</p>
         <NovelAnalysisProgress report={report} />
         {report.error && <p role="alert">{report.error}</p>}
+        {!running(report) && <AnalysisModelSelect value={providerPresetId ?? report.providerPresetId ?? ''} onChange={setProviderPresetId}
+          disabled={busy} active={active} label="继续分析模型预设" />}
         <div className={styles.actions}>{running(report)
           ? <Button variant="outline" disabled={busy} onClick={() => void act(() => api.stop(novelId, reportId))}>停止分析</Button>
-          : <Button disabled={busy || report.sourceChanged} onClick={() => void act(() => api.resume(novelId, reportId))}>继续分析</Button>}
+          : <Button disabled={busy || report.sourceChanged} onClick={() => void act(() => api.resume(novelId, reportId, providerPresetId ?? report.providerPresetId ?? ''))}>继续分析</Button>}
+          {!running(report) && <span className={styles.meta}>从已保存的阅读和整理记录继续，切换预设不会自动发起分析。</span>}
         </div>
       </div>}
       {report.content && <>

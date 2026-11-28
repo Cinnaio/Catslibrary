@@ -3,6 +3,7 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { getDb } from '../db/pool'
 import { requireAdmin, type AuthEnv } from '../middlewares/auth'
 import { AiError, isTextAiConfigured } from '../services/ai/client'
+import { withAnalysisProvider } from '../services/ai/novel-analysis-provider'
 import { withProviderSnapshot } from '../services/ai/provider-snapshot'
 import { clientIpFromContext } from '../services/ai/audit-context'
 import { createAnalysis, deleteAnalysis, editAnalysis, listAnalyses, readAnalysis, requireAnalysis, resumeAnalysis, stopAnalysis } from '../services/ai/novel-analysis-store'
@@ -26,13 +27,14 @@ novelAnalysisRoutes.get('/:novelId', async c => {
   return c.json(await listAnalyses(getDb(), c.req.param('novelId'), offset))
 })
 novelAnalysisRoutes.post('/:novelId', async c => {
-  if (!isTextAiConfigured()) throw new AiError('disabled', '请先配置 AI 文本服务', 503)
   const body = await c.req.json().catch(() => ({}))
-  const novelId = c.req.param('novelId')
-  const receipt = await createAnalysis(getDb(), c.get('user').id, novelId, body?.request, String(body?.requestId || ''), body?.forceRefresh)
-  if (receipt.created) void runNovelAnalysis(getDb(), novelId, receipt.reportId, receipt.taskId,
-    { ipAddress: clientIpFromContext(c), userAgent: c.req.header('user-agent') }).catch(error => console.error('[novel-analysis-worker]', error))
-  return c.json(receipt, receipt.created ? 201 : 200)
+  return withAnalysisProvider(body?.providerPresetId, async presetId => {
+    const novelId = c.req.param('novelId')
+    const receipt = await createAnalysis(getDb(), c.get('user').id, novelId, body?.request, String(body?.requestId || ''), body?.forceRefresh, presetId)
+    if (receipt.created) void runNovelAnalysis(getDb(), novelId, receipt.reportId, receipt.taskId,
+      { ipAddress: clientIpFromContext(c), userAgent: c.req.header('user-agent') }).catch(error => console.error('[novel-analysis-worker]', error))
+    return c.json(receipt, receipt.created ? 201 : 200)
+  })
 })
 novelAnalysisRoutes.get('/:novelId/:id', async c => c.json(await readAnalysis(getDb(), c.req.param('novelId'), c.req.param('id'))))
 novelAnalysisRoutes.get('/:novelId/:id/review-preview', async c => {
@@ -77,10 +79,12 @@ novelAnalysisRoutes.post('/:novelId/:id/stop', async c => {
   return c.json({ ok: true })
 })
 novelAnalysisRoutes.post('/:novelId/:id/resume', async c => {
-  if (!isTextAiConfigured()) throw new AiError('disabled', '请先配置 AI 文本服务', 503)
-  const novelId = c.req.param('novelId')
-  const receipt = await resumeAnalysis(getDb(), c.get('user').id, novelId, c.req.param('id'))
-  if (receipt.created) void runNovelAnalysis(getDb(), novelId, receipt.reportId, receipt.taskId,
-    { ipAddress: clientIpFromContext(c), userAgent: c.req.header('user-agent') }).catch(error => console.error('[novel-analysis-worker]', error))
-  return c.json(receipt)
+  const body = await c.req.json().catch(() => ({}))
+  return withAnalysisProvider(body?.providerPresetId, async presetId => {
+    const novelId = c.req.param('novelId')
+    const receipt = await resumeAnalysis(getDb(), c.get('user').id, novelId, c.req.param('id'), presetId)
+    if (receipt.created) void runNovelAnalysis(getDb(), novelId, receipt.reportId, receipt.taskId,
+      { ipAddress: clientIpFromContext(c), userAgent: c.req.header('user-agent') }).catch(error => console.error('[novel-analysis-worker]', error))
+    return c.json(receipt)
+  })
 })
