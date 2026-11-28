@@ -33,4 +33,26 @@ final class AIAgentWritingWorkflowTests: XCTestCase {
         XCTAssertEqual(outline.chapters.first?.progress?.label, "已发布")
         XCTAssertEqual(outline.chapters.first?.progress?.drafts.first?.chapterId, "chapter")
     }
+    func testThreadTrackingDecodesPartialRecoveryAndLegacyPayloads() throws {
+        let legacy = #"{"candidates":[],"sourceRevision":"source","graphStatus":"ready","plans":[{"id":"plan","thread":{"id":"clue","title":"玉佩","summary":"主人未知","kind":"clue","certainty":"clue","people":[],"evidence":[]},"disposition":"advance","note":"","revision":1,"sourceRevision":"source","sourceAnchorId":"chapter"}]}"#
+        let old = try JSONDecoder().decode(AIAgentStoryThreadState.self, from: Data(legacy.utf8))
+        XCTAssertNil(old.trackingAvailable)
+        XCTAssertNil(old.plans.first?.progress)
+        var payload = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(legacy.utf8)) as? [String: Any])
+        var plans = try XCTUnwrap(payload["plans"] as? [[String: Any]])
+        plans[0]["disposition"] = "partial"
+        plans[0]["targetChapterNumber"] = 10
+        plans[0]["targetStage"] = "揭晓门派"
+        plans[0]["reminder"] = "due"
+        plans[0]["progress"] = [["id": "progress", "chapterId": "chapter", "chapterTitle": "初见", "chapterNumber": 1,
+            "chapterRevision": "hash", "quote": "她收起玉佩。", "note": "持有人已知", "kind": "partial", "recordedAt": 1, "sourceChanged": true]]
+        payload["plans"] = plans
+        payload["trackingAvailable"] = true
+        payload["currentChapterNumber"] = 10
+        let current = try JSONDecoder().decode(AIAgentStoryThreadState.self, from: JSONSerialization.data(withJSONObject: payload))
+        XCTAssertEqual(current.plans.first?.label, "部分回收")
+        XCTAssertEqual(current.plans.first?.targetChapterNumber, 10)
+        XCTAssertEqual(current.plans.first?.progress?.first?.sourceChanged, true)
+        XCTAssertEqual(current.currentChapterNumber, 10)
+    }
 }

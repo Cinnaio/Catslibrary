@@ -3,7 +3,7 @@ import type { AgentChapterEditSource, AgentChapterHistory } from '@shared/ai-age
 import type {
   AgentChapterPlan,
   AgentStoryThreadState,
-  AgentStoryThreadDisposition,
+  AgentStoryThreadInput,
   AgentChapterImpactReport,
   AgentContinuationInput,
   AgentContinuationPreview,
@@ -41,7 +41,7 @@ export const agentApi = {
   applyOutlineChapter: (id: string, index: number, expectedOutlineRevision: number, expectedPlanRevision: number) =>
     request<{ plan: AgentChapterPlan }>('POST', path(id) + '/outline/apply', { index, expectedOutlineRevision, expectedPlanRevision }, true),
   storyThreads: (id: string) => request<AgentStoryThreadState>('GET', path(id) + '/story-threads', null, true),
-  saveStoryThread: (id: string, value: { id?: string; threadId?: string; sourceRevision?: string; expectedRevision: number; disposition: AgentStoryThreadDisposition; note: string }) =>
+  saveStoryThread: (id: string, value: AgentStoryThreadInput) =>
     request<AgentStoryThreadState>('POST', path(id) + '/story-threads', value, true),
   removeStoryThread: (id: string, threadId: string, expectedRevision: number) => request('DELETE', path(id) + '/story-threads/' + encodeURIComponent(threadId), { expectedRevision }, true),
   applyStoryThreads: (id: string, ids: string[], revisions: number[], expectedPlanRevision: number) =>

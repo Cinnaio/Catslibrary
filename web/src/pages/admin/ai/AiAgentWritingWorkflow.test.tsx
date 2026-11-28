@@ -76,3 +76,53 @@ it('clears a selection deleted on another device and retains the exact graph rea
   await userEvent.setup().click(screen.getByRole('button', { name: '清空本章选择' }))
   expect(screen.getByRole('button', { name: '保存本章线索选择（0/6）' })).toBeEnabled()
 })
+
+
+it('saves planned recovery and a partial progress record while retaining inputs after a quote conflict', async () => {
+  api.storyThreads.mockResolvedValue({ ...state, trackingAvailable: true, currentChapterNumber: 2 })
+  const { user } = show()
+  await user.click(await screen.findByRole('button', { name: '调整安排' }))
+  await user.click(screen.getByRole('button', { name: '部分回收' }))
+  await user.type(screen.getByLabelText('计划目录位置'), '10')
+  await user.type(screen.getByLabelText('计划剧情阶段'), '揭晓门派')
+  await user.click(screen.getByText('记录一次实际推进'))
+  await user.type(screen.getByLabelText('推进发生的目录位置'), '1')
+  await user.type(screen.getByLabelText('原文摘录'), '她收起钥匙。')
+  await user.type(screen.getByLabelText('这次推进了什么'), '主人仍然未知')
+  api.saveStoryThread.mockRejectedValue(new Error('摘录与当前正文不匹配'))
+  await user.click(screen.getByRole('button', { name: '保存安排' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('不匹配')
+  expect(screen.getByLabelText('计划目录位置')).toHaveValue('10')
+  expect(screen.getByLabelText('原文摘录')).toHaveValue('她收起钥匙。')
+  expect(api.saveStoryThread).toHaveBeenCalledWith('session', expect.objectContaining({ disposition: 'partial', targetChapterNumber: 10,
+    targetStage: '揭晓门派', progressRecord: { chapterNumber: 1, quote: '她收起钥匙。', note: '主人仍然未知' } }))
+})
+
+it('shows due reminders and changed quotations with a source link without automatically resolving a thread', async () => {
+  api.storyThreads.mockResolvedValue({ ...state, trackingAvailable: true, currentChapterNumber: 2, plans: [{ ...state.plans[0],
+    disposition: 'partial', targetChapterNumber: 2, reminder: 'due', progress: [{ id: 'progress', chapterId: 'source', chapterTitle: '起点',
+      chapterNumber: 1, chapterRevision: 'hash', quote: '她收起钥匙。', note: '持有人已知', kind: 'partial', recordedAt: 1, sourceChanged: true }] }] })
+  const { user } = show()
+  expect(await screen.findByText(/已到计划处理位置/)).toBeInTheDocument()
+  await user.click(screen.getByText('推进记录（1）'))
+  expect(screen.getByText(/来源正文或目录信息已变化/)).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: '回读推进章节' })).toHaveAttribute('href', '/read/book/source')
+  expect(api.saveStoryThread).not.toHaveBeenCalled()
+  expect(screen.getByRole('checkbox', { name: /铜钥匙/ })).toBeEnabled()
+})
+
+
+it('refreshes a stale source only after the author selects and saves its current counterpart', async () => {
+  api.storyThreads.mockResolvedValue({ ...state, trackingAvailable: true, sourceRevision: 'new-source', candidates: [state.plans[0]!.thread],
+    plans: [{ ...state.plans[0], stale: true, targetChapterNumber: 10 }] })
+  const { user } = show()
+  await user.click(await screen.findByRole('button', { name: '调整安排' }))
+  await user.click(screen.getByRole('combobox', { name: '更新线索来源' }))
+  await user.click(screen.getByRole('option', { name: /铜钥匙/ }))
+  expect(api.saveStoryThread).not.toHaveBeenCalled()
+  api.saveStoryThread.mockResolvedValue({ ...state, trackingAvailable: true })
+  await user.click(screen.getByRole('button', { name: '保存安排' }))
+  await waitFor(() => expect(api.saveStoryThread).toHaveBeenCalledWith('session', expect.objectContaining({
+    id: 'thread-plan', refreshSource: true, sourceRevision: 'new-source', threadId: 'clue', targetChapterNumber: 10,
+  })))
+})

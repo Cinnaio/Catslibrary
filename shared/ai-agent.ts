@@ -94,7 +94,32 @@ export interface AgentOutlineChapter {
   beats: string
   progress?: { status: 'planned' | 'draft' | 'published' | 'unavailable'; drafts: Array<{ id: string; title: string; sessionId: string; status: string; chapterId?: string }>; changedSinceWriting: boolean }
 }
-export type AgentStoryThreadDisposition = 'advance' | 'later' | 'hold' | 'resolved'
+export type AgentStoryThreadDisposition = 'advance' | 'later' | 'hold' | 'partial' | 'resolved'
+export interface AgentStoryThreadProgress {
+  id: string
+  chapterId: string
+  chapterTitle: string
+  chapterNumber: number
+  chapterRevision: string
+  quote: string
+  note: string
+  kind: 'advance' | 'partial' | 'resolved'
+  recordedAt: number
+  sourceChanged?: boolean
+  currentChapterRevision?: string
+}
+export interface AgentStoryThreadInput {
+  id?: string
+  threadId?: string
+  sourceRevision?: string
+  expectedRevision: number
+  disposition: AgentStoryThreadDisposition
+  note: string
+  targetChapterNumber?: number | null
+  targetStage?: string
+  refreshSource?: boolean
+  progressRecord?: { chapterNumber: number; quote: string; note: string }
+}
 export interface AgentStoryThreadPlan {
   id: string
   thread: StoryThread
@@ -103,6 +128,11 @@ export interface AgentStoryThreadPlan {
   revision: number
   sourceRevision: string
   sourceAnchorId: string
+  targetChapterNumber?: number | null
+  targetStage?: string
+  progress?: AgentStoryThreadProgress[]
+  hiddenProgressCount?: number
+  reminder?: 'due' | 'overdue'
   stale?: boolean
 }
 export interface AgentStoryThreadState {
@@ -110,6 +140,8 @@ export interface AgentStoryThreadState {
   sourceRevision: string
   graphStatus: string
   plans: AgentStoryThreadPlan[]
+  trackingAvailable?: boolean
+  currentChapterNumber?: number
 }
 export interface AgentOutline { revision: number; chapters: AgentOutlineChapter[] }
 

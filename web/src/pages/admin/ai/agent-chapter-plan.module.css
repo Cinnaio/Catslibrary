@@ -21,3 +21,5 @@
 @media (max-width: 800px) { .outlineList button { min-height: 48px; } }
 
 .threadChoice { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
+
+.reminder { color: var(--accent); font-size: 13px; line-height: 1.7; }

@@ -4,7 +4,7 @@ import { first } from '../../db/query'
 import { createAgentSession, beginAgentTurn } from './agent-store'
 import { applyAgentOutlineChapter, readAgentOutline, saveAgentOutline } from './agent-outline'
 import { readChapterPlan, saveChapterPlan } from './agent-chapter-plan'
-import { readStoryThreadPlans, changeStoryThreadPlan, applyStoryThreadPlans } from './agent-story-threads'
+import { readStoryThreadPlans, changeStoryThreadPlan, applyStoryThreadPlans, validateStoryThreadSnapshot } from './agent-story-threads'
 import { getStoryGraph } from './story-graph'
 import { executeAgentTool } from './agent-tools'
 import { readAgentContinuation, continuePublishedChapter } from './agent-continuation'
@@ -120,4 +120,100 @@ it('continues from the actual publication with the next uncompleted outline prop
   expect(await readChapterPlan(t.db, 'author', next.id)).toMatchObject({ title: chapters[1]!.title, sourceOutline: { chapterId: outline.chapters[1]!.id } })
   expect((await continuePublishedChapter(t.db, 'author', session.id, 'publication', body)).id).toBe(next.id)
   expect((await first<{ count: number }>(t.db, 'SELECT count(*)::int AS count FROM ai_tasks'))?.count).toBe(0)
+})
+
+
+it('tracks partial recovery with verified prose and reminders, preserving fields for older clients', async () => {
+  const state = await readStoryThreadPlans(t.db, 'author', session.id)
+  const saved = await changeStoryThreadPlan(t.db, 'author', session.id, {
+    threadId: 'clue', sourceRevision: state.sourceRevision, expectedRevision: 0, disposition: 'partial', note: '身份尚未揭晓',
+    targetChapterNumber: 2, targetStage: '揭晓门派', progressRecord: { chapterNumber: 1, quote: '原文', note: '确认钥匙归属' },
+  })
+  expect(saved).toMatchObject({ trackingAvailable: true, currentChapterNumber: 2 })
+  expect(saved.plans[0]).toMatchObject({ disposition: 'partial', targetChapterNumber: 2, targetStage: '揭晓门派', reminder: 'due',
+    progress: [{ chapterId: 'anchor', chapterNumber: 1, quote: '原文', note: '确认钥匙归属', kind: 'partial', sourceChanged: false }] })
+  await saveChapterPlan(t.db, 'author', session.id, input, 0)
+  const plan = await applyStoryThreadPlans(t.db, 'author', session.id, { ids: [saved.plans[0]!.id], revisions: [1], expectedPlanRevision: 1 })
+  expect(plan.storyThreads?.[0]?.progress?.[0]?.quote).toBe('原文')
+  const updated = await changeStoryThreadPlan(t.db, 'author', session.id, { id: saved.plans[0]!.id, expectedRevision: 1, disposition: 'hold', note: '等到后面' })
+  expect(updated.plans[0]).toMatchObject({ targetChapterNumber: 2, targetStage: '揭晓门派', progress: [{ quote: '原文' }] })
+  expect(updated.plans[0]!.reminder).toBeUndefined()
+  await expect(validateStoryThreadSnapshot(t.db, 'author', session.id, plan)).rejects.toMatchObject({ status: 409 })
+  const cleared = await changeStoryThreadPlan(t.db, 'author', session.id, { id: saved.plans[0]!.id, expectedRevision: 2, disposition: 'resolved', note: '', targetChapterNumber: null, targetStage: '' })
+  expect(cleared.plans[0]).toMatchObject({ targetChapterNumber: null, targetStage: '', progress: [{ quote: '原文' }] })
+  expect(cleared.plans[0]!.reminder).toBeUndefined()
+})
+
+it('rejects invalid tracking inputs and rolls back failed quotations without appending duplicate records', async () => {
+  const state = await readStoryThreadPlans(t.db, 'author', session.id)
+  const body = { threadId: 'clue', sourceRevision: state.sourceRevision, expectedRevision: 0, disposition: 'advance', note: '' }
+  for (const invalid of [{ targetChapterNumber: 0 }, { targetChapterNumber: 1.5 }, { targetChapterNumber: '2' }, { targetStage: '字'.repeat(201) },
+    { progressRecord: { chapterNumber: 1, quote: '', note: '归属' } }]) {
+    await expect(changeStoryThreadPlan(t.db, 'author', session.id, { ...body, ...invalid })).rejects.toMatchObject({ status: 422 })
+  }
+  await expect(changeStoryThreadPlan(t.db, 'author', session.id, { ...body, progressRecord: { chapterNumber: 1, quote: '并不存在的正文', note: '归属' } })).rejects.toMatchObject({ status: 409 })
+  expect((await readStoryThreadPlans(t.db, 'author', session.id)).plans).toHaveLength(0)
+  const saved = await changeStoryThreadPlan(t.db, 'author', session.id, body)
+  const update = { id: saved.plans[0]!.id, expectedRevision: 1, disposition: 'partial', note: '', progressRecord: { chapterNumber: 1, quote: '原文', note: '第一次推进' } }
+  await changeStoryThreadPlan(t.db, 'author', session.id, update)
+  await expect(changeStoryThreadPlan(t.db, 'author', session.id, update)).rejects.toMatchObject({ status: 409 })
+  expect((await readStoryThreadPlans(t.db, 'author', session.id)).plans[0]!.progress).toHaveLength(1)
+})
+
+it('uses directory ordinals at the selected anchor and hides later progress from earlier conversations', async () => {
+  await t.db.query("INSERT INTO chapters(id,novel_id,title,content,sort_order,created_at) VALUES('later','book','揭晓','玉佩属于门派。',80,1)")
+  const later = await createAgentSession(t.db, 'author', { novelId: 'book', afterChapterId: 'later' })
+  const state = await readStoryThreadPlans(t.db, 'author', later.id)
+  const saved = await changeStoryThreadPlan(t.db, 'author', later.id, { threadId: 'clue', sourceRevision: state.sourceRevision,
+    expectedRevision: 0, disposition: 'partial', note: '', targetChapterNumber: 2,
+    progressRecord: { chapterNumber: 2, quote: '玉佩属于门派。', note: '门派已知，主人未知' } })
+  expect(saved.currentChapterNumber).toBe(3)
+  expect(saved.plans[0]!.reminder).toBe('overdue')
+  const earlier = await readStoryThreadPlans(t.db, 'author', session.id)
+  expect(earlier.currentChapterNumber).toBe(2)
+  expect(earlier.plans[0]).toMatchObject({ progress: [], hiddenProgressCount: 1, reminder: 'due' })
+  const update = { id: saved.plans[0]!.id, expectedRevision: 1, disposition: 'partial', note: '' }
+  await expect(changeStoryThreadPlan(t.db, 'author', session.id, { ...update, progressRecord: { chapterNumber: 2, quote: '玉佩属于门派。', note: '越界' } })).rejects.toMatchObject({ status: 404 })
+  await changeStoryThreadPlan(t.db, 'author', session.id, update)
+  expect((await readStoryThreadPlans(t.db, 'author', later.id)).plans[0]!.progress).toHaveLength(1)
+  const other = await createAgentSession(t.db, 'other', { novelId: 'book', afterChapterId: 'later' })
+  expect((await readStoryThreadPlans(t.db, 'other', other.id)).plans).toHaveLength(0)
+  await expect(changeStoryThreadPlan(t.db, 'other', other.id, { ...update, expectedRevision: 2 })).rejects.toMatchObject({ status: 404 })
+})
+
+it('flags changed evidence and invalidates selected snapshots without rewriting the saved quotation', async () => {
+  const state = await readStoryThreadPlans(t.db, 'author', session.id)
+  const saved = await changeStoryThreadPlan(t.db, 'author', session.id, { threadId: 'clue', sourceRevision: state.sourceRevision,
+    expectedRevision: 0, disposition: 'partial', note: '', progressRecord: { chapterNumber: 1, quote: '原文', note: '已经推进' } })
+  await saveChapterPlan(t.db, 'author', session.id, input, 0)
+  const plan = await applyStoryThreadPlans(t.db, 'author', session.id, { ids: [saved.plans[0]!.id], revisions: [1], expectedPlanRevision: 1 })
+  await validateStoryThreadSnapshot(t.db, 'author', session.id, (await readChapterPlan(t.db, 'author', session.id))!)
+  await t.db.query("UPDATE chapters SET content='修改后的正文' WHERE id='anchor'")
+  expect((await readStoryThreadPlans(t.db, 'author', session.id)).plans[0]!.progress?.[0]).toMatchObject({ quote: '原文', sourceChanged: true })
+  await expect(validateStoryThreadSnapshot(t.db, 'author', session.id, plan)).rejects.toMatchObject({ status: 409 })
+  await t.db.query("DELETE FROM chapters WHERE id='anchor'")
+  const deleted = await readStoryThreadPlans(t.db, 'author', session.id)
+  expect(deleted.currentChapterNumber).toBeUndefined()
+  expect(deleted.plans[0]).toMatchObject({ progress: [], hiddenProgressCount: 1 })
+  expect(deleted.plans[0]!.reminder).toBeUndefined()
+})
+
+
+it('rebinds an explicitly reviewed current source without losing the long-running plan or progress', async () => {
+  const state = await readStoryThreadPlans(t.db, 'author', session.id)
+  const saved = await changeStoryThreadPlan(t.db, 'author', session.id, { threadId: 'clue', sourceRevision: state.sourceRevision,
+    expectedRevision: 0, disposition: 'partial', note: '尚待揭晓', targetChapterNumber: 10,
+    progressRecord: { chapterNumber: 1, quote: '原文', note: '确认持有人' } })
+  vi.mocked(getStoryGraph).mockResolvedValue(graph(2))
+  const refreshed = await readStoryThreadPlans(t.db, 'author', session.id)
+  expect(refreshed.plans[0]!.stale).toBe(true)
+  const update = { id: saved.plans[0]!.id, expectedRevision: 1, disposition: 'partial', note: '尚待揭晓', refreshSource: true, threadId: 'clue' }
+  await expect(changeStoryThreadPlan(t.db, 'author', session.id, { ...update, sourceRevision: state.sourceRevision })).rejects.toMatchObject({ status: 409 })
+  const next = await changeStoryThreadPlan(t.db, 'author', session.id, { ...update, sourceRevision: refreshed.sourceRevision })
+  expect(next.plans).toHaveLength(1)
+  expect(next.plans[0]).toMatchObject({ id: saved.plans[0]!.id, revision: 2, targetChapterNumber: 10, stale: false,
+    progress: [{ id: saved.plans[0]!.progress![0]!.id, quote: '原文' }] })
+  await saveChapterPlan(t.db, 'author', session.id, input, 0)
+  const plan = await applyStoryThreadPlans(t.db, 'author', session.id, { ids: [next.plans[0]!.id], revisions: [2], expectedPlanRevision: 1 })
+  await validateStoryThreadSnapshot(t.db, 'author', session.id, plan)
 })

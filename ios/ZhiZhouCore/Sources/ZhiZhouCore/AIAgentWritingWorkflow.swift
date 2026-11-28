@@ -17,6 +17,19 @@ public struct AIAgentOutlineProgress: Codable, Sendable {
     public let changedSinceWriting: Bool
     public var label: String { status == "published" ? "已发布" : status == "draft" ? "已有草稿" : status == "unavailable" ? "发布位置已变化，需核对" : "待写" }
 }
+public struct AIAgentStoryThreadProgress: Decodable, Identifiable, Sendable {
+    public let id: String
+    public let chapterId: String
+    public let chapterTitle: String
+    public let chapterNumber: Int
+    public let chapterRevision: String
+    public let quote: String
+    public let note: String
+    public let kind: String
+    public let recordedAt: Double
+    public let sourceChanged: Bool?
+    public var label: String { kind == "resolved" ? "已回收" : kind == "partial" ? "部分回收" : "推进" }
+}
 public struct AIAgentStoryThreadPlan: Decodable, Identifiable, Sendable {
     public let id: String
     public let thread: StoryThread
@@ -25,13 +38,20 @@ public struct AIAgentStoryThreadPlan: Decodable, Identifiable, Sendable {
     public let revision: Int
     public let sourceRevision: String
     public let sourceAnchorId: String
+    public let targetChapterNumber: Int?
+    public let targetStage: String?
+    public let progress: [AIAgentStoryThreadProgress]?
+    public let hiddenProgressCount: Int?
+    public let reminder: String?
     public let stale: Bool?
     public var label: String {
         switch disposition {
         case "advance": "本章推进"
         case "later": "安排到后面"
         case "hold": "暂时搁置"
-        default: "已回收"
+        case "partial": "部分回收"
+        case "resolved": "已回收"
+        default: "待核对"
         }
     }
 }
@@ -40,6 +60,8 @@ public struct AIAgentStoryThreadState: Decodable, Sendable {
     public let sourceRevision: String
     public let graphStatus: String
     public let plans: [AIAgentStoryThreadPlan]
+    public let trackingAvailable: Bool?
+    public let currentChapterNumber: Int?
 }
 public struct AIAgentWritingReference: Codable, Equatable, Identifiable, Sendable {
     public let id: String

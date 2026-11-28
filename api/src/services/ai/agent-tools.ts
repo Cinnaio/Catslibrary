@@ -295,6 +295,8 @@ export async function executeAgentTool(
     const state = await readStoryThreadPlans(db, userId, session.id)
     return { plans: state.plans.map(plan => ({ id: plan.id, title: plan.thread.title, disposition: plan.disposition,
       note: plan.note, stale: plan.stale, certainty: plan.thread.certainty,
+      targetChapterNumber: plan.targetChapterNumber, targetStage: plan.targetStage, reminder: plan.reminder,
+      progress: plan.progress, hiddenProgressCount: plan.hiddenProgressCount,
       sourceChapterIds: [...new Set(plan.thread.evidence.flatMap(evidence => evidence.chapterIds))] })),
       message: '这些是作者安排和报告线索。需要判断具体情节时按来源回读正文，不能自动认定已回收。' }
   }

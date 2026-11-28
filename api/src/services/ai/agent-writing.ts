@@ -212,7 +212,7 @@ export function agentWritingMaterials(context: AgentWritingContext) {
     })] : []),
     ...(context.chapterPlan ? [createMaterialBlock({
       id: 'confirmed-chapter-plan', kind: 'author_request', required: true,
-      text: '作者已确认的本章计划（待创作情节，不是既有正文事实）。storyThreads 中 advance 本章推进、later 留给后续、hold 暂缓；所附证据是报告摘录而非章节原句，不得当成无误事实：' + JSON.stringify(context.chapterPlan),
+      text: '作者已确认的本章计划（待创作情节，不是既有正文事实）。storyThreads 中 advance 本章推进、later 留给后续、hold 暂缓、partial 部分回收。targetChapterNumber/targetStage 是作者计划；progress 是作者记录，quote 保存时核对过正文，sourceChanged 为 true 时必须重新核对。原文匹配不证明回收判断正确，提醒不要求强制回收；thread.evidence 是报告摘录而非章节原句，不得当成无误事实：' + JSON.stringify(context.chapterPlan),
       source: { field: 'agent_chapter_plan', revision: String(context.chapterPlan.revision) },
     })] : []),
     ...(references.length ? [createMaterialBlock({ id: 'writing-reference-guidance', kind: 'author_request', text: WRITING_REFERENCE_GUIDANCE })] : []),
