@@ -69,7 +69,7 @@ struct BookshelfView: View {
     }
 
     private var usesAdaptiveCoverGrid: Bool {
-        ReadingSpaceWindowLayout.usesIPadLayout && showsCoverGrid
+        showsCoverGrid && (ReadingSpaceWindowLayout.usesIPadLayout || showsFavorites)
     }
 
     private var shelfQuery: [String] {
@@ -95,7 +95,9 @@ struct BookshelfView: View {
     private var adaptiveBookshelf: some View {
         NavigationStack(path: $navigationPath) {
             GeometryReader { geometry in
-                bookshelfList(columns: ReadingSpaceWindowLayout.coverColumns(for: geometry.size.width))
+                let columns = ReadingSpaceWindowLayout.usesIPadLayout
+                    ? ReadingSpaceWindowLayout.coverColumns(for: geometry.size.width) : 2
+                bookshelfList(columns: columns)
                     .frame(maxWidth: ReadingSpaceWindowLayout.bookshelfWidth)
                     .frame(maxWidth: .infinity)
                     .background(ReadingSpace.profilePaper)
@@ -400,55 +402,26 @@ struct BookshelfView: View {
 
     private func favoriteListSection(_ response: BookshelfResponse) -> some View {
         Section("\(response.totals?.favorites ?? response.favorites.count) 本收藏") {
-            if showsCoverGrid {
-                phoneCoverRows(response.favorites)
-            } else {
-                ForEach(Array(response.favorites.enumerated()), id: \.element.id) { index, favorite in
-                    favoriteLink(favorite)
-                        .readingSpaceEntrance(index)
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                        .swipeActions(edge: .trailing) {
-                            Button("移出书架", role: .destructive) {
-                                pendingRemove = favorite
-                            }
+            ForEach(Array(response.favorites.enumerated()), id: \.element.id) { index, favorite in
+                favoriteLink(favorite)
+                    .readingSpaceEntrance(index)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .swipeActions(edge: .trailing) {
+                        Button("移出书架", role: .destructive) {
+                            pendingRemove = favorite
                         }
-                }
-                .onDelete { offsets in
-                    guard let index = offsets.first,
-                          response.favorites.indices.contains(index)
-                    else { return }
-                    pendingRemove = response.favorites[index]
-                }
+                    }
+            }
+            .onDelete { offsets in
+                guard let index = offsets.first,
+                      response.favorites.indices.contains(index)
+                else { return }
+                pendingRemove = response.favorites[index]
             }
             if hasMore {
                 loadMoreButton.listRowBackground(Color.clear).listRowSeparator(.hidden)
             }
-        }
-    }
-
-    // 每行只承载两张封面，让原生 List 继续按需创建长书架的行。
-    private func phoneCoverRows(_ favorites: [FavoriteItem]) -> some View {
-        ForEach(Array(stride(from: 0, to: favorites.count, by: 2)), id: \.self) { offset in
-            HStack(alignment: .top, spacing: 22) {
-                favoriteLink(favorites[offset], cover: true)
-                    .frame(minWidth: 0, maxWidth: .infinity)
-                    .readingSpaceEntrance(offset)
-                    .id(favorites[offset].id)
-                if offset + 1 < favorites.count {
-                    favoriteLink(favorites[offset + 1], cover: true)
-                        .frame(minWidth: 0, maxWidth: .infinity)
-                        .readingSpaceEntrance(offset + 1)
-                        .id(favorites[offset + 1].id)
-                } else {
-                    Color.clear.frame(maxWidth: .infinity).accessibilityHidden(true)
-                }
-            }
-            .buttonStyle(.plain)
-            .padding(.vertical, 12)
-            .listRowInsets(EdgeInsets(top: 0, leading: 22, bottom: 0, trailing: 22))
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
         }
     }
 
@@ -534,7 +507,7 @@ struct BookshelfView: View {
             else { recentRow(item, featured: featured) }
         }
         .buttonStyle(.plain)
-        .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: featured ? ReadingSpace.panelRadius : 12))
+        .contentShape(.contextMenuPreview, BookshelfContextMenuShape(cover: cover, cornerRadius: featured ? ReadingSpace.panelRadius : 12))
         .contextMenu {
             Button { compactDetailNovel = item.asNovel } label: {
                 Label("书籍详情", systemImage: "info.circle")
@@ -557,7 +530,7 @@ struct BookshelfView: View {
             favoriteLabel(favorite, cover: cover)
         }
         .buttonStyle(.plain)
-        .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 12))
+        .contentShape(.contextMenuPreview, BookshelfContextMenuShape(cover: cover))
         .contextMenu {
             Button { compactDetailNovel = favorite.asNovel } label: {
                 Label("书籍详情", systemImage: "info.circle")
@@ -665,7 +638,7 @@ struct BookshelfView: View {
 
     private func bookCover(novelID: String, updatedAt: Int64) -> some View {
         Color.clear
-            .aspectRatio(0.7, contentMode: .fit)
+            .aspectRatio(BookshelfContextMenuShape.coverAspectRatio, contentMode: .fit)
             .overlay {
                 CachedAsyncImage(
                     url: APIClient.shared.coverURL(novelId: novelID, updatedAt: updatedAt),
@@ -679,7 +652,7 @@ struct BookshelfView: View {
                     }
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: BookshelfContextMenuShape.coverCornerRadius, style: .continuous))
             .shadow(color: AppTheme.cardShadow, radius: 8, x: 0, y: 4)
             .accessibilityHidden(true)
     }
@@ -846,5 +819,25 @@ struct BookshelfView: View {
         }
         await load(animate: true)
         AppFeedback.success("已删除阅读记录", using: actionFeedback)
+    }
+}
+
+/// 仅将封面作为系统抬起预览，书名和进度仍属于完整的点击与长按区域。
+private struct BookshelfContextMenuShape: Shape {
+    static let coverAspectRatio: CGFloat = 0.7
+    static let coverCornerRadius: CGFloat = 8
+
+    let cover: Bool
+    var cornerRadius: CGFloat = 12
+
+    func path(in rect: CGRect) -> Path {
+        var previewRect = rect
+        if cover {
+            previewRect.size.height = min(rect.height, rect.width / Self.coverAspectRatio)
+        }
+        return RoundedRectangle(
+            cornerRadius: cover ? Self.coverCornerRadius : cornerRadius,
+            style: .continuous
+        ).path(in: previewRect)
     }
 }

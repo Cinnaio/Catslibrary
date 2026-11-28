@@ -156,6 +156,55 @@ final class FrontendAuditTests: XCTestCase {
     }
 
     @MainActor
+    func testIPhoneBookshelfKeepsTwoIndependentBooksAcrossContextMenusAndEditing() throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .phone, "覆盖手机双列书架的单书操作")
+        executionTimeAllowance = 180
+        XCUIDevice.shared.orientation = .portrait
+        let app = launch("ipad-bookshelf")
+        selectTab("书架", app: app)
+        tap(app.buttons["bookshelf.section.favorites"])
+
+        let first = app.buttons["bookshelf.favorite.audit-book-1"]
+        let second = app.buttons["bookshelf.favorite.audit-book-2"]
+        XCTAssertTrue(first.waitForExistence(timeout: 15))
+        XCTAssertTrue(second.waitForExistence(timeout: 15))
+        XCTAssertEqual(first.frame.minY, second.frame.minY, accuracy: 2, "手机保持两列封面")
+        XCTAssertLessThan(first.frame.maxX, second.frame.minX, "相邻书籍拥有独立的触控区域")
+        XCTAssertEqual(first.frame.width, second.frame.width, accuracy: 2)
+
+        for (book, title) in [(first, "山中来信"), (second, "长街灯火里的旧日时光")] {
+            XCTAssertTrue(book.waitForExistence(timeout: 10))
+            book.press(forDuration: 1)
+            tap(app.buttons["书籍详情"])
+            XCTAssertTrue(app.buttons["detail.read"].waitForExistence(timeout: 15))
+            XCTAssertTrue(app.staticTexts[title].firstMatch.isHittable)
+            tap(app.buttons["关闭"])
+        }
+
+        XCTAssertTrue(second.waitForExistence(timeout: 10))
+        second.press(forDuration: 1)
+        tap(app.buttons["移出书架"])
+        let confirmation = app.staticTexts["将把《长街灯火里的旧日时光》移出书架"]
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 10))
+        tap(app.buttons["取消"])
+        XCTAssertTrue(confirmation.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(first.isHittable)
+        XCTAssertTrue(second.isHittable)
+
+        tap(app.buttons["编辑"])
+        XCTAssertTrue(second.waitForExistence(timeout: 10))
+        XCTAssertGreaterThan(second.frame.minY, first.frame.minY, "编辑时回到逐书列表")
+        tap(app.buttons["完成"])
+        XCTAssertEqual(first.frame.minY, second.frame.minY, accuracy: 2)
+        tap(second)
+        XCTAssertTrue(app.staticTexts["长街灯火里的旧日时光 · 第 3 章"].firstMatch.waitForExistence(timeout: 15))
+        tap(app.navigationBars.buttons.firstMatch)
+        tap(first)
+        XCTAssertTrue(app.buttons["detail.read"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["山中来信"].firstMatch.isHittable)
+    }
+
+    @MainActor
     func testIPadBottomTabsAndAlignedSearchPreserveWindowLayout() throws {
         try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "覆盖 iPad 底部导航与内容搜索")
         executionTimeAllowance = 180

@@ -73,10 +73,15 @@ Require-NavigationPattern 'bookshelf buttons append selected books on every devi
     $bookshelfView -match '(?s)private func recentLink.*?Button \{.*?navigationPath\.append\(route\)' -and
     $bookshelfView -match '(?s)private func favoriteLink.*?Button \{.*?navigationPath\.append\(route\)'
 )
-Require-NavigationPattern 'iPad cover grid is a lazy scroll surface with individual items instead of shared list rows' (
+Require-NavigationPattern 'bookshelf cover grids use a lazy scroll surface with individual items instead of shared list rows' (
     $bookshelfView -match '(?s)private func bookshelfContent.*?if usesAdaptiveCoverGrid \{\s*ScrollView' -and
     $windowLayout -match '(?s)struct ReadingSpaceCoverGrid.*?LazyVGrid.*?ForEach\(Array\(items\.enumerated\(\)\), id: \\.element\.id\)' -and
-    $bookshelfView -notmatch 'ReadingSpaceCoverRows'
+    $bookshelfView -notmatch 'ReadingSpaceCoverRows|phoneCoverRows'
+)
+Require-NavigationPattern 'iPhone favorites use two cover columns while recent and editing retain native rows' (
+    $bookshelfView -match 'showsCoverGrid && \(ReadingSpaceWindowLayout\.usesIPadLayout \|\| showsFavorites\)' -and
+    $bookshelfView -match '(?s)let columns = ReadingSpaceWindowLayout\.usesIPadLayout\s*\? ReadingSpaceWindowLayout\.coverColumns\(for: geometry\.size\.width\) : 2' -and
+    $bookshelfView -match 'dynamicTypeSize < \.xxxLarge && !editMode\.isEditing'
 )
 Require-NavigationPattern 'iPad bottom tabs restore the real window size class for all four pages' (
     $rootView -match 'usesIPadLayout \? \.compact : windowSizeClass' -and
