@@ -4,38 +4,49 @@ import Combine
 private struct SourceThoughtText: View {
     let item: SourceThought
     let label: String
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center) {
-                if let url = URL(string: item.avatarUrl) {
-                    CachedAsyncImage(url: url, targetSize: CGSize(width: 28, height: 28), showsRetry: false) { image in
-                        image.resizable().scaledToFill()
-                    } placeholder: { Color.clear }
-                    .frame(width: 28, height: 28).clipShape(Circle()).accessibilityHidden(true)
+        HStack(alignment: .top, spacing: 12) {
+            ThoughtAvatar(name: item.displayName, url: URL(string: item.avatarUrl))
+            VStack(alignment: .leading, spacing: 8) {
+                metadataLayout {
+                    Text(item.displayName)
+                        .font(.caption.weight(.medium))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(label).font(.caption2)
                 }
-                Text(item.displayName).font(.subheadline.weight(.medium))
-                Text(label).font(.caption2).foregroundStyle(ReadingSpace.profileMuted)
-                Spacer(minLength: 4)
-            }
-            if let name = item.replyToName, !name.isEmpty {
-                Text("回复 \(name)").font(.caption).foregroundStyle(ReadingSpace.profileMuted)
-            }
-            Text(item.text).font(.body).textSelection(.enabled)
-            if !item.images.isEmpty {
-                ForEach(item.images, id: \.self) { value in
-                    if let url = URL(string: value) {
-                        CachedAsyncImage(url: url, targetSize: CGSize(width: 360, height: 360), previewTitle: "评论配图") { image in
-                            image.resizable().scaledToFit().frame(maxHeight: 180)
-                        } placeholder: { Label("评论配图", systemImage: "photo").frame(minHeight: 88) }
-                        .accessibilityLabel("查看评论配图")
+                .foregroundStyle(ReadingSpace.profileMuted)
+                if let name = item.replyToName, !name.isEmpty {
+                    Text("回复 \(name)").font(.caption).foregroundStyle(ReadingSpace.profileMuted)
+                }
+                Text(item.text)
+                    .font(.body)
+                    .lineSpacing(5)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+                if !item.images.isEmpty {
+                    ForEach(item.images, id: \.self) { value in
+                        if let url = URL(string: value) {
+                            CachedAsyncImage(url: url, targetSize: CGSize(width: 360, height: 360), previewTitle: "评论配图") { image in
+                                image.resizable().scaledToFit().frame(maxHeight: 180)
+                            } placeholder: { Label("评论配图", systemImage: "photo").frame(minHeight: 88) }
+                            .accessibilityLabel("查看评论配图")
+                        }
                     }
                 }
+                metadataLayout {
+                    Text("\(item.likeCount) 人赞过")
+                    Text(Date(timeIntervalSince1970: item.createdAt / 1000), style: .date)
+                }.font(.caption2).foregroundStyle(ReadingSpace.profileMuted)
             }
-            HStack(spacing: 12) {
-                Text("\(item.likeCount) 人赞过")
-                Text(Date(timeIntervalSince1970: item.createdAt / 1000), style: .date)
-            }.font(.caption).foregroundStyle(ReadingSpace.profileMuted)
         }.foregroundStyle(ReadingSpace.ink).frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var metadataLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 8))
     }
 }
 private struct SourceThoughtRow: View {
@@ -43,21 +54,26 @@ private struct SourceThoughtRow: View {
     let anchor: SourceThoughtAnchor
     let label: String
     @State private var expanded = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             SourceThoughtText(item: item, label: label)
             if item.replyCount > 0 {
-                Button { expanded.toggle() } label: {
+                Button {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) { expanded.toggle() }
+                } label: {
                     Text(expanded ? "收起回复" : "查看回复（\(item.replyCount)）")
                         .font(.subheadline).frame(minHeight: AppLayout.minimumTouchTarget)
                 }
+                    .padding(.leading, dynamicTypeSize.isAccessibilitySize ? 0 : 48)
                     .accessibilityValue(expanded ? "已展开" : "已折叠")
                 if expanded {
                     SourceReplyList(anchor: anchor, commentID: item.id, label: label)
-                        .padding(.leading, 14)
+                        .padding(.leading, dynamicTypeSize.isAccessibilitySize ? 0 : 48)
                 }
             }
-        }
+        }.padding(.vertical, 12)
     }
 }
 @MainActor private final class SourcePageStore: ObservableObject {
@@ -121,20 +137,30 @@ private struct SourcePageFooter: View {
 struct SourceThoughtListView: View {
     let anchor: SourceThoughtAnchor
     let label: String
+    var isVisible = true
+    var emptyMessage: String? = nil
     @StateObject private var store = SourcePageStore()
     @State private var cursor = ""
     @State private var attempt = 0
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 8) {
             ForEach(Array((store.page?.items ?? []).enumerated()), id: \.element.id) { index, item in
                 SourceThoughtRow(item: item, anchor: anchor, label: label).readingSpaceEntrance(index)
-                Divider()
             }
             if !store.loading && store.error == nil && store.page?.items.isEmpty == true {
-                Text("这一段暂时没有\(label)想法。").font(.subheadline).foregroundStyle(ReadingSpace.profileMuted)
+                Text(emptyMessage ?? "这一段暂时没有\(label)想法。")
+                    .font(.subheadline).foregroundStyle(ReadingSpace.profileMuted)
+                    .padding(.vertical, 12)
             }
             SourcePageFooter(loading: store.loading, error: store.error, hasMore: store.page?.hasMore == true,
                 onRetry: { attempt += 1 }, onMore: { cursor = store.page?.cursor ?? "" })
-        }.task(id: "\(cursor):\(attempt)") { await store.load(anchor: anchor, cursor: cursor) }
+        }
+        // 保留列表身份，切换本站筛选时不丢失已加载页和展开的回复。
+        .frame(height: isVisible ? nil : 0, alignment: .top)
+        .clipped()
+        .opacity(isVisible ? 1 : 0)
+        .allowsHitTesting(isVisible)
+        .accessibilityHidden(!isVisible)
+        .task(id: "\(cursor):\(attempt)") { await store.load(anchor: anchor, cursor: cursor) }
     }
 }

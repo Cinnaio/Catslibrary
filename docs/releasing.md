@@ -1,5 +1,12 @@
 # 发布与版本管理
 
+## iOS 本段想法面板精简（2026-11-28，本地源码候选）
+
+- 按用户确认的紧凑预览落实原生界面：隐藏原文、取消评论分割线，原生导航标题与章节小字收拢顶部；来源使用原生分段 Picker，输入与「发布到本站」按钮同排并保留共享玻璃材质。辅助功能字号回退菜单及纵向输入布局，长标题仍随正文滚动。
+- 「全部」不显示独立的本站空态，只有两侧均确认无内容时显示整体空态；失败仍显示对应错误和重试。切换来源保留草稿、来源分页和已展开回复。选段锚点、阅读权限、离线规则、只读来源、配图预览及删除确认保持原有流程；原段落失效说明单独保留。
+- 源码为本节所在本地提交，基于 `2c88667a`。此前 `1.5.0 / build 36` 已由 iOS fast #83 构建；本次 App 与 Widget 的 `ios/project.yml` 同步更新为补丁候选 `1.5.1 / build 37`。API/Web 版本不变，无新增接口、迁移或中转升级要求。
+- 三个变更 Swift 文件通过 tree-sitter 语法解析，调用点、App/Widget 版本一致性及 Git 差异检查通过。Windows 没有 Xcode，本次尚未完成 Swift 类型检查、XCTest、模拟器或真机验收；旧构建成功不代表此次界面已编译。未构建新 IPA、推送或部署，需要后续 Actions 构建并安装验收。
+
 ## 来源段评实际上线验收（2026-11-28）
 
 - 用户运行 Deploy #113，14:05（Asia/Shanghai）完成核心 `a09149c476dbec289871a7f40029155e91aeb092` 与私有适配器 `cf8c5f7cd8eaf5af6a455afe16e8c30447d6747d` 的生产部署。线上 API `1.17.0` / Web `1.16.0`，健康与就绪接口正常。
@@ -2043,7 +2050,7 @@ API/Web 新增 SMTP 管理表单与即时生效配置，分别从已部署的 `0
 
 | 组件 | 唯一版本来源 | 当前源码版本 | 同步要求 |
 | --- | --- | --- | --- |
-| iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `1.4.1 / 33` | Info.plist 引用构建变量；关于页从 Bundle 读取，不再硬编码 |
+| iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `1.5.1 / 37` | App 与 Widget 同步；Info.plist 引用构建变量，关于页从 Bundle 读取 |
 | API | `api/package.json` | `1.9.1` | 同步 `package-lock.json` 的 `packages.api.version` |
 | Web | `web/package.json` | `1.10.1` | 同步锁文件 `packages.web.version` |
 | 仓库根包 | `package.json` | `1.0.0` | 修改时同步锁文件顶层及 `packages[""].version` |

@@ -573,7 +573,6 @@ struct ReaderView: View {
             )
             ThoughtPanelView(
                 chapterTitle: chapter.title,
-                paragraphExcerpt: paragraphExcerpt(for: paragraphs[index]),
                 selectedText: context.selection,
                 draft: thoughtDraft(for: context),
                 thoughts: thoughtsByParagraph[index] ?? [],
@@ -594,7 +593,7 @@ struct ReaderView: View {
             .id(context)
         } else if let chapter, let unmatched = thoughtsByParagraph[-1], !unmatched.isEmpty {
             ThoughtPanelView(
-                chapterTitle: chapter.title, paragraphExcerpt: "原段落已变更或暂时无法定位，以下想法保留供查看。",
+                chapterTitle: chapter.title,
                 selectedText: "", draft: .constant(""), thoughts: unmatched, currentUserID: appState.user?.id,
                 defaultDisplayName: currentDisplayName, isLoading: isLoadingThoughts, isSubmitting: false,
                 loadError: thoughtsError, canCompose: false,
@@ -602,6 +601,7 @@ struct ReaderView: View {
                 onSubmit: { _, _ in throw APIError.invalidResponse },
                 onDelete: { try await deleteThought(id: $0) },
                 panelTitle: "原段落已变更的想法",
+                contextNotice: "原段落已变更或暂时无法定位，以下想法保留供查看。",
                 onClose: { showThoughtPanel = false }
             )
         } else {
@@ -2143,14 +2143,6 @@ struct ReaderView: View {
         chapterThoughts.removeAll { $0.id == id }
         thoughtParagraphPositions.removeValue(forKey: id)
         AppFeedback.success("段评已删除")
-    }
-
-    private func paragraphExcerpt(for text: String) -> String {
-        let normalized = Self.normalizedParagraphText(text)
-        guard !normalized.isEmpty else { return "这一段暂无文字" }
-        return normalized.count > 120
-            ? String(normalized.prefix(120)) + "…"
-            : normalized
     }
 
     private func updatePercent(from index: Int?) {

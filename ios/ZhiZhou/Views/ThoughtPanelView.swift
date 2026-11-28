@@ -6,8 +6,8 @@ struct ThoughtPanelView: View {
     let sourceContext: SourceThoughtPanelContext?
     @State private var sourceFilter = "all"
     let chapterTitle: String
-    let paragraphExcerpt: String
     let selectedText: String
+    let contextNotice: String?
     let thoughts: [Thought]
     let currentUserID: String?
     let defaultDisplayName: String
@@ -32,7 +32,6 @@ struct ThoughtPanelView: View {
 
     init(
         chapterTitle: String,
-        paragraphExcerpt: String,
         selectedText: String,
         draft: Binding<String>,
         thoughts: [Thought],
@@ -46,13 +45,14 @@ struct ThoughtPanelView: View {
         onSubmit: @escaping (String, String) async throws -> Void,
         onDelete: @escaping (String) async throws -> Void,
         panelTitle: String = "本段想法",
+        contextNotice: String? = nil,
         sourceContext: SourceThoughtPanelContext? = nil,
         onClose: (() -> Void)? = nil
     ) {
         self.sourceContext = sourceContext
         self.chapterTitle = chapterTitle
-        self.paragraphExcerpt = paragraphExcerpt
         self.selectedText = selectedText
+        self.contextNotice = contextNotice
         self._draft = draft
         self.thoughts = thoughts
         self.currentUserID = currentUserID
@@ -76,38 +76,17 @@ struct ThoughtPanelView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    ReaderPanelHeading(panelTitle)
+                VStack(alignment: .leading, spacing: 18) {
+                    if usesScrollingTitle { ReaderPanelHeading(panelTitle) }
                     paragraphHeader
                     if let sourceContext, sourceContext.visible {
-                        Picker("想法来源", selection: $sourceFilter) {
-                            Text("全部").tag("all")
-                            Text("本站").tag("local")
-                            Text(sourceContext.label).tag("source")
-                        }
-                        .pickerStyle(.menu)
-                        .frame(minHeight: AppLayout.minimumTouchTarget)
+                        sourcePicker(label: sourceContext.label)
                     }
-                    if sourceFilter != "source" || sourceContext?.visible != true { thoughtsContent }
-                    if sourceFilter != "local", let sourceContext, sourceContext.visible {
-                        if sourceContext.loading { ProgressView("正在核对来源段落…") }
-                        if let error = sourceContext.error {
-                            Text(error).font(.caption).foregroundStyle(ReadingSpace.profileMuted)
-                            Button("重试来源想法", action: sourceContext.retry).frame(minHeight: AppLayout.minimumTouchTarget)
-                        }
-                        if sourceContext.counts?.available == true {
-                            if let anchor = sourceContext.anchor {
-                                SourceThoughtListView(anchor: anchor, label: sourceContext.label).id(anchor)
-                            } else {
-                                Text("原文已变化或无法唯一定位，此段暂不显示来源想法。")
-                                    .font(.caption).foregroundStyle(ReadingSpace.profileMuted)
-                            }
-                        }
-                    }
+                    discussionContent
                     if dynamicTypeSize.isAccessibilitySize { composer }
                 }
                 .padding(.horizontal, 22)
-                .padding(.top, 20)
+                .padding(.top, 8)
                 .padding(.bottom, 20)
                 .frame(maxWidth: AppLayout.readableWidth)
                 .frame(maxWidth: .infinity)
@@ -120,6 +99,14 @@ struct ThoughtPanelView: View {
             .scrollEdgeEffectStyle(.soft, for: .bottom)
             .readingSpaceNavigation()
             .toolbar {
+                if !usesScrollingTitle {
+                    ToolbarItem(placement: .principal) {
+                        Text(panelTitle)
+                            .font(serifFont(.title3, .medium))
+                            .foregroundStyle(ReadingSpace.ink)
+                            .accessibilityAddTraits(.isHeader)
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("完成") { closePanel() }
                 }
@@ -146,28 +133,77 @@ struct ThoughtPanelView: View {
         }
     }
 
+    private var usesScrollingTitle: Bool {
+        dynamicTypeSize.isAccessibilitySize || panelTitle != "本段想法"
+    }
+
     private var paragraphHeader: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(chapterTitle)
-                .font(serifFont(.title3, .medium))
-                .foregroundStyle(ReadingSpace.ink)
+                .font(.caption)
+                .foregroundStyle(ReadingSpace.profileMuted)
                 .appTextLineLimit(2)
-            Label(
-                selectedText.isEmpty ? "评论这一段" : "评论选中文字",
-                systemImage: selectedText.isEmpty ? "text.quote" : "character.cursor.ibeam"
-            )
-            .font(.caption)
-            .foregroundStyle(AppTheme.primary)
-            ReadingSpaceQuote(text: selectedText.isEmpty ? paragraphExcerpt : selectedText)
+                .accessibilityLabel("\(chapterTitle)，\(selectedText.isEmpty ? "本段想法" : "选中文字的想法")")
+            if let contextNotice {
+                Text(contextNotice)
+                    .font(.caption)
+                    .foregroundStyle(ReadingSpace.profileMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 12)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            selectedText.isEmpty
-                ? "\(chapterTitle)，段落摘录：\(paragraphExcerpt)"
-                : "\(chapterTitle)，选中文字：\(selectedText)"
-        )
+    }
+
+    @ViewBuilder
+    private func sourcePicker(label: String) -> some View {
+        let picker = Picker("想法来源", selection: $sourceFilter) {
+            Text("全部").tag("all")
+            Text("本站").tag("local")
+            Text(label).tag("source")
+        }
+        if dynamicTypeSize.isAccessibilitySize {
+            picker.pickerStyle(.menu)
+                .frame(minHeight: AppLayout.minimumTouchTarget)
+        } else {
+            picker.pickerStyle(.segmented)
+                .frame(minHeight: AppLayout.minimumTouchTarget)
+        }
+    }
+
+    private var discussionContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if sourceFilter != "source" || sourceContext?.visible != true {
+                thoughtsContent
+            }
+            if let sourceContext, sourceContext.visible {
+                if sourceFilter != "local" {
+                    VStack(alignment: .leading, spacing: 8) {
+                        if sourceContext.loading { ProgressView("正在核对来源段落…") }
+                        if let error = sourceContext.error {
+                            Text(error).font(.caption).foregroundStyle(ReadingSpace.profileMuted)
+                            Button(action: sourceContext.retry) {
+                                Text("重试来源想法").frame(minHeight: AppLayout.minimumTouchTarget)
+                            }
+                        }
+                        if sourceContext.counts?.available == true && sourceContext.anchor == nil {
+                            Text("原文已变化或无法唯一定位，此段暂不显示来源想法。")
+                                .font(.caption).foregroundStyle(ReadingSpace.profileMuted)
+                        }
+                    }
+                }
+                if sourceContext.counts?.available == true, let anchor = sourceContext.anchor {
+                    SourceThoughtListView(
+                        anchor: anchor,
+                        label: sourceContext.label,
+                        isVisible: sourceFilter != "local",
+                        emptyMessage: sourceFilter == "all" && thoughts.isEmpty && !isLoading && loadError == nil
+                            ? "这一段还没有想法，写下你的第一条吧。" : nil
+                    )
+                    .id(anchor)
+                }
+            }
+        }
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: sourceFilter)
     }
 
     @ViewBuilder
@@ -176,12 +212,12 @@ struct ThoughtPanelView: View {
             HStack(spacing: 10) {
                 ProgressView()
                     .tint(AppTheme.primary)
-                Text("正在加载段评…")
+                Text("正在加载本站想法…")
                     .font(.subheadline)
                     .foregroundStyle(ReadingSpace.profileMuted)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 30)
+            .padding(.vertical, 12)
         } else if let loadError, thoughts.isEmpty {
             VStack(spacing: 10) {
                 Image(systemName: "wifi.exclamationmark")
@@ -204,19 +240,21 @@ struct ThoughtPanelView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 24)
         } else if thoughts.isEmpty {
-            VStack(spacing: 8) {
-                Image(systemName: "text.bubble")
-                    .font(.title3)
-                    .foregroundStyle(ReadingSpace.profileMuted)
-                Text("这一段还没有本站想法")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(ReadingSpace.profileMuted)
-                Text("写下你的第一条想法吧")
-                    .font(.caption)
-                    .foregroundStyle(ReadingSpace.profileMuted)
+            if sourceFilter == "local" || sourceContext?.visible != true {
+                VStack(spacing: 8) {
+                    Image(systemName: "text.bubble")
+                        .font(.title3)
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                    Text("这一段还没有本站想法")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                    Text("写下你的第一条想法吧")
+                        .font(.caption)
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 26)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 26)
         } else {
             VStack(spacing: 8) {
                 ForEach(Array(thoughts.enumerated()), id: \.element.id) { index, thought in
@@ -254,10 +292,17 @@ struct ThoughtPanelView: View {
             ThoughtAvatar(name: authorName(for: thought), url: avatarURL(for: thought))
 
             VStack(alignment: .leading, spacing: 8) {
-                Text(authorName(for: thought))
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(ReadingSpace.profileMuted)
-                    .fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(authorName(for: thought))
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(ReadingSpace.profileMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if sourceContext?.visible == true {
+                        Text("本站")
+                            .font(.caption2)
+                            .foregroundStyle(ReadingSpace.profileMuted)
+                    }
+                }
 
                 if !isGeneratedImagePlaceholder(thought) {
                     Text(thought.thoughtText)
@@ -315,9 +360,9 @@ struct ThoughtPanelView: View {
 
     @ViewBuilder
     private var composer: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             if canCompose {
-                HStack(alignment: .bottom, spacing: 8) {
+                composerLayout {
                     TextField("写下你的想法…", text: $draft, axis: .vertical)
                         .focused($composerFocused)
                         .font(.body)
@@ -336,25 +381,26 @@ struct ThoughtPanelView: View {
                     Button {
                         Task { await submit() }
                     } label: {
-                        Group {
-                            if isSubmitting {
-                                ProgressView()
-                                    .tint(ReadingSpace.profileMuted)
-                            } else {
-                                Image(systemName: "arrow.up")
+                        Text("发布到本站")
+                            .opacity(isSubmitting ? 0 : 1)
+                            .overlay {
+                                if isSubmitting {
+                                    ProgressView().tint(ReadingSpace.profileMuted)
+                                }
                             }
-                        }
-                        .frame(width: AppLayout.minimumTouchTarget, height: AppLayout.minimumTouchTarget)
-                        .foregroundStyle(canSubmit ? ReadingSpace.onSummary : ReadingSpace.profileMuted)
-                        .background(canSubmit ? ReadingSpace.summary : ReadingSpace.profileFill, in: Circle())
+                            .padding(.horizontal, 12)
+                            .frame(minHeight: AppLayout.minimumTouchTarget)
+                            .foregroundStyle(canSubmit ? ReadingSpace.onSummary : ReadingSpace.profileMuted)
+                            .background(canSubmit ? ReadingSpace.summary : ReadingSpace.profileFill, in: Capsule())
                     }
-                    .font(.title3.weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
+                    .fixedSize(horizontal: !dynamicTypeSize.isAccessibilitySize, vertical: true)
                     .buttonStyle(.plain)
                     .disabled(!canSubmit)
                     .accessibilityLabel(isSubmitting ? "正在发布到本站" : "发布到本站")
                     .accessibilityIdentifier("thought.publish")
                 }
-                .padding(8)
+                .padding(6)
                 .appGlassEffect(AppTheme.glass, fallback: ReadingSpace.paper, in: RoundedRectangle(cornerRadius: 22))
                 .overlay {
                     RoundedRectangle(cornerRadius: 22)
@@ -363,7 +409,7 @@ struct ThoughtPanelView: View {
                 }
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: composerFocused)
 
-                Text(sourceContext?.visible == true ? "发布到本站，其他读者可见；不会同步到番茄" : "发布到本站，其他读者可见")
+                Text(sourceContext?.visible == true ? "其他读者可见 · 不会同步到\(sourceContext?.label ?? "书源")" : "其他读者可见")
                     .font(.caption2).foregroundStyle(ReadingSpace.profileMuted)
                 if draft.count >= 240 {
                     Text("\(draft.count)/300")
@@ -386,7 +432,7 @@ struct ThoughtPanelView: View {
                     .padding(.vertical, 8)
             }
         }
-        .padding(.horizontal, 22)
+        .padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? 0 : 22)
         .padding(.top, 12)
         .padding(.bottom, 10)
         .frame(maxWidth: AppLayout.readableWidth)
@@ -394,6 +440,12 @@ struct ThoughtPanelView: View {
         .background {
             ReadingSpace.profilePaper.ignoresSafeArea(.container, edges: .bottom)
         }
+    }
+
+    private var composerLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(alignment: .bottom, spacing: 8))
     }
 
     private var canSubmit: Bool {
@@ -444,6 +496,7 @@ struct ThoughtPanelView: View {
             )
             draft = ""
             composerFocused = false
+            if sourceFilter == "source" { sourceFilter = "all" }
         } catch is CancellationError {
             // 用户离开页面或请求被取消时，不展示干扰性的错误提示。
         } catch {
@@ -482,7 +535,7 @@ struct ThoughtPanelView: View {
     }
 }
 
-private struct ThoughtAvatar: View {
+struct ThoughtAvatar: View {
     let name: String
     let url: URL?
 
