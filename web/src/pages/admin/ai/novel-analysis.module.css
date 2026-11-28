@@ -71,3 +71,15 @@
 .modelHelp { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; color: var(--text-secondary); font-size: 12px; line-height: 1.6; }
 .modelHelp a { color: var(--text-secondary); text-underline-offset: 3px; }
 @media (max-width: 700px) { .modelSelection button, .modelHelp a { min-height: 48px; }.modelHelp a { display: inline-flex; align-items: center; } }
+
+.sectionDraft { margin-block: 28px; }
+.sectionDraft h3 { margin: 0; font-family: var(--font-serif, Georgia, serif); font-size: 20px; font-weight: 600; }
+.sectionList { list-style: none; padding: 0; margin: 16px 0; }
+.sectionList > li { border-bottom: 1px solid var(--border); animation: row-enter 220ms both; }
+.sectionList > li:nth-child(2) { animation-delay: 22ms; }
+.sectionList > li:nth-child(n+3) { animation-delay: 44ms; }
+.sectionDetails summary, .sectionPending { min-height: 48px; padding-block: 12px; line-height: 1.7; }
+.sectionDetails summary { cursor: pointer; }
+.sectionDetails summary > span + span { margin-inline-start: 16px; }
+.sectionPending { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; }
+@media (prefers-reduced-motion: reduce) { .sectionList > li { animation: none; } }

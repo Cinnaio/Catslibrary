@@ -3,7 +3,7 @@ import { createTestDb, type TestDb } from '../../test/db'
 import { first } from '../../db/query'
 import { createAnalysis, deleteAnalysis, editAnalysis, listAnalyses, readAnalysis, requireAnalysis, resumeAnalysis, stopAnalysis } from './novel-analysis-store'
 import { analysisSourcesChanged, captureAnalysisSources, parseAnalysisRequest, searchAnalysisSources } from './novel-analysis-source'
-import { runNovelAnalysis } from './novel-analysis'
+import { runNovelAnalysis as runAnalysis } from './novel-analysis'
 import { analysisPrompt } from './novel-analysis-prompts'
 import { analysisGenerationKey, saveSharedAnalysisReading } from './novel-analysis-reuse'
 import { AiError, chat, textProvider, type AiChatResult } from './client'
@@ -27,6 +27,16 @@ vi.mock('./provider-presets', async importOriginal => ({
 let t: TestDb
 const input = { kind: 'plot' as const, startChapterId: 'c1', endChapterId: 'c2', question: '' }
 const answer = (text: string): AiChatResult => ({ text, model: 'test', promptTokens: 10, completionTokens: 10, finishReason: 'stop', cost: 0, tokenUsageReported: true })
+// Existing source/usage tests supply deterministic outline and reconciliation responses.
+// Section-specific failure and resume behavior is exercised against the unwrapped worker separately.
+const runNovelAnalysis: typeof runAnalysis = (db, novelId, reportId, taskId, audit, invoke = chat) =>
+  runAnalysis(db, novelId, reportId, taskId, audit, async options => {
+    const prompt = options.messages[0]!.content
+    if (prompt.includes('为长篇分析规划目录')) return answer(JSON.stringify({ overview: '人物关系变化。',
+      sections: [{ title: '分析', focus: '分析关键变化', sourceIds: ['S1'] }] }))
+    if (prompt.includes('核对提供的全部小节')) return answer('{"patches":[]}')
+    return invoke(options)
+  })
 const create = (id = 'request-0001') => createAnalysis(t.db, 'admin', 'book', input, id)
 const useLongRange = () => t.db.query("UPDATE chapters SET content=content || repeat('背景。',3650) WHERE novel_id='book'")
 beforeAll(async () => { t = await createTestDb(); await t.applyMigrations() })
@@ -105,7 +115,7 @@ it('中断保留已读段与费用，继续时只读未完成部分；原始正�
   expect(JSON.parse(messages[0]!).sources[0].id).toBe('S2')
   expect((await readAnalysis(t.db, 'book', receipt.reportId)).status).toBe('completed')
   expect(await first(t.db, "SELECT 1 FROM ai_generations WHERE novel_id='book'")).toBeUndefined()
-  expect(Number((await first<{ count: string }>(t.db, 'SELECT count(*) FROM ai_usage'))?.count)).toBe(3)
+  expect(Number((await first<{ count: string }>(t.db, 'SELECT count(*) FROM ai_usage'))?.count)).toBe(5)
 })
 
 it('取消后迟到回复不能推进检查点，恢复任务独立完成', async () => {
@@ -308,10 +318,10 @@ it.each(['text', 'tool', 'empty'] as const)('回查额度结束后仅携带冻�
   expect(calls).toBe(9)
   const report = await readAnalysis(t.db, 'book', receipt.reportId)
   expect(report.status).toBe(outcome === 'text' ? 'completed' : 'failed')
-  expect(report.content).toBe(outcome === 'text' ? '阿宁接过钥匙。[[S1]]' : '')
+  expect(report.content).toBe(outcome === 'text' ? '## 分析\n\n阿宁接过钥匙。[[S1]]' : '')
   expect(report.notes).toEqual(notes)
   if (outcome === 'tool') expect(report.error).toContain('仍请求查原文')
-  expect(Number((await first<{ count: string }>(t.db, 'SELECT count(*) FROM ai_usage'))?.count)).toBe(9)
+  expect(Number((await first<{ count: string }>(t.db, 'SELECT count(*) FROM ai_usage'))?.count)).toBe(outcome === 'text' ? 11 : 10)
 })
 
 it('仅思考耗尽额度与普通空正文分开提示，保留用量且不重试', async () => {

@@ -55,6 +55,24 @@ export const ANALYSIS_OUTPUT_TOKENS = {
 } as const
 export type AnalysisPhase = 'reading' | 'condensing' | 'report'
 
+/** Only complete section outputs are checkpointed; partial streams are never published. */
+export interface AnalysisDraftSection {
+  id: string
+  title: string
+  focus: string
+  sourceIds: string[]
+  depth: number
+  content: string
+}
+export interface AnalysisDraft {
+  version: 1
+  overview: string
+  sections: AnalysisDraftSection[]
+  review: 'pending' | 'completed'
+  /** A length-limited section is split before another writing attempt, including after resume. */
+  splitSectionId?: string
+}
+
 export interface AnalysisReportSummary {
   id: string
   novelId: string
@@ -78,6 +96,7 @@ export interface AnalysisReportSummary {
   updatedAt: number
 }
 export interface AnalysisReport extends AnalysisReportSummary {
+  draft?: AnalysisDraft
   originalContent: string
   content: string
   sourceChanged: boolean

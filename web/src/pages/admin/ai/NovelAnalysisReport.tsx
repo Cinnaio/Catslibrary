@@ -136,9 +136,28 @@ export default function NovelAnalysisReport({ novelId, reportId, onChange, onRea
         <div className={styles.actions}>{running(report)
           ? <Button variant="outline" disabled={busy} onClick={() => void act(() => api.stop(novelId, reportId))}>停止分析</Button>
           : <Button disabled={busy || report.sourceChanged} onClick={() => void act(() => api.resume(novelId, reportId, providerPresetId ?? report.providerPresetId ?? ''))}>继续分析</Button>}
-          {!running(report) && <span className={styles.meta}>从已保存的阅读和整理记录继续，切换预设不会自动发起分析。</span>}
+          {!running(report) && <span className={styles.meta}>从已保存的阅读、整理记录和小节继续，切换预设不会自动发起分析。</span>}
         </div>
       </div>}
+      {!report.content && report.draft && <section className={styles.sectionDraft} aria-label="分节报告草稿">
+        <div className={styles.actions}>
+          <h3>报告目录与已完成小节</h3>
+          <span className={styles.meta} role="status">已完成 {report.draft.sections.filter(section => section.content).length} / {report.draft.sections.length} 节</span>
+        </div>
+        <p className={styles.meta}>{report.draft.sections.every(section => section.content)
+          ? report.draft.review === 'completed' ? '跨节核对已完成，等待保存完整报告。' : '小节已全部保存，跨节核对尚未完成。'
+          : '完成的小节可展开阅读；继续分析会接着未完成的小节处理。'} 草稿尚未作为完整报告提供给创作。</p>
+        <ol className={styles.sectionList}>
+          {report.draft.sections.map((section, index) => <li key={section.id}>
+            {section.content ? <MotionDetails className={styles.sectionDetails}>
+              <summary><span>{index + 1}. {section.title}</span><span className={styles.meta}>已保存</span></summary>
+              {markdown(section.content)}
+            </MotionDetails> : <div className={styles.sectionPending}>
+              <span>{index + 1}. {section.title}</span><span className={styles.meta}>{report.draft?.splitSectionId === section.id ? '待拆分' : '待完成'}</span>
+            </div>}
+          </li>)}
+        </ol>
+      </section>}
       {report.content && <>
         <div className={styles.actions}>
           {!editing && <Button variant="outline" size="sm" disabled={busy} onClick={() => { setDraft(report.content); setBaseRevision(report.revision); setEditing(true); saveAnalysisDraft(draftKey, { content: report.content, revision: report.revision }) }}>修订报告</Button>}

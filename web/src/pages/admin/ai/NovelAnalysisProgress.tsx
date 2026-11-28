@@ -6,7 +6,7 @@ export default function NovelAnalysisProgress({ report }: { report: AnalysisRepo
   const phases = ['reading', 'condensing', 'report'] as const
   const current = report.phase ? phases.indexOf(report.phase) : report.processed < report.total ? 0 : -1
   const active = ['queued', 'running'].includes(report.status)
-  const direct = report.phase === 'report' && !report.notes.length
+  const direct = report.phase === 'report' && !report.notes.length && !report.draft
   const readingDone = report.total > 0 && report.processed >= report.total
   return <>
     <ol className={styles.phases} aria-label="分析阶段">
@@ -21,7 +21,7 @@ export default function NovelAnalysisProgress({ report }: { report: AnalysisRepo
     </ol>
     {!direct && <>
       {report.processed < report.total && <progress max={Math.max(1, report.total)} value={report.processed} aria-label="原文阅读进度" />}
-      <span className={styles.meta}>已保存 {report.processed} / {report.total} 段阅读记录{readingDone ? '；阅读完成，最终报告尚未生成。' : ''}</span>
+      <span className={styles.meta}>已保存 {report.processed} / {report.total} 段阅读记录{readingDone ? report.draft ? '；阅读完成，小节保存进度见下方。' : '；阅读完成，最终报告尚未生成。' : ''}</span>
     </>}
   </>
 }

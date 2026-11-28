@@ -19,10 +19,11 @@ export function readAnalysisOutputLimits(params: string, settings: AiSettings): 
     return { reading: value.reading, condensing: value.condensing, report: value.report }
   } catch { return fallback }
 }
-export function readAnalysisProgress(result?: string): { phase?: AnalysisPhase; consolidation: ConsolidationState } {
+export function readAnalysisProgress(result?: string): { phase?: AnalysisPhase; consolidation: ConsolidationState; reportRequests: number } {
   try {
     const value = JSON.parse(result || '{}')
     return { phase: ['reading', 'condensing', 'report'].includes(value?.phase) ? value.phase : undefined,
-      consolidation: readConsolidationState(value?.consolidation) }
-  } catch { return { consolidation: readConsolidationState(null) } }
+      consolidation: readConsolidationState(value?.consolidation),
+      reportRequests: Number.isSafeInteger(value?.reportRequests) && value.reportRequests >= 0 ? value.reportRequests : 0 }
+  } catch { return { consolidation: readConsolidationState(null), reportRequests: 0 } }
 }

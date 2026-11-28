@@ -360,3 +360,42 @@ it('原预设失效或列表加载失败时不静默改用默认，刷新可恢�
   fireEvent.click(screen.getByRole('button', { name: '继续分析' }))
   await waitFor(() => expect(api.resume).toHaveBeenCalledWith('book', 'report', 'backup'))
 })
+
+
+it('失败报告展示已保存小节和目录，来源可核对，继续后完整报告替换草稿', async () => {
+  const partial: AnalysisReport = { ...report(), status: 'failed', content: '', originalContent: '', phase: 'report',
+    step: '生成报告未完成，阅读记录与已完成小节已保留', error: '第二节暂时超时',
+    draft: { version: 1, overview: '共同概览', review: 'pending', sections: [
+      { id: '1', title: '信任变化', focus: '信任', sourceIds: ['S1'], depth: 0, content: '已经保存的关系变化 [[S1]]' },
+      { id: '2', title: '后续约定', focus: '计划', sourceIds: ['S1'], depth: 0, content: '' },
+    ] } }
+  api.read.mockResolvedValue(partial)
+  api.resume.mockImplementation(async () => { api.read.mockResolvedValue({ ...report(), content: '核对后的完整报告 [[S1]]' }); return { reportId: 'report', taskId: 'resumed' } })
+  open()
+  await screen.findByText('已完成 1 / 2 节')
+  const draft = screen.getByRole('region', { name: '分节报告草稿' })
+  expect(within(draft).getByText('2. 后续约定')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '修订报告' })).not.toBeInTheDocument()
+  fireEvent.click(within(draft).getByText('1. 信任变化'))
+  expect(within(draft).getByText(/已经保存的关系变化/)).toBeInTheDocument()
+  fireEvent.click(within(draft).getByRole('button', { name: '来源 S1：第一章，第 1 段' }))
+  await screen.findByText('生成时的原文')
+  fireEvent.keyDown(document, { key: 'Escape' })
+  fireEvent.click(screen.getByRole('button', { name: '继续分析' }))
+  await screen.findByText(/核对后的完整报告/)
+  expect(api.resume).toHaveBeenCalledWith('book', 'report', '')
+  expect(screen.queryByRole('region', { name: '分节报告草稿' })).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '修订报告' })).toBeInTheDocument()
+})
+
+it('全部小节已保存而跨节核对失败时，仍明确显示草稿与可继续状态', async () => {
+  api.read.mockResolvedValue({ ...report(), status: 'failed', content: '', originalContent: '', phase: 'report', error: '核对超时',
+    draft: { version: 1, overview: '概览', review: 'pending', sections: [
+      { id: '1', title: '关系概览', focus: '关系', sourceIds: ['S1'], depth: 0, content: '已保存的小节正文' },
+    ] } })
+  open()
+  await screen.findByText('已完成 1 / 1 节')
+  expect(screen.getByText(/小节已全部保存，跨节核对尚未完成/)).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '继续分析' })).toBeEnabled()
+  expect(screen.queryByRole('button', { name: '修订报告' })).not.toBeInTheDocument()
+})

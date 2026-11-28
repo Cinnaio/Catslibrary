@@ -333,7 +333,7 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                 {([
                   ['novelAnalysisReadingMaxTokens', '阅读记录输出上限（Token）', ANALYSIS_OUTPUT_TOKENS.reading, '分段阅读原文时使用，默认 6,000。'],
                   ['novelAnalysisCondenseMaxTokens', '整理记录输出上限（Token）', ANALYSIS_OUTPUT_TOKENS.condensing, '合并阅读记录时使用，默认 6,000；达到上限时会在有限次数内拆小分组重试。'],
-                  ['novelAnalysisReportMaxTokens', '最终报告输出上限（Token）', ANALYSIS_OUTPUT_TOKENS.report, '直接分析短篇范围及最终成稿时使用，默认 8,000。'],
+                  ['novelAnalysisReportMaxTokens', '最终报告输出上限（Token）', ANALYSIS_OUTPUT_TOKENS.report, '短篇直接成稿，以及长篇目录、每节成稿和跨节核对的单次请求上限，默认 8,000。'],
                 ] as const).map(([key, label, fallback, hint]) => <FormField key={key} label={label} htmlFor={key} hint={`${hint} 高强度思考也使用此上限，不会自动翻倍。`}>
                   <Input id={key} required type="number" min={ANALYSIS_OUTPUT_TOKENS.min} max={ANALYSIS_OUTPUT_TOKENS.max} step={1}
                     value={Number.isFinite(localSettings[key] ?? fallback) ? localSettings[key] ?? fallback : ''}

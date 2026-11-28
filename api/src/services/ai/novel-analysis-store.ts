@@ -1,4 +1,4 @@
-import type { AnalysisNote, AnalysisReport, AnalysisReportSummary, AnalysisRequest, AnalysisSource } from '@shared/novel-analysis'
+import type { AnalysisDraft, AnalysisNote, AnalysisReport, AnalysisReportSummary, AnalysisRequest, AnalysisSource } from '@shared/novel-analysis'
 import { ANALYSIS_KINDS } from '@shared/novel-analysis'
 import type { Db, DbClient } from '../../db/pool'
 import { all, first, run, withTx } from '../../db/query'
@@ -15,6 +15,7 @@ import { readAnalysisReviews, saveAnalysisEvidence } from './novel-analysis-revi
 
 export interface AnalysisRow {
   id: string; novel_id: string; user_id: string; request_id: string; request_json: AnalysisRequest
+  draft_json: AnalysisDraft | null
   source_json: AnalysisSource[]; notes_json: AnalysisNote[]; synthesis_json: AnalysisNote[] | null
   checked_source_ids: string[]; content: string; edited_content: string | null; revision: number
   task_id: string; created_at: number; updated_at: number
@@ -87,7 +88,7 @@ export async function readAnalysis(db: Db, novelId: string, id: string): Promise
   const task = await getAiTask(db, row.task_id)
   const sourceChanged = await analysisSourcesChanged(db, novelId, row.request_json, row.source_json)
   return { ...summary(row, task), content: row.edited_content ?? row.content, originalContent: row.content,
-    sourceChanged,
+    sourceChanged, ...(row.draft_json ? { draft: row.draft_json } : {}),
     ...(row.content ? { evidence: await saveAnalysisEvidence(db, row) } : {}),
     reviews: await readAnalysisReviews(db, row, sourceChanged),
     sources: row.source_json.map(({ text: _text, ...source }) => source), notes: row.notes_json, checkedSourceIds: row.checked_source_ids }

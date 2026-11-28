@@ -67,3 +67,14 @@ export function analysisPrompt(stage: 'reading' | 'condense' | 'direct' | 'repor
 export function analysisSourceMaterial({ id, chapterTitle, part, text }: AnalysisSource) {
   return { id, chapterTitle, part, text }
 }
+
+/** Each saved section shares the same outline and book notes, with bounded local output. */
+export function analysisDraftPrompt(stage: import('./novel-analysis-draft').DraftStage, kind: AnalysisKind, final = false): string {
+  const base = `${PRINCIPLES}\n${FOCUS[kind]}\n${RECONCILE}`
+  const reread = final ? '回查已经结束，仅使用已提供的材料；直接按本步骤指定格式输出，不再请求工具。' : kind === 'style' ? STYLE_REREAD : REREAD
+  const outline = '小节结构为 {"title":"简短标题","focus":"本节分析范围，避免和其他节重复","sourceIds":["S1"]}。sourceIds 只能使用提供的编号，每节至多 24 个。'
+  if (stage === 'outline') return `${base}\n为长篇分析规划目录，只输出 JSON：{"overview":"全局概览：统一人物称呼、时间顺序、关键关系与已确认变化，至多 800 字","sections":[小节结构]}。安排 3–6 个互补小节，按分析主题组织而非逐章复述；最多 8 节。每节 focus 至多 200 字。${outline} 文风分析的首节为续写文风要点。目录和概览不是新增事实依据。`
+  if (stage === 'split') return `${base}\n当前小节输出过长。只拆分指定 section，不改变其他小节和全局概览。只输出 JSON：{"sections":[小节结构,小节结构]}，必须是两个范围更小、互补且合起来覆盖原 focus 的子节；禁止重复完整分析。${outline}`
+  if (stage === 'consistency') return `${base}\n${reread}\n核对提供的全部小节与原文依据：统一称呼、时间顺序、关系变化和引用，纠正跨节矛盾。只输出 JSON：{"patches":[{"sectionId":"小节id","before":"本节正文中唯一出现的连续原句","after":"修正后的句子，保留准确引用"}]}。没有问题返回 {"patches":[]}。最多 12 处修订，每个 before/after 至多 1500 字符；不得重叠、改写整篇或添加新小节。before 必须逐字匹配。核对只做有依据的局部修订，不为了统一说法抹去人物中途改变；没有证据时缩小结论。`
+  return `${base}\n${kind === 'style' ? STYLE_FORM : FORM}\n${reread}\n本次只撰写 section 指定的小节，其他小节只用于明确分工。共享概览可能有误，以阅读记录和回查原文校正。输出 Markdown 正文，不重复本节标题、整篇开头和结尾，不输出计划或 JSON。以 800–1800 字为目标，并且不得超过 maxChars 字符；围绕本节问题挑选关键证据，避免填满额度。已经解释的问题不得再列为未解。`
+}
