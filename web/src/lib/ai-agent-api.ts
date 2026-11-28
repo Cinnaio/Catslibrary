@@ -1,3 +1,4 @@
+import type { StudioCard, StudioCardInput, StudioState, StudioVersion } from '@shared/ai-writing-studio'
 import type { AgentChapterEditSource, AgentChapterHistory } from '@shared/ai-agent'
 import type {
   AgentChapterPlan,
@@ -29,6 +30,11 @@ import { request } from './api'
 const root = '/ai/agent/sessions'
 const path = (id: string) => `${root}/${encodeURIComponent(id)}`
 export const agentApi = {
+  writingStudio: (id: string) => request<StudioState>('GET', path(id) + '/writing-studio', null, true),
+  saveWritingCard: (id: string, card: StudioCardInput, existing?: StudioCard) => request<{ card: StudioCard }>(existing ? 'PATCH' : 'POST', path(id) + '/writing-studio/cards' + (existing ? '/' + encodeURIComponent(existing.id) : ''), { card, ...(existing ? { expectedRevision: existing.revision } : {}) }, true),
+  changeWritingCard: (id: string, card: StudioCard, operation: 'accept' | 'archive' | 'lock' | 'unlock' | 'restore', version?: number) => request<{ card: StudioCard }>('POST', path(id) + '/writing-studio/cards/' + encodeURIComponent(card.id) + '/change', { operation, expectedRevision: card.revision, ...(version ? { version } : {}) }, true),
+  writingCardVersions: (id: string, cardId: string) => request<{ versions: StudioVersion[] }>('GET', path(id) + '/writing-studio/cards/' + encodeURIComponent(cardId) + '/versions', null, true),
+  assembleScenes: (id: string, title: string, scenes: Array<{ id: string; revision: number }>) => request<{ draftId: string; taskId: string }>('POST', path(id) + '/writing-studio/assemble', { title, scenes }, true),
   outline: (id: string) => request<{ outline: AgentOutline | null }>('GET', path(id) + '/outline', null, true),
   saveOutline: (id: string, chapters: AgentOutlineChapter[], expectedRevision: number) =>
     request<{ outline: AgentOutline }>('PATCH', path(id) + '/outline', { chapters, expectedRevision }, true),

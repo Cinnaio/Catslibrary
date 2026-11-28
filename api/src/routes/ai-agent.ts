@@ -1,3 +1,5 @@
+import { assembleWritingScenes, changeWritingCard, readWritingStudio, readStudioSource, saveWritingCard, writingCardVersions } from '../services/ai/agent-writing-studio'
+import type { StudioEvidence } from '@shared/ai-writing-studio'
 import { readStoryThreadPlans, changeStoryThreadPlan, removeStoryThreadPlan, applyStoryThreadPlans } from '../services/ai/agent-story-threads'
 import { chapterEditSource, chapterEditHistory } from '../services/ai/chapter-edit'
 import { reviewChapterImpact } from '../services/ai/chapter-impact'
@@ -134,6 +136,7 @@ export function createAgentRoutes(dispatch: Dispatch) {
       outlineWorkflowAvailable: true,
       storyThreadPlansAvailable: true,
       writingReferencesAvailable: true,
+      writingStudioAvailable: true,
       writingReferences: await snapshotWritingReferences(db, c.get('user').id, session.writingReferenceIds || [], false, false),
       messageReceipt: messageReceipt || null,
       ...history,
@@ -146,6 +149,13 @@ export function createAgentRoutes(dispatch: Dispatch) {
       summary: await getAgentSummary(db, session.id),
     })
   })
+  routes.get('/sessions/:id/writing-studio', async c => c.json(await readWritingStudio(getDb(), c.get('user').id, c.req.param('id'))))
+  routes.post('/sessions/:id/writing-studio/cards', async c => c.json({ card: await saveWritingCard(getDb(), c.get('user').id, c.req.param('id'), await c.req.json().catch(() => null)) }))
+  routes.patch('/sessions/:id/writing-studio/cards/:cardId', async c => c.json({ card: await saveWritingCard(getDb(), c.get('user').id, c.req.param('id'), { ...await c.req.json().catch(() => null), id: c.req.param('cardId') }) }))
+  routes.post('/sessions/:id/writing-studio/cards/:cardId/change', async c => c.json({ card: await changeWritingCard(getDb(), c.get('user').id, c.req.param('id'), c.req.param('cardId'), await c.req.json().catch(() => null)) }))
+  routes.get('/sessions/:id/writing-studio/cards/:cardId/versions', async c => c.json(await writingCardVersions(getDb(), c.get('user').id, c.req.param('id'), c.req.param('cardId'))))
+  routes.post('/sessions/:id/writing-studio/assemble', async c => c.json(await assembleWritingScenes(getDb(), c.get('user').id, c.req.param('id'), await c.req.json().catch(() => null))))
+  routes.get('/sessions/:id/writing-studio/source', async c => c.json(await readStudioSource(getDb(), c.get('user').id, c.req.param('id'), c.req.query('kind') as StudioEvidence['kind'], c.req.query('sourceId') || '', numberParam(c.req.query('offset'), 1000000))))
   routes.patch('/sessions/:id/chapter-plan', async c => {
     const body = await c.req.json().catch(() => ({}))
     return c.json({ plan: await saveChapterPlan(getDb(), c.get('user').id, c.req.param('id'), body.plan, body.expectedRevision) })

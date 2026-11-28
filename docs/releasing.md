@@ -1,5 +1,14 @@
 # 发布与版本管理
 
+## 写作工坊（2026-11-28，本地源码候选）
+
+- 源码为本节所在的本地提交。API `1.17.0`、Web `1.16.0` 的 `package.json` 与 `package-lock.json` workspace 版本同步；iOS 主 App／Widget 的 `ios/project.yml` 同步为 `MARKETING_VERSION=1.5.0`、`CURRENT_PROJECT_VERSION=36`。
+- 六类写作能力、范围与限制见 [写作工坊说明](ai-agent.md)。上线顺序：备份 → 应用 `101_ai_writing_studio.sql` → 更新 API → Web／iOS。迁移新增卡片、不可变历史、合成记录与已保存改稿样本，未对生产数据库执行。
+- 本地验证：API／Web 类型检查与 Web 共享组件边界检查通过；新增工坊文件的 ESLint 检查通过。API 针对性回归 131 项通过（工坊 9、已有写作流程 6、Agent 路由与工具 103、草稿流式与保存 13），Web 回归 11 项通过（工坊 5、已有大纲与线索流程 6）。测试覆盖数据库迁移、账号与范围隔离、待采纳状态、版本冲突、锁定、来源变化、已采纳改稿样本、快照和原样合成。
+- API／Web 本地生产构建成功，API 构建产物包含迁移 101。Web 构建提示部分压缩后 chunk 超过 500 kB，构建未失败；本次没有调整全站分包策略。七个相关 Swift 文件通过 tree-sitter 语法解析，新增 XCTest 源码尚未运行。未执行浏览器视觉验收。
+- 以上是本地源码、测试及构建记录，不代表线上已生效或已完成真机验收。
+- 源码已本地提交，未推送、未部署；没有运行 Xcode 构建、XCTest、模拟器或真机验收，也未生成或签名交付 IPA。模型流程回归使用模拟响应，真实模型的场景质量、人物口吻与偏好提炼效果仍需实际作品验收。
+
 ## iOS 1.4.1 / build 35 创作对话构建（2026-11-27，准备中）
 
 - 功能源码 `213c7ead`；本节所在的版本提交将 `ios/project.yml` 中主 App／Widget 的 `CURRENT_PROJECT_VERSION` 同步从 34 递增至 35，`MARKETING_VERSION` 保留 `1.4.1`。

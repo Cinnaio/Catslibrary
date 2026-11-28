@@ -9,6 +9,9 @@
 - 列表筛选、分页、搜索流转必须配备轻量、克制的阶梯式入场动效（Staggered Row Enter）与检索过渡态（Transitioning State）。
 
 ## 3. Git 提交信息规范 (Commit Message Conventions)
+- **自主判断本地提交**：完成用户已授权的任务并通过必要检查后，代理可自行判断是否创建本地提交，无需逐次征求确认；仅提交本次任务相关改动，并遵守下述提交信息及版本管理规范。
+- **默认不推送**：本地提交后不自动执行 `git push`；只有用户明确要求推送时才可执行。
+
 所有 Git 提交必须遵循结构化 Conventional Commits 并在 Body 中提供详实的点状阐述清单：
 - **Header 结构**：`<type>(<scope>): <核心改动中文概要>`
   - `<type>`：`feat` / `fix` / `style` / `refactor` / `perf` / `chore`

@@ -338,6 +338,7 @@ export interface AgentArtifact {
 }
 
 export interface AgentSessionDetail {
+  writingStudioAvailable?: true
   chapterPlan?: AgentChapterPlan | null
   chapterPlanBranchesAvailable?: true
   outlineAvailable?: true

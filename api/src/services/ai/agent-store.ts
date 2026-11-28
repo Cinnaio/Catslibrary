@@ -1,3 +1,4 @@
+import { readWritingStudio, studioSnapshot } from './agent-writing-studio'
 import { validateStoryThreadSnapshot } from './agent-story-threads'
 import type { AgentReferenceSelection, AgentEvent, AgentSession, AgentAction, AgentActionKind } from '@shared/ai-agent'
 import type { Db, DbClient } from '../../db/pool'
@@ -274,6 +275,8 @@ export async function beginAgentTurn(
     const writingReferences = recoveryFromTaskId ? agentTaskParams(recoveryParams).writingReferences || []
       : await snapshotWritingReferences(scoped, userId, selection?.ids ?? session.writing_reference_ids ?? [], !!selection)
     if (selection?.scope === 'session') await query('UPDATE ai_agent_sessions SET writing_reference_ids=$1::jsonb WHERE id=$2', [JSON.stringify(selection.ids), sessionId])
+    const writingStudio = recoveryFromTaskId ? agentTaskParams(recoveryParams).writingStudio
+      : studioSnapshot((await readWritingStudio(scoped, userId, sessionId)).cards)
     const referenceMetadata = writingReferences.map(({ id, title, revision }) => ({ id, title, revision }))
     const task = await createAiTask(scoped, {
       userId,
@@ -281,7 +284,7 @@ export async function beginAgentTurn(
       kind: 'agent_chat',
       total: 1,
       prompt: content,
-      params: JSON.stringify({ sessionId, agentUsageVersion: 1, ...provider, writingReferences, ...(planningOnly ? { planningOnly: true } : {}), ...(chapterPlan ? { chapterPlan } : {}), ...(recoveryFromTaskId ? { recoveryFromTaskId } : {}) }),
+      params: JSON.stringify({ sessionId, agentUsageVersion: 1, ...provider, writingReferences, writingStudio, ...(planningOnly ? { planningOnly: true } : {}), ...(chapterPlan ? { chapterPlan } : {}), ...(recoveryFromTaskId ? { recoveryFromTaskId } : {}) }),
     })
     await appendAgentEvent(scoped, sessionId, 'user', content, task.id, { ...provider, ...(planningOnly ? { planningOnly: true } : {}), ...(chapterPlan ? { chapterPlanRevision: chapterPlan.revision } : {}), referenceSelection: selection, ...(referenceMetadata.length ? { writingReferences: referenceMetadata } : {}), ...(recoveryFromTaskId ? { recoveryFromTaskId } : {}) }, requestId)
     await query(

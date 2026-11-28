@@ -1,3 +1,5 @@
+import { readWritingStudio, readWritingEdits, readStudioSource, saveWritingCard } from './agent-writing-studio'
+import { STUDIO_KINDS, STUDIO_DEFINITIONS, type StudioEvidence } from '@shared/ai-writing-studio'
 import { readAgentOutline, saveAgentOutline } from './agent-outline'
 import { readStoryThreadPlans } from './agent-story-threads'
 import { chapterEditHistory, chapterRevision, parseChapterEdit } from './chapter-edit'
@@ -39,6 +41,19 @@ const rewriteLength = {
   minimumWords: { ...writingLength.minimumWords, maximum: 12_000, description: '整章改写的最低字数。与 targetWords 二选一。' },
 }
 export const AGENT_TOOLS: AiFunctionTool[] = [
+  tool('read_writing_studio', '查阅写作工坊。省略 cardId 返回卡片目录和字段格式；传 cardId 读取完整卡片。只读，不会采纳建议。场景全文可用 read_writing_source 分段阅读。', {
+    cardId: id, offset: { type: 'integer', minimum: 0, maximum: 10000 },
+  }, []),
+  tool('read_writing_source', '为写作工坊读取真实来源及完整来源的 revision；引用证据须使用这里的 revision 和连续原句。edit 为已采纳改动，before 为改前、content 为改后；可按 nextOffset 翻页。', {
+    kind: { type: 'string', enum: ['chapter', 'draft', 'scene', 'edit'] }, sourceId: id,
+    offset: { type: 'integer', minimum: 0, maximum: 1000000 },
+  }, ['kind', 'sourceId']),
+  tool('read_writing_edits', '查阅本书当前作者已经采纳的改稿前后对照，仅作偏好学习证据。长文用 read_writing_source(kind=edit) 回读。至少两次独立修改才能提议长期偏好。', {
+    offset: { type: 'integer', minimum: 0, maximum: 10000 },
+  }, []),
+  tool('propose_writing_card', '按作者要求保存写作工坊建议，先 read_writing_studio 取得字段格式与版本。只创建 proposed，不直接生效。修改已有卡片须传 replaces；锁定场景不可修改。人物口吻、知情表、试读必须有真实引文，偏好至少有两次已采纳改动。', {
+    proposal: { type: 'string', maxLength: 28000, description: 'JSON {card:{kind:scene|voice|reading|knowledge|relationship|preference,title,scope:session|book|personal,position:0,values:{字段名:字符串},evidence:[{kind:chapter|draft|scene|edit,id,revision,quote,beforeQuote?}]},replaces?:{id,revision}}。字段见 read_writing_studio。scene/reading 为 session，其他为 book；只有 preference 可选 personal。' },
+  }),
   tool('read_outline', '查阅本书多章大纲及实际草稿、发布进度。大纲是作者计划，不是已发生剧情。'),
   tool('read_story_thread_plans', '查阅作者安排的星图线索及其来源。stale 表示来源已变化，需回查原文；不自动认定线索已回收。'),
   tool('propose_outline', '拟定或完善未来 3 至 5 章的大纲，不生成正文。先 read_outline，修改已有条目须保留其 id。保存后请作者核对，选择一章设为章节计划。', {
@@ -208,6 +223,10 @@ export function validateAgentCall(call: AiToolCall): Record<string, string | num
 }
 
 export const AGENT_TOOL_LABELS: Record<string, string> = {
+  read_writing_studio: '查阅写作工坊',
+  read_writing_source: '核对写作资料来源',
+  read_writing_edits: '查阅已采纳的改稿',
+  propose_writing_card: '整理写作工坊建议',
   read_overview: '读取小说和章节目录',
   find_chapter: '定位原章节',
   search_chapters: '检索章节依据',
@@ -250,6 +269,27 @@ export async function executeAgentTool(
   currentTaskId = '',
   focus?: { read: AgentDraftRead; authorEventId: number },
 ): Promise<Record<string, unknown>> {
+  if (name === 'read_writing_studio') {
+    const state = await readWritingStudio(db, userId, session.id)
+    if (a.cardId) {
+      const card = state.cards.find(c => c.id === a.cardId)
+      if (!card) throw new AiError('invalid', '卡片不存在或不在当前范围', 404)
+      return { card }
+    }
+    const offset = Number(a.offset || 0)
+    return { cards: state.cards.slice(offset, offset + 30).map(({ id, kind, title, status, revision, scope, locked, replaces, stale, position }) => ({ id, kind, title, status, revision, scope, locked, replaces, stale, position })),
+      nextOffset: state.cards.length > offset + 30 ? offset + 30 : null, contextOmitted: state.contextOmitted,
+      definitions: Object.fromEntries(STUDIO_KINDS.map(kind => [kind, { fields: STUDIO_DEFINITIONS[kind].fields, description: STUDIO_DEFINITIONS[kind].description }])) }
+  }
+  if (name === 'read_writing_source') return readStudioSource(db, userId, session.id, a.kind as StudioEvidence['kind'], String(a.sourceId), Number(a.offset || 0))
+  if (name === 'read_writing_edits') return readWritingEdits(db, userId, session.id, Number(a.offset || 0))
+  if (name === 'propose_writing_card') {
+    if (!currentTaskId || !operationId) throw new AiError('invalid', '写作建议需要当前作者轮次', 422)
+    let input: unknown
+    try { input = JSON.parse(String(a.proposal)) } catch { throw new AiError('invalid', '请提供完整的写作建议 JSON', 422) }
+    const card = await saveWritingCard(db, userId, session.id, input, { taskId: currentTaskId, operationId })
+    return { card: { id: card.id, title: card.title, status: card.status, revision: card.revision }, message: '建议已保存在写作工坊，尚未采纳。请作者在工坊中查看、修改或采纳。' }
+  }
   if (name === 'read_outline') return { outline: await readAgentOutline(db, userId, session.id) }
   if (name === 'read_story_thread_plans') {
     const state = await readStoryThreadPlans(db, userId, session.id)

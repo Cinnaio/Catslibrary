@@ -18,6 +18,7 @@ export interface AgentWritingLength {
 
 /** Resolved at submission, stored with the task so a retry uses the same material. */
 export interface AgentWritingContext {
+  writingStudio?: import('@shared/ai-writing-studio').StudioSnapshot
   chapterPlan?: import('@shared/ai-agent').AgentChapterPlan
   writingReferences?: AgentWritingReferenceSnapshot[]
   continuationNotes?: AgentContinuationNote[]
@@ -184,6 +185,7 @@ export async function resolveAgentWritingContext(
   const agreements = (await activeAgentMemories(db, scope.userId, scope.novelId))
     .map(({ id, revision, title, content }) => ({ id, revision, title, content }))
   return {
+    ...(authorTask && agentTaskParams(authorTask).writingStudio ? { writingStudio: agentTaskParams(authorTask).writingStudio } : previous?.writingStudio ? { writingStudio: previous.writingStudio } : {}),
     ...(chapterPlan ? { chapterPlan } : {}),
     ...(!scope.rewrite && session.continuationNotes?.length ? { continuationNotes: session.continuationNotes } : {}),
     sessionId: session.id, afterChapterId: session.afterChapterId, sources: passages, authorMessages, agreements, writingReferences,
@@ -204,6 +206,10 @@ export function agentWritingMaterials(context: AgentWritingContext) {
     source: { field: 'agent_writing_reference', revision: String(reference.revision) }, required: true,
   })).filter((block): block is MaterialBlock => !!block)
   const authors = [
+    ...(context.writingStudio?.cards.length ? [createMaterialBlock({
+      id: 'writing-studio', kind: 'author_request', required: true,
+      text: '作者已采纳的写作资料，当前明确要求优先。场景与关系推进属于计划，人物口吻和知情表须结合原文，不能当成无误的既有剧情。场景正文按需查阅，锁定场景不得重写。仅在适用情境内沿用偏好；资料超限或过期的 omitted 项没有带入。\n' + JSON.stringify(context.writingStudio),
+    })] : []),
     ...(context.chapterPlan ? [createMaterialBlock({
       id: 'confirmed-chapter-plan', kind: 'author_request', required: true,
       text: '作者已确认的本章计划（待创作情节，不是既有正文事实）。storyThreads 中 advance 本章推进、later 留给后续、hold 暂缓；所附证据是报告摘录而非章节原句，不得当成无误事实：' + JSON.stringify(context.chapterPlan),

@@ -19,6 +19,7 @@ final class AdminAIAgentConversationModel {
     private(set) var supportsOutline = false
     private(set) var supportsOutlineWorkflow = false
     private(set) var supportsStoryThreads = false
+    private(set) var supportsWritingStudio = false
     private(set) var supportsWritingReferences = false
     private(set) var sessionReferences: [AIAgentWritingReference] = []
     var referenceSelection: AIAgentReferenceSelection? {
@@ -180,6 +181,7 @@ final class AdminAIAgentConversationModel {
             supportsOutline = value.outlineAvailable == true
             supportsOutlineWorkflow = value.outlineWorkflowAvailable == true
             supportsStoryThreads = value.storyThreadPlansAvailable == true
+            supportsWritingStudio = value.writingStudioAvailable == true
             supportsWritingReferences = value.writingReferencesAvailable == true
             sessionReferences = value.writingReferences ?? []
             if !value.supportsChapterPlan {

@@ -1,3 +1,4 @@
+import AiAgentWritingStudio from './AiAgentWritingStudio'
 import { watchAiTask, type AiTaskConnection } from '@/lib/ai-task-stream'
 import { parseAiTextProgress } from '@shared/ai-text-progress'
 import type { AgentTask } from '@shared/ai-agent'
@@ -871,6 +872,10 @@ function AgentConversation({ sessionId, novelId, onSession, onOpenContinuation }
               disabled={busy || running || !!pending} onChanged={reload}
               onDiscuss={prompt => send(prompt, undefined, true)}
               onStart={plan => send('我已确认章节计划第 ' + plan.revision + ' 版《' + plan.title + '》，请按这版计划生成一章草稿，暂不发布。', plan.revision)} />}
+              {data.writingStudioAvailable && <AiAgentWritingStudio key={'studio-' + sessionId} sessionId={sessionId} disabled={busy || running || !!pending} onChanged={reload} onDiscuss={prompt => {
+                setInput(current => current.trim() ? `${current}\n\n${prompt}` : prompt)
+                setMobileView('chat'); setFocusRequest(value => value + 1)
+              }} />}
               <AiAgentMemory sessionId={sessionId} disabled={busy || running} pendingCount={data.memories?.filter((memory) => memory.status === 'pending').length || 0} onChanged={reload} /><AiAgentWritingReferences value={writingReferences || { references: [], scope: 'turn' }} onChange={setWritingReferences} disabled={busy || running || !!pending || !writingReferences} /></>}
           />
         </section>

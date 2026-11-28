@@ -1,3 +1,4 @@
+import { recordWritingEdit } from '../services/ai/writing-edit-samples'
 import { findCharacterCard, findStoryEchoes, parseStoryEchoInput } from '../services/ai/story-echoes'
 import { resolveRewriteSelection } from '../services/ai/rewrite-selection'
 import { chapterEditRoutes } from './ai-chapter-edit'
@@ -1450,7 +1451,7 @@ aiRoutes.put('/writing/drafts/:id', requireAdmin(), async (c) => {
   const result = String(body.result ?? '').trim()
   if (!result) return c.json({ error: '内容不能为空' }, 400)
   const before = await getGeneration(getDb(), id)
-  const updated = await updateGenerationResult(getDb(), id, result)
+  const updated = await updateGenerationResult(getDb(), id, result, c.get('user').id)
   if (!updated) return c.json({ error: '草稿不存在、已发布、已删除或不可编辑' }, 409)
   return c.json({
     ok: true,
@@ -1585,6 +1586,7 @@ aiRoutes.post('/writing/drafts/:id/rewrite/:taskId/apply', requireAdmin(), async
           const result = row.result.slice(0, params!.startUTF16) + selected.text + row.result.slice(params!.endUTF16)
           if (!result.trim() || Array.from(result).length > 12000) throw new AiError('invalid', '应用后的正文超出允许范围', 422)
           await q("UPDATE ai_generations SET result = $1 WHERE id = $2 AND status = 'draft' AND deleted_at = 0", [result, id])
+          await recordWritingEdit({ query: q }, c.get('user').id, row.novel_id, row.id, row.result, result)
           return { id, result, contentRevision: generationContentRevision(result) }
         })
         return c.json({ ok: true, ...applied }, 200, { 'Cache-Control': 'no-store' })

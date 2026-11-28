@@ -6,6 +6,7 @@ import { AI_TASK_OWNER_ID, getAiTask, type AiTask } from './tasks'
 import { publishAiTask } from './task-events'
 
 export const AGENT_READ_TOOLS = new Set([
+  'read_writing_studio', 'read_writing_source', 'read_writing_edits',
   'read_outline',
   'read_story_thread_plans',
   'read_overview',
@@ -31,6 +32,7 @@ export function agentTaskParams(task?: Pick<AiTask, 'params'>) {
       chapterPlan?: import('@shared/ai-agent').AgentChapterPlan
       chapterPlanProposed?: boolean
       planningOnly?: true
+      writingStudio?: import('@shared/ai-writing-studio').StudioSnapshot
       writingReferences?: AgentWritingReferenceSnapshot[]
       sessionId?: string
       providerPresetId?: string

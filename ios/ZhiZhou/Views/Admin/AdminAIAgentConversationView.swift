@@ -12,7 +12,7 @@ struct AdminAIAgentConversationView: View {
     let onOpenContinuation: (AIAgentSession) -> Void
 
     private enum Panel: Identifiable {
-        case outputs, artifact(String), settings, memory, chapterPlan, storyGraph, writingReferences
+        case outputs, artifact(String), settings, memory, chapterPlan, storyGraph, writingReferences, writingStudio
         var id: String {
             switch self {
             case .outputs: "outputs"
@@ -22,6 +22,7 @@ struct AdminAIAgentConversationView: View {
             case .chapterPlan: "chapter-plan"
             case .storyGraph: "story-graph"
             case .writingReferences: "writing-references"
+            case .writingStudio: "writing-studio"
             }
         }
     }
@@ -93,6 +94,7 @@ struct AdminAIAgentConversationView: View {
                         Button(model.pendingMemoryCount > 0 ? "作品记忆 · \(model.pendingMemoryCount) 条待确认" : "作品记忆",
                                systemImage: "bookmark") { panel = .memory }
                         Button("故事星图", systemImage: "point.3.connected.trianglepath.dotted") { panel = .storyGraph }
+                        if model.supportsWritingStudio { Button("写作工坊", systemImage: "square.and.pencil") { panel = .writingStudio } }
                         if model.supportsWritingReferences { Button("写作参考", systemImage: "books.vertical") { panel = .writingReferences } }
                         Button("会话设置", systemImage: "slider.horizontal.3") { panel = .settings }
                     }
@@ -110,6 +112,7 @@ struct AdminAIAgentConversationView: View {
             case .memory: AgentMemoryView(model: model)
             case .chapterPlan: AgentChapterPlanSheet(model: model)
             case .writingReferences: AgentWritingReferencesView(model: model)
+            case .writingStudio: AgentWritingStudioView(model: model)
             case .storyGraph:
                 NavigationStack {
                     AdminStoryGraphView(novelID: model.session.novelId, novelTitle: model.session.novelTitle,
@@ -763,6 +766,7 @@ private struct AgentComposerView: View {
     let showChapterPlan: () -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showDiscard = false
+    @State private var showStudio = false
     @State private var showReferences = false
 
     private var modelName: String {
@@ -809,6 +813,7 @@ private struct AgentComposerView: View {
         .padding(.horizontal, 16).padding(.bottom, 12)
         .frame(maxWidth: 760).frame(maxWidth: .infinity)
         .sheet(isPresented: $showReferences) { AgentWritingReferencesView(model: model) }
+        .sheet(isPresented: $showStudio) { AgentWritingStudioView(model: model) }
         .confirmationDialog("先核对消息是否已发送", isPresented: $showDiscard, titleVisibility: .visible) {
             Button(model.localDraft.pending?.chapterPlanIntent == nil ? "取回文字，结束本次重试" : "结束本次重试") {
                 model.discardPending()
@@ -821,6 +826,7 @@ private struct AgentComposerView: View {
         memoryButton
         chapterPlanButton
         referencesButton
+        studioButton
     }
 
     private var expandedControls: some View {
@@ -840,6 +846,7 @@ private struct AgentComposerView: View {
                     }
                     HStack(spacing: 10) {
                         referencesButton
+                        studioButton
                         Spacer(minLength: 0)
                         messageAction
                     }
@@ -944,6 +951,15 @@ private struct AgentComposerView: View {
         .buttonStyle(.plain)
         .accessibilityLabel("作品记忆")
         .accessibilityValue(model.pendingMemoryCount > 0 ? "\(model.pendingMemoryCount) 条待确认" : "无待确认提议")
+    }
+
+    @ViewBuilder private var studioButton: some View {
+        if model.supportsWritingStudio {
+            Button("工坊", systemImage: "square.and.pencil") { showStudio = true }
+                .font(.caption).foregroundStyle(ReadingSpace.profileMuted)
+                .frame(minHeight: 44).accessibilityLabel("写作工坊")
+                .accessibilityIdentifier("agent.writingStudio")
+        }
     }
 
     @ViewBuilder private var chapterPlanButton: some View {

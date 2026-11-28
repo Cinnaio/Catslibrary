@@ -1,3 +1,4 @@
+import { studioBlank, type StudioCard } from '@shared/ai-writing-studio'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { app } from '../app'
 import { loadConfig } from '../config'
@@ -491,6 +492,7 @@ beforeEach(async () => {
   })
   fetchMock.mockReset()
   fetchMock.mockImplementation(async () => completion('可以先保留分歧，让合作推动关系。'))
+  await t.db.query('DELETE FROM ai_writing_cards')
   await t.db.query('DELETE FROM ai_agent_memories')
   await t.db.query('DELETE FROM ai_agent_sessions')
   await t.db.query('DELETE FROM ai_agent_book_settings')
@@ -1929,5 +1931,48 @@ describe('novel-scoped creative agent', () => {
     await runAgentTurn(t.db, session, turn.taskId, 'admin', internalApi())
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect((await getAiTask(t.db, turn.taskId))?.status).toBe('failed')
+  })
+})
+
+
+describe('writing studio routes', () => {
+  it('enforces admin and owner boundaries for every studio route and advertises support', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel', afterChapterId: 'chapter' })
+    const root = '/api/ai/agent/sessions/' + session.id
+    const input = { ...studioBlank('scene'), title: '雨夜', values: { ...studioBlank('scene').values, goal: '试探', prose: '她站在窗前。' } }
+    const saved = await request(root + '/writing-studio/cards', 'POST', { card: input })
+    expect(saved.status).toBe(200)
+    const { card } = await saved.json() as { card: StudioCard }
+    expect(await (await request(root)).json()).toMatchObject({ writingStudioAvailable: true })
+    for (const [path, method, body] of [
+      ['/writing-studio', 'GET', undefined],
+      ['/writing-studio/cards', 'POST', { card: input }],
+      ['/writing-studio/cards/' + card.id, 'PATCH', { card: input, expectedRevision: 1 }],
+      ['/writing-studio/cards/' + card.id + '/change', 'POST', { operation: 'lock', expectedRevision: 1 }],
+      ['/writing-studio/cards/' + card.id + '/versions', 'GET', undefined],
+      ['/writing-studio/assemble', 'POST', { title: '章名', scenes: [{ id: card.id, revision: 1 }] }],
+      ['/writing-studio/source?kind=chapter&sourceId=chapter', 'GET', undefined],
+    ] as const) {
+      expect((await request(root + path, method, body, readerToken)).status).toBe(403)
+      expect((await request(root + path, method, body, otherToken)).status).toBe(404)
+    }
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+  it('lets an agent persist a scene proposal and receive an author decision without publishing', async () => {
+    const session = await createAgentSession(t.db, 'admin', { novelId: 'novel' })
+    const input = { ...studioBlank('scene'), title: '窗前', values: { ...studioBlank('scene').values, goal: '迟疑片刻', prose: '他在窗前停住了。' } }
+    fetchMock.mockResolvedValueOnce(completion('', [call('propose_writing_card', { proposal: JSON.stringify({ card: input }) }, 'studio-proposal')]))
+      .mockResolvedValueOnce(completion('场景建议已保存，请在工坊中核对。'))
+    const turn = await beginAgentTurn(t.db, 'admin', session.id, '写一场窗前的迟疑并保存建议', 'studio-agent-request')
+    await runAgentTurn(t.db, session, turn.taskId, 'admin', internalApi())
+    const root = '/api/ai/agent/sessions/' + session.id + '/writing-studio'
+    const result = await (await request(root)).json() as { cards: StudioCard[] }
+    expect(result.cards).toHaveLength(1)
+    const card = result.cards[0]!
+    expect(card.status).toBe('proposed')
+    const accepted = await request(root + '/cards/' + card.id + '/change', 'POST', { operation: 'accept', expectedRevision: card.revision })
+    expect(accepted.status).toBe(200)
+    expect(await accepted.json()).toMatchObject({ card: { status: 'active' } })
+    expect(await first(t.db, "SELECT COUNT(*)::int AS n FROM ai_generations WHERE status='published'")).toEqual({ n: 0 })
   })
 })

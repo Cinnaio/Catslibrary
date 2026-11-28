@@ -318,11 +318,13 @@ public struct AIAgentDetail: Decodable, Sendable {
     public let outlineAvailable: Bool?
     public let outlineWorkflowAvailable: Bool?
     public let storyThreadPlansAvailable: Bool?
+    public let writingStudioAvailable: Bool?
     public let writingReferencesAvailable: Bool?
     public let writingReferences: [AIAgentWritingReference]?
 
     private enum CodingKeys: String, CodingKey {
         case session, events, hasEarlier, activeTask, artifacts, actions, memories, summary, messageReceipt, recovery
+        case writingStudioAvailable
         case chapterPlan, chapterPlanBranchesAvailable, outlineAvailable, outlineWorkflowAvailable, storyThreadPlansAvailable, writingReferencesAvailable, writingReferences
     }
 
@@ -344,6 +346,7 @@ public struct AIAgentDetail: Decodable, Sendable {
         outlineAvailable = try values.decodeIfPresent(Bool.self, forKey: .outlineAvailable)
         outlineWorkflowAvailable = try values.decodeIfPresent(Bool.self, forKey: .outlineWorkflowAvailable)
         storyThreadPlansAvailable = try values.decodeIfPresent(Bool.self, forKey: .storyThreadPlansAvailable)
+        writingStudioAvailable = try values.decodeIfPresent(Bool.self, forKey: .writingStudioAvailable)
         writingReferencesAvailable = try values.decodeIfPresent(Bool.self, forKey: .writingReferencesAvailable)
         writingReferences = try values.decodeIfPresent([AIAgentWritingReference].self, forKey: .writingReferences)
     }

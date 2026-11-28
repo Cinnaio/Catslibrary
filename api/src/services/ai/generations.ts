@@ -1,3 +1,4 @@
+import { recordWritingEdit } from './writing-edit-samples'
 /**
  * AI 生成产物存取 —— ai_generations 既是审核队列也是缓存：
  * 同一 (kind, chapter_id, params) 的已发布产物直接复用，不重复烧钱。
@@ -6,7 +7,7 @@
 import { createHash } from 'node:crypto'
 import { assessWritingQuality, type WritingQualityReport } from '@shared/ai-writing-quality'
 import type { Db, DbClient } from '../../db/pool'
-import { all, first, run } from '../../db/query'
+import { all, first, run, withTx } from '../../db/query'
 import { newId } from '../auth'
 import type { GenerationAssociation, GenerationBookSnapshot } from '@shared/ai-generation-association'
 import { captureBookSnapshot, generationAssociation, readBookSnapshot } from './generation-book-snapshot'
@@ -490,7 +491,15 @@ export async function getGeneration(db: Db, id: string): Promise<GenerationRow |
  * 更新创作草稿正文。状态条件必须在 UPDATE 内完成：详情页读取到草稿后，
  * 另一请求可能已经发布或软删除了它，迟到的保存不能把已发布内容降回 draft。
  */
-export async function updateGenerationResult(db: Db, id: string, result: string): Promise<boolean> {
+export async function updateGenerationResult(db: Db, id: string, result: string, actorUserId = ''): Promise<boolean> {
+  if (actorUserId) return withTx(db, async query => {
+    const scoped = { query }
+    const row = await first<GenerationRow>(scoped, "SELECT * FROM ai_generations WHERE id=$1 AND status='draft' AND deleted_at=0 AND kind IN ('write_chapter','continue','write_outline') FOR UPDATE", [id])
+    if (!row) return false
+    await query('UPDATE ai_generations SET result=$1 WHERE id=$2', [result, id])
+    if (row.kind !== 'write_outline') await recordWritingEdit(scoped, actorUserId, row.novel_id, id, row.result, result)
+    return true
+  })
   return (
     (await run(
       db,
