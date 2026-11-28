@@ -1,5 +1,15 @@
 # 发布与版本管理
 
+## 评论随书保存与标签筛选正式部署、iOS fast 交付（2026-11-28）
+
+- 已推送并交付核心源码 `5e412bc274b0c0938dabcf8e80696ff23522e30b`，包含评论持久化 `380a01dd`、段尾轻标记 `da00d69c` 与标签筛选 `5e412bc2`。API `1.18.0` / Web `1.17.0`，主 App／Widget 为 iOS `1.6.0 / build 39`；本节补充下方候选记录的实际发布状态。
+- Deploy [#114](https://github.com/Cinnaio/Catslibrary/actions/runs/46126792864) 成功，2026-11-28 16:42（Asia/Shanghai）完成生产交付。合并构建核心与线上现有私有适配器，部署前后适配器 SHA 一致；没有更新 catr 中转站或私有书源版本。story 运行源码与目标完整 SHA 一致，迁移 `105_source_thought_snapshots.sql` 已执行，四张来源评论表及章节登记触发器已存在且启用。
+- 迁移前已完成 PostgreSQL 自定义格式备份：`/var/www/zhi-zhou-backups/source-thoughts-20261128-163751-5e412bc2/database.dump`，355834561 bytes，SHA-256 `dd3291feed9fc722873f191c091ff65f69efcdfe047cb837eb35540e59836e33`，`pg_restore --list` 验证通过；同目录保留归档目录、校验和与旧发布清单。发布工具另保留旧 API/Web 产物。
+- 发布包构建、隔离 PostgreSQL 迁移与业务冒烟通过。生产服务 active/running、自动重启次数 0；本机及公网就绪／健康接口返回目标 SHA，公网首页、入口资源和书目接口均通过。新增评论队列未因部署自动回填全书库，初始保存条数为 0，部署后未观察到后台同步错误；尚未执行真实整书评论同步验收。
+- iOS fast [#85](https://github.com/Cinnaio/Catslibrary/actions/runs/46126741717) 成功，核心单元测试、Xcode 编译、App／Widget 版本一致性与未签名 IPA 打包均通过。构建源码与生产源码相同；fast 使用增量编译和 `-Onone`，用于日常功能验收。
+- 工件 `15255599145`（`ZhiZhou-unsigned-ipa-fast`）已下载至 `C:\Users\curiionoo\Downloads\Catslibrary-iOS-1.6.0-build39-fast-run85\ZhiZhou-1.6.0-build39-fast.ipa`。GitHub 归档 SHA-256 `cd32736faa14eb5917827b0ad5a66622f4b6cc5840d5f70d35857d31b0af26ad` 匹配，ZIP／IPA 完整性和包内 App／Widget `1.6.0 (39)` 校验通过；IPA 为 25800490 bytes，SHA-256 `ba38c37287aa1c939c792dadeccef3daafc5204fcbb0cd029c396790c8723002`，同目录保存 `verification.json`。
+- 未进行签名安装、UI 自动化、真机交互或浏览器视觉验收。评论保存于服务器数据库，未新增手机离线评论库；现有书籍会在后续更新或阅读时按既定策略补登记。
+
 ## 书库标签归一与完整筛选面板（2026-11-28，本地源码候选）
 
 - 源码为本节所在本地提交，基于 `380a01dd`。沿用尚未发布的 API `1.18.0` / Web `1.17.0` 候选，版本唯一来源为各自 `package.json` 与锁文件 workspace 条目；本次不新增迁移，不修改 iOS 版本或源码，不重写书源原始标签。
