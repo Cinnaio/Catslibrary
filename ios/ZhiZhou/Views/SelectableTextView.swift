@@ -172,24 +172,29 @@ final class ThoughtSelectableTextView: UITextView, UITextViewDelegate {
         if thoughtCount > 0, body.length > 0 {
             let font = body.attribute(.font, at: body.length - 1, effectiveRange: nil) as? UIFont
                 ?? UIFont.preferredFont(forTextStyle: .body)
-            var configuration = UIButton.Configuration.filled()
+            var configuration = UIButton.Configuration.plain()
             configuration.image = UIImage(systemName: "text.bubble")
-            configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(textStyle: .caption2)
-            configuration.title = "\(thoughtCount) 条段评"
-            configuration.imagePadding = 6
-            configuration.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 9, bottom: 0, trailing: 9)
+            configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(textStyle: .caption1)
+            configuration.title = "\(thoughtCount)"
+            configuration.imagePadding = 4
+            configuration.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 4, bottom: 0, trailing: 4)
             configuration.baseForegroundColor = markerColor
-            configuration.baseBackgroundColor = UIColor(AppTheme.primaryLight)
-            configuration.cornerStyle = .capsule
+            configuration.background = .clear()
             configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
                 var attributes = attributes
                 attributes.font = UIFont.systemFont(
-                    ofSize: UIFont.preferredFont(forTextStyle: .caption2).pointSize,
-                    weight: .semibold
+                    ofSize: UIFont.preferredFont(forTextStyle: .caption1).pointSize,
+                    weight: .regular
                 )
                 return attributes
             }
             thoughtMarkerButton.configuration = configuration
+            thoughtMarkerButton.configurationUpdateHandler = { button in
+                guard var updated = button.configuration else { return }
+                updated.baseForegroundColor = button.isHighlighted ? UIColor(AppTheme.primary) : markerColor
+                updated.background = .clear()
+                button.configuration = updated
+            }
             thoughtMarkerButton.accessibilityLabel = "\(thoughtCount) 条段评"
             thoughtMarkerButton.accessibilityHint = "查看此段落的想法"
             let markerWidth = max(44, thoughtMarkerButton.intrinsicContentSize.width)

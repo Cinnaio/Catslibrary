@@ -38,8 +38,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.zhizhou.app
-        MARKETING_VERSION: "1.5.1"
-        CURRENT_PROJECT_VERSION: 37
+        MARKETING_VERSION: "1.5.2"
+        CURRENT_PROJECT_VERSION: 38
         INFOPLIST_FILE: ZhiZhou/Support/Info.plist
         CODE_SIGN_ENTITLEMENTS: ZhiZhou/Support/ZhiZhou.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -62,8 +62,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.zhizhou.app.widgets
         PRODUCT_NAME: ZhiZhouWidgets
-        MARKETING_VERSION: "1.5.1"
-        CURRENT_PROJECT_VERSION: 37
+        MARKETING_VERSION: "1.5.2"
+        CURRENT_PROJECT_VERSION: 38
         INFOPLIST_FILE: ZhiZhouWidgets/Info.plist
         CODE_SIGN_ENTITLEMENTS: ZhiZhouWidgets/ZhiZhouWidgets.entitlements
         CODE_SIGN_STYLE: Automatic

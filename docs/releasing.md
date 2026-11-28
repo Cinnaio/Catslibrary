@@ -1,5 +1,12 @@
 # 发布与版本管理
 
+## iOS 段尾轻标记（2026-11-28，本地源码候选）
+
+- `SelectableTextView` 的段评按钮采用透明背景、小气泡与数字，收紧内边距并使用常规字重；`ReaderView` 从当前阅读墨色生成次级标记色，按下时仍使用陶土色。保留 TextKit 行内占位、至少 44pt 点击范围、完整无障碍条数、原生选字与段落绑定。
+- 同步调整既有 `ReaderTextSystemTests` 的外观断言，保留宽度／字号矩阵、段尾定位、44pt 尺寸、点击回调及引用排除标记的覆盖；本轮仅更新 XCTest 源码，执行情况单独记录。
+- 源码为本节所在本地提交，基于 `be793155`。此前 `1.5.1 / build 37` 已完成 fast 构建，本次 App／Widget 更新为 `1.5.2 / build 38` 候选；无 API/Web、接口或数据库迁移依赖。
+- 三个变更 Swift 文件通过 tree-sitter 语法解析，App／Widget YAML 版本一致性与 Git 差异检查通过。Windows 环境未运行 Xcode 类型检查、XCTest、模拟器或真机视觉验收；未推送、触发构建、打包 IPA 或部署。
+
 ## iOS 1.5.1 fast 构建与下载验收（2026-11-28）
 
 - 用户明确授权推送、fast 构建及下载工件；`main` 推送到 `c53839e7cea9ed3dd9ff83edbfd6796625a450f9`，包含 `e35edecd` 的本段想法面板、`111a0390` 的共享加载提示及 `c53839e7` 的手机书架长按修复。App／Widget 沿用本轮候选 `1.5.1 / build 37`，相较此前已构建的 `1.5.0 / build 36` 已递增版本和构建号。
@@ -2073,7 +2080,7 @@ API/Web 新增 SMTP 管理表单与即时生效配置，分别从已部署的 `0
 
 | 组件 | 唯一版本来源 | 当前源码版本 | 同步要求 |
 | --- | --- | --- | --- |
-| iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `1.5.1 / 37` | App 与 Widget 同步；Info.plist 引用构建变量，关于页从 Bundle 读取 |
+| iOS | `ios/project.yml` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | `1.5.2 / 38` | App 与 Widget 同步；Info.plist 引用构建变量，关于页从 Bundle 读取 |
 | API | `api/package.json` | `1.9.1` | 同步 `package-lock.json` 的 `packages.api.version` |
 | Web | `web/package.json` | `1.10.1` | 同步锁文件 `packages.web.version` |
 | 仓库根包 | `package.json` | `1.0.0` | 修改时同步锁文件顶层及 `packages[""].version` |

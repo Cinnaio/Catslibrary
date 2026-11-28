@@ -853,7 +853,7 @@ struct ReaderView: View {
             isThoughtActionEnabled: !offlineOnly,
             accessibilityID: "reader.paragraph.\(index)",
             thoughtCount: thoughts.count + sourceCount(for: index),
-            thoughtMarkerColor: UIColor(AppTheme.primary),
+            thoughtMarkerColor: inkUIColor.withAlphaComponent(0.65),
             onThoughtMarkerTap: { openThoughtPanel(for: index) },
             onBodyTap: { handleScrollTap(x: $0.x, width: width) },
             onSelectionChange: { isSelectingBodyText = $0 },
