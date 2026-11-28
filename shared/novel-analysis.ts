@@ -45,6 +45,16 @@ export interface AnalysisNote {
   sourceIds: string[]
   content: string
 }
+/** Per-request caps include reasoning tokens; they are never silently doubled. */
+export const ANALYSIS_OUTPUT_TOKENS = {
+  min: 1000,
+  max: 1_000_000,
+  reading: 6000,
+  condensing: 6000,
+  report: 8000,
+} as const
+export type AnalysisPhase = 'reading' | 'condensing' | 'report'
+
 export interface AnalysisReportSummary {
   id: string
   novelId: string
@@ -52,6 +62,7 @@ export interface AnalysisReportSummary {
   taskId: string
   status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted'
   step: string
+  phase?: AnalysisPhase
   error: string
   /** Number of source segments reused from the shared reading cache. */
   reusedSources?: number

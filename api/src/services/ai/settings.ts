@@ -2,6 +2,7 @@
  * AI 运营设置 —— 存 app_settings.ai_settings（JSON），与供应商密钥分开：
  * 密钥走 .env / 安装向导（config.ts），这里只管「开不开、给谁用、给多少」。
  */
+import { ANALYSIS_OUTPUT_TOKENS } from '@shared/novel-analysis'
 import type { Db } from '../../db/pool'
 import { first, run } from '../../db/query'
 import type { AiReasoningMode } from '@shared/ai-text-progress'
@@ -53,6 +54,9 @@ export interface AiSettings {
   /** 默认关闭 DeepSeek 思考；不支持该参数的模型跟随供应商。 */
   storyGraphReasoningMode: AiReasoningMode
   /** 情节/关系档案单次模型调用的等待上限，单位秒。 */
+  novelAnalysisReadingMaxTokens: number
+  novelAnalysisCondenseMaxTokens: number
+  novelAnalysisReportMaxTokens: number
   storyMemoryTimeoutSeconds: number
   /** Opt-in trial; legacy archives remain available when switched back. */
   storyMemoryEngine?: 'legacy' | 'incremental'
@@ -165,6 +169,9 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   relationshipProfileMaxTokens: 1200,
   storyGraphMaxTokens: 16000,
   storyGraphReasoningMode: 'disabled',
+  novelAnalysisReadingMaxTokens: ANALYSIS_OUTPUT_TOKENS.reading,
+  novelAnalysisCondenseMaxTokens: ANALYSIS_OUTPUT_TOKENS.condensing,
+  novelAnalysisReportMaxTokens: ANALYSIS_OUTPUT_TOKENS.report,
   storyMemoryTimeoutSeconds: 300,
   storyMemoryEngine: 'legacy',
   storyMemoryAutoUpdate: false,
@@ -315,6 +322,9 @@ export function normalizeAiSettings(raw: unknown): AiSettings {
     relationshipProfileMaxTokens: clampInt(obj.relationshipProfileMaxTokens, DEFAULT_AI_SETTINGS.relationshipProfileMaxTokens, LIMITS.relationshipProfileMaxTokens),
     storyGraphMaxTokens: clampInt(obj.storyGraphMaxTokens, DEFAULT_AI_SETTINGS.storyGraphMaxTokens, LIMITS.storyGraphMaxTokens),
     storyGraphReasoningMode: clampEnum(obj.storyGraphReasoningMode, DEFAULT_AI_SETTINGS.storyGraphReasoningMode, ['inherit', 'disabled', 'low', 'high']) as AiReasoningMode,
+    novelAnalysisReadingMaxTokens: clampInt(obj.novelAnalysisReadingMaxTokens, ANALYSIS_OUTPUT_TOKENS.reading, ANALYSIS_OUTPUT_TOKENS),
+    novelAnalysisCondenseMaxTokens: clampInt(obj.novelAnalysisCondenseMaxTokens, ANALYSIS_OUTPUT_TOKENS.condensing, ANALYSIS_OUTPUT_TOKENS),
+    novelAnalysisReportMaxTokens: clampInt(obj.novelAnalysisReportMaxTokens, ANALYSIS_OUTPUT_TOKENS.report, ANALYSIS_OUTPUT_TOKENS),
     storyMemoryTimeoutSeconds: clampInt(obj.storyMemoryTimeoutSeconds, DEFAULT_AI_SETTINGS.storyMemoryTimeoutSeconds, LIMITS.storyMemoryTimeoutSeconds),
     storyMemoryEngine: obj.storyMemoryEngine === 'incremental' ? 'incremental' : 'legacy',
     storyMemoryAutoUpdate: obj.storyMemoryAutoUpdate === true,

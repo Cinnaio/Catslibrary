@@ -317,9 +317,9 @@ it('仅思考耗尽额度与普通空正文分开提示，保留用量且不重�
   expect(Number((await first<{ tokens: number }>(t.db, 'SELECT completion_tokens AS tokens FROM ai_usage'))?.tokens)).toBe(8000)
 })
 
-it('高思考报告提高总输出额度，单次完成且不修改共享设置', async () => {
+it('高思考报告使用显式输出额度，单次完成且不修改共享设置', async () => {
   const previous = await getAiSettings(t.db)
-  const settings = await saveAiSettings(t.db, { storyMemoryReasoningMode: 'high' })
+  const settings = await saveAiSettings(t.db, { storyMemoryReasoningMode: 'high', novelAnalysisReportMaxTokens: 16000 })
   try {
     const receipt = await create()
     let calls = 0
@@ -550,4 +550,91 @@ it('补读不跨越已缓存的中间段，底稿整体保持章节顺序', asyn
   const report = await readAnalysis(t.db, 'book', receipt.reportId)
   expect(report.notes.map(note => note.sourceIds)).toEqual([['S1'], ['S2'], ['S3', 'S4']])
   expect(report.reusedSources).toBe(1)
+})
+
+
+it('冻结新任务的输出上限，继续分析采用新设置且高思考不自动加倍', async () => {
+  const previous = await getAiSettings(t.db)
+  try {
+    await saveAiSettings(t.db, { novelAnalysisReportMaxTokens: 7000, storyMemoryReasoningMode: 'high' })
+    const receipt = await create()
+    await saveAiSettings(t.db, { novelAnalysisReportMaxTokens: 9000 })
+    await runNovelAnalysis(t.db, 'book', receipt.reportId, receipt.taskId, {}, async options => {
+      expect(options.maxTokens).toBe(7000)
+      return { ...answer('半截'), finishReason: 'length', completionTokens: 7000 }
+    })
+    expect(await readAnalysis(t.db, 'book', receipt.reportId)).toMatchObject({ status: 'failed', phase: 'report', content: '' })
+    const resumed = await resumeAnalysis(t.db, 'admin', 'book', receipt.reportId)
+    await runNovelAnalysis(t.db, 'book', resumed.reportId, resumed.taskId, {}, async options => {
+      expect(options.maxTokens).toBe(9000)
+      return answer('完整报告 [[S1]]')
+    })
+    expect((await readAnalysis(t.db, 'book', receipt.reportId)).status).toBe('completed')
+  } finally { await saveAiSettings(t.db, previous) }
+})
+
+it('整理截断自动拆小，已完成分组和游标一起保存，继续时跳过已完成分组', async () => {
+  const previous = await getAiSettings(t.db)
+  try {
+    await saveAiSettings(t.db, { novelAnalysisCondenseMaxTokens: 7200, novelAnalysisReportMaxTokens: 9100 })
+    await t.db.query("UPDATE chapters SET sort_order=130 WHERE id='c2'")
+    for (let i = 1; i <= 10; i++) await t.db.query("INSERT INTO chapters(id,novel_id,title,content,sort_order,created_at) VALUES($1,'book',$1,'正文',$2,1)", [`extra-${i}`, 10 + i * 10])
+    const receipt = await create()
+    const captured = await requireAnalysis(t.db, 'book', receipt.reportId)
+    const notes = captured.source_json.map(source => ({ sourceIds: [source.id], content: '记录。'.repeat(1000) }))
+    await t.db.query('UPDATE novel_analysis_reports SET notes_json=$1::jsonb WHERE id=$2', [JSON.stringify(notes), receipt.reportId])
+    let count = 0
+    await runNovelAnalysis(t.db, 'book', receipt.reportId, receipt.taskId, {}, async options => {
+      expect(options.maxTokens).toBe(7200)
+      const group = JSON.parse(options.messages[1]!.content).notes
+      count++
+      if (count === 1) {
+        expect(group).toHaveLength(3)
+        return { ...answer('未完整的归并'), finishReason: 'length', completionTokens: 7200 }
+      }
+      if (count === 2) {
+        expect(group).toHaveLength(2)
+        return answer('已保存的第一组。'.repeat(100))
+      }
+      throw new AiError('timeout', '模拟超时')
+    })
+    expect(count).toBe(3)
+    const failed = await readAnalysis(t.db, 'book', receipt.reportId)
+    expect(failed).toMatchObject({ status: 'failed', phase: 'condensing', notes, processed: 12, content: '' })
+    expect(failed.error).toBe('模拟超时')
+    expect((await requireAnalysis(t.db, 'book', receipt.reportId)).synthesis_json?.[0]?.sourceIds).toEqual(['S1', 'S2'])
+    expect((await listAnalyses(t.db, 'book')).reports[0]?.phase).toBe('condensing')
+    await saveAiSettings(t.db, { novelAnalysisCondenseMaxTokens: 8000 })
+    const resumed = await resumeAnalysis(t.db, 'admin', 'book', receipt.reportId)
+    let resumedCalls = 0
+    await runNovelAnalysis(t.db, 'book', resumed.reportId, resumed.taskId, {}, async options => {
+      resumedCalls++
+      if (resumedCalls === 1) {
+        expect(options.maxTokens).toBe(8000)
+        expect(JSON.parse(options.messages[1]!.content).notes.map((note: { sourceIds: string[] }) => note.sourceIds)).toEqual([['S3'], ['S4']])
+        return answer('第二组摘要 [[S3]] [[S4]]')
+      }
+      expect(options.maxTokens).toBe(9100)
+      return answer('最终报告 [[S1]]')
+    })
+    expect(resumedCalls).toBe(2)
+    expect(await readAnalysis(t.db, 'book', receipt.reportId)).toMatchObject({ status: 'completed', notes })
+  } finally { await saveAiSettings(t.db, previous) }
+})
+
+it('分段阅读使用独立上限，后续报告保留各自预算', async () => {
+  const previous = await getAiSettings(t.db)
+  try {
+    await saveAiSettings(t.db, { novelAnalysisReadingMaxTokens: 7100, novelAnalysisReportMaxTokens: 9300 })
+    await useLongRange()
+    const receipt = await create()
+    let readings = 0
+    await runNovelAnalysis(t.db, 'book', receipt.reportId, receipt.taskId, {}, async options => {
+      if (!options.tools) { readings++; expect(options.maxTokens).toBe(7100); return answer('简短阅读记录 [[S1]]') }
+      expect(options.maxTokens).toBe(9300)
+      return answer('完整报告 [[S1]]')
+    })
+    expect(readings).toBeGreaterThan(0)
+    expect((await readAnalysis(t.db, 'book', receipt.reportId)).status).toBe('completed')
+  } finally { await saveAiSettings(t.db, previous) }
 })

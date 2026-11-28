@@ -1,4 +1,4 @@
-import type { AnalysisKind, AnalysisNote, AnalysisSource } from '@shared/novel-analysis'
+import type { AnalysisKind, AnalysisNote, AnalysisPhase, AnalysisSource } from '@shared/novel-analysis'
 import { ANALYSIS_KINDS } from '@shared/novel-analysis'
 import type { Db } from '../../db/pool'
 import { run, withTx } from '../../db/query'
@@ -8,6 +8,8 @@ import { getAiSettings } from './settings'
 import { recordUsage } from './usage'
 import { usageAuditFields } from './upstream-usage'
 import { getAiTask, isAiTaskActive, startAiTaskHeartbeat, updateAiTask } from './tasks'
+import { consolidateAnalysisNotes, type ConsolidationState } from './novel-analysis-consolidation'
+import { readAnalysisOutputLimits, readAnalysisProgress } from './novel-analysis-options'
 import { requireAnalysis } from './novel-analysis-store'
 import { analysisGenerationKey, loadSharedAnalysisReadings, saveSharedAnalysisReading, sharesAnalysisReading } from './novel-analysis-reuse'
 import { analysisPrompt, analysisSourceMaterial, sharedAnalysisReadingPrompt } from './novel-analysis-prompts'
@@ -32,6 +34,8 @@ export function finalAnalysisMessages(messages: AiMessage[], kind: AnalysisKind)
 /** One task owns each checkpoint. Cancellation/resume cannot let an old executor write. */
 export async function runNovelAnalysis(db: Db, novelId: string, reportId: string, taskId: string,
   audit: { ipAddress?: string; userAgent?: string } = {}, invoke: typeof chat = chat) {
+  let analysisPhase: AnalysisPhase = 'reading'
+  const phaseLabels = { reading: '阅读原文', condensing: '整理记录', report: '生成报告' }
   const controller = new AbortController()
   const stopHeartbeat = startAiTaskHeartbeat(db, taskId)
   let polling = false
@@ -50,6 +54,14 @@ export async function runNovelAnalysis(db: Db, novelId: string, reportId: string
     const task = await getAiTask(db, taskId)
     if (!task || task.kind !== 'novel_analysis' || task.novelId !== novelId || report.task_id !== taskId || report.content) return
     const settings = await getAiSettings(db)
+    const limits = readAnalysisOutputLimits(task.params, settings)
+    let consolidation = readAnalysisProgress(task.result).consolidation
+    const progressResult = () => JSON.stringify({ reportId, phase: analysisPhase, consolidation })
+    const enterPhase = async (phase: AnalysisPhase, step: string) => {
+      analysisPhase = phase
+      await active()
+      await updateAiTask(db, taskId, { status: 'running', step, result: progressResult() })
+    }
     const generationKey = analysisGenerationKey(settings.storyMemoryReasoningMode)
     // Legacy checkpoints contain topic-specific notes and never seed the shared cache.
     const sharedReading = !!report.generation_key && sharesAnalysisReading(report.request_json.kind)
@@ -73,8 +85,8 @@ export async function runNovelAnalysis(db: Db, novelId: string, reportId: string
         generationType: 'novel_analysis', model: response.model, provider: providerLabel(textProvider().baseUrl),
         tokenUsageReported: response.tokenUsageReported, promptTokens: response.promptTokens, completionTokens: response.completionTokens,
         costMillicents: response.cost * 100000, ...usageAuditFields(response), ...audit })
-      // Thinking and prose share the cap. More room for high is not a guarantee of prose.
-      const outputLimit = settings.storyMemoryReasoningMode === 'high' ? Math.max(8000, maxTokens * 2) : maxTokens
+      // The configured cap includes thinking; high reasoning never silently exceeds it.
+      const outputLimit = maxTokens
       const response = await invoke({ messages, tools, toolChoice, stream: true, temperature: 0.2, maxTokens: outputLimit,
         timeoutMs: settings.storyMemoryTimeoutSeconds * 1000, reasoningMode: settings.storyMemoryReasoningMode,
         maxAttempts: 1, retryOnTimeout: false, returnIncompleteResult: true, signal: controller.signal, onIncomplete: record,
@@ -88,14 +100,16 @@ export async function runNovelAnalysis(db: Db, novelId: string, reportId: string
       await record(response)
       await active()
       if ((!tools || toolChoice === 'none') && response.toolCalls?.length) throw new AiError('invalid', '模型仍请求查原文，未返回完整报告，阅读记录已保留', 422)
-      if (!response.refusal && response.finishReason === 'length' && !response.text.trim() && (response.reasoningTokens ?? 0) > 0)
-        throw new AiError('invalid', '本次思考已达到输出上限，尚未生成正文；可降低思考程度后继续，已保存的阅读记录可继续使用', 422)
-      if (response.refusal || response.truncated || response.finishReason === 'length')
+      if (!response.refusal && response.finishReason === 'length') {
+        const detail = !response.text.trim() && (response.reasoningTokens ?? 0) > 0 ? '思考已达到输出上限，尚未生成正文' : '已达到输出上限'
+        throw new AiError('truncated', `${phaseLabels[analysisPhase]}${detail}（${outputLimit} tokens）；可在 AI 参数 → AI 创作 → 小说分析中调高对应上限后继续，已保存的阅读记录可继续使用`, 422)
+      }
+      if (response.refusal || response.truncated)
         throw new AiError('invalid', response.refusal || '本次输出未完成，已保存的阅读记录可继续使用', 422)
       if (!response.text.trim() && !response.toolCalls?.length) throw new AiError('invalid', '模型返回空内容，已保存的阅读记录可继续使用', 422)
       return response
     }
-    const checkpoint = async (synthesis?: AnalysisNote[], content?: string, sharedGroup?: AnalysisSource[]) => withTx(db, async query => {
+    const checkpoint = async (synthesis?: AnalysisNote[], content?: string, sharedGroup?: AnalysisSource[], state?: ConsolidationState) => withTx(db, async query => {
       const tx = { query }
       await query('SELECT id FROM ai_tasks WHERE id=$1 FOR UPDATE', [taskId])
       if (!await isAiTaskActive(tx, taskId)) throw new AiError('cancelled', '分析已停止', 409)
@@ -106,6 +120,10 @@ export async function runNovelAnalysis(db: Db, novelId: string, reportId: string
         WHERE id=$6 AND task_id=$7`, [JSON.stringify(notes), synthesis ? JSON.stringify(synthesis) : null,
         JSON.stringify([...checked]), content ?? null, Date.now(), reportId, taskId, reusedSources, generationKey])
       if (!changed) throw new AiError('cancelled', '报告已由另一个任务继续处理', 409)
+      if (state) {
+        consolidation = state
+        if (!await updateAiTask(tx, taskId, { result: progressResult() })) throw new AiError('cancelled', '任务已停止，整理结果未写入', 409)
+      }
       if (sharedGroup) await saveSharedAnalysisReading(tx, novelId, generationKey, sharedGroup, notes.at(-1)!.content)
       if (content !== undefined) await saveAnalysisEvidence(tx, await requireAnalysis(tx, novelId, reportId))
       if (content !== undefined) await updateAiTask(tx, taskId, { status: 'completed', current: report.source_json.length,
@@ -123,16 +141,17 @@ export async function runNovelAnalysis(db: Db, novelId: string, reportId: string
     }
     // Small ranges fit directly: avoid lossy intermediate summaries and needless paid calls.
     if (!notes.length && report.source_json.reduce((sum, source) => sum + source.text.length, 0) <= 20_000) {
-      await updateAiTask(db, taskId, { status: 'running', step: '正在直接阅读所选正文并撰写报告' })
+      await enterPhase('report', '正在直接阅读所选正文并撰写报告')
       const response = await request([
         { role: 'system', content: analysisPrompt('direct', report.request_json.kind) },
         { role: 'user', content: JSON.stringify({ focus, selection, sources: report.source_json.map(analysisSourceMaterial) }) },
-      ], 8000)
+      ], limits.report)
       if (response.text.length > 50_000) throw new AiError('invalid', '报告超过 50000 字，请缩小分析范围后重试', 422)
       await checkpoint(undefined, response.text)
       return
     }
-    await updateAiTask(db, taskId, { status: 'running', current: read.size, step: '正在读取所选章节' })
+    await enterPhase('reading', '正在读取所选章节')
+    await updateAiTask(db, taskId, { current: read.size })
     const remaining = report.source_json.filter(source => !read.has(source.id))
     while (remaining.length) {
       const group = [remaining.shift()!]
@@ -147,7 +166,7 @@ export async function runNovelAnalysis(db: Db, novelId: string, reportId: string
       const content = group.some(source => source.text.trim()) ? (await request([
         { role: 'system', content: sharedReading ? sharedAnalysisReadingPrompt : analysisPrompt('reading', report.request_json.kind) },
         { role: 'user', content: JSON.stringify({ ...(sharedReading ? {} : { focus }), sources: group.map(analysisSourceMaterial) }) },
-      ], 6000)).text : '本段没有可分析正文。'
+      ], limits.reading)).text : '本段没有可分析正文。'
       notes.push({ sourceIds: group.map(source => source.id), content })
       for (const source of group) read.add(source.id)
       await checkpoint(undefined, undefined, sharedReading ? group : undefined)
@@ -156,23 +175,17 @@ export async function runNovelAnalysis(db: Db, novelId: string, reportId: string
     // Consolidation preserves the original per-source notes and checkpoints each merge.
     // Cached groups may have been inserted before newly read groups. Synthesis must follow the original order.
     notes.sort((a, b) => (sourceOrder.get(a.sourceIds[0]!) ?? 0) - (sourceOrder.get(b.sourceIds[0]!) ?? 0))
-    let synthesis = report.synthesis_json || [...notes]
-    while (JSON.stringify(synthesis).length > 28_000 && synthesis.length > 1) {
-      const group: AnalysisNote[] = []
-      let size = 0
-      for (const note of synthesis) {
-        if (group.length >= 2 && size + note.content.length > 18_000) break
-        group.push(note); size += note.content.length
-      }
-      await updateAiTask(db, taskId, { step: '正在整理分段阅读记录，原记录继续保留' })
-      const condensed = await request([
-        { role: 'system', content: analysisPrompt('condense', report.request_json.kind) },
-        { role: 'user', content: JSON.stringify({ focus, notes: group }) },
-      ], 3500)
-      synthesis = [{ sourceIds: group.flatMap(note => note.sourceIds), content: condensed.text }, ...synthesis.slice(group.length)]
-      await checkpoint(synthesis)
-    }
-    await updateAiTask(db, taskId, { step: '正在撰写报告并按需回查原文' })
+    await enterPhase('condensing', '正在整理分段阅读记录，原记录继续保留')
+    const synthesis = await consolidateAnalysisNotes(report.synthesis_json || [...notes], consolidation,
+      async group => {
+        await active()
+        await updateAiTask(db, taskId, { step: '正在整理分段阅读记录，原记录继续保留' })
+        return (await request([
+          { role: 'system', content: analysisPrompt('condense', report.request_json.kind) },
+          { role: 'user', content: JSON.stringify({ focus, notes: group }) },
+        ], limits.condensing)).text
+      }, (next, state) => checkpoint(next, undefined, undefined, state))
+    await enterPhase('report', '正在撰写报告并按需回查原文')
     const messages: AiMessage[] = [
       { role: 'system', content: analysisPrompt('report', report.request_json.kind) },
       { role: 'user', content: JSON.stringify({ focus, selection,
@@ -186,7 +199,7 @@ export async function runNovelAnalysis(db: Db, novelId: string, reportId: string
     for (let round = 0; round <= 8; round++) {
       const finalRound = round === 8
       const input = finalRound ? finalAnalysisMessages(messages, report.request_json.kind) : messages
-      const response = await request(input, 8000, finalRound ? undefined : [SOURCE_TOOL, SEARCH_TOOL], finalRound ? 'none' : undefined)
+      const response = await request(input, limits.report, finalRound ? undefined : [SOURCE_TOOL, SEARCH_TOOL], finalRound ? 'none' : undefined)
       if (!response.toolCalls?.length) {
         if (response.text.length > 50_000) throw new AiError('invalid', '报告超过 50000 字，请缩小分析范围后重试', 422)
         await checkpoint(synthesis, response.text)
@@ -232,7 +245,7 @@ export async function runNovelAnalysis(db: Db, novelId: string, reportId: string
     }
   } catch (error) {
     const message = error instanceof AiError ? error.message : '分析未完成，已保存的阅读记录可继续使用'
-    await updateAiTask(db, taskId, { status: 'failed', error: message, step: '分析未完成，阅读记录已保留' })
+    await updateAiTask(db, taskId, { status: 'failed', error: message, step: `${phaseLabels[analysisPhase]}未完成，阅读记录已保留` })
   } finally {
     clearInterval(timer)
     stopHeartbeat()

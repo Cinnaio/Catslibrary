@@ -140,3 +140,24 @@ it('从报告重新分析会选中重做选项并显示复用段数', async () =
   expect(screen.getByRole('button', { name: '重新生成分析报告' })).toBeEnabled()
   expect(api.create).not.toHaveBeenCalled()
 })
+
+
+it('阅读满额而整理失败时显示准确阶段，不显示满格报告进度', async () => {
+  const failed = { ...report(), content: '', status: 'failed' as const, phase: 'condensing' as const,
+    step: '整理记录未完成，阅读记录已保留', error: '整理记录已达到输出上限（6000 tokens）',
+    notes: [{ sourceIds: ['S1'], content: '保存的原始阅读记录' }] }
+  api.read.mockResolvedValue(failed)
+  open()
+  await screen.findByText('整理记录未完成，阅读记录已保留')
+  expect(screen.getByRole('list', { name: '分析阶段' })).toHaveTextContent('1. 阅读原文已完成2. 整理记录未完成3. 生成报告待完成')
+  expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+  expect(screen.getByText(/阅读完成，最终报告尚未生成/)).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: '继续分析' })).toBeEnabled()
+})
+it('旧任务缺少阶段信息时不把满额阅读误报为报告完成', async () => {
+  api.read.mockResolvedValue({ ...report(), content: '', status: 'failed', phase: undefined, error: '本次输出未完成' })
+  open()
+  await screen.findByText('本次输出未完成')
+  expect(screen.getByRole('list', { name: '分析阶段' })).toHaveTextContent('1. 阅读原文已完成2. 整理记录待完成3. 生成报告待完成')
+  expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+})

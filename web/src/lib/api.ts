@@ -2051,6 +2051,9 @@ export interface AiSettings {
   relationshipProfileMaxTokens: number
   storyGraphMaxTokens?: number
   storyGraphReasoningMode?: AiReasoningMode
+  novelAnalysisReadingMaxTokens?: number
+  novelAnalysisCondenseMaxTokens?: number
+  novelAnalysisReportMaxTokens?: number
   storyMemoryTimeoutSeconds?: number
   storyMemoryEngine?: 'legacy' | 'incremental'
   storyMemoryAutoUpdate?: boolean

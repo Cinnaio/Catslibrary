@@ -42,3 +42,19 @@ describe('story memory timeout settings', () => {
     expect(normalizeAiSettings(settings)).toHaveProperty('storyMemoryTimeoutSeconds', seconds)
   })
 })
+
+
+describe('novel analysis output caps', () => {
+  const fields = ['novelAnalysisReadingMaxTokens', 'novelAnalysisCondenseMaxTokens', 'novelAnalysisReportMaxTokens'] as const
+  it('supplies defaults to old settings without changing unrelated output budgets', () => {
+    expect(normalizeAiSettings({ writingMaxTokens: 23000 })).toMatchObject({
+      novelAnalysisReadingMaxTokens: 6000, novelAnalysisCondenseMaxTokens: 6000, novelAnalysisReportMaxTokens: 8000, writingMaxTokens: 23000,
+    })
+  })
+  it.each(fields)('normalizes %s independently', key => {
+    expect(normalizeAiSettings({ [key]: 7500 })[key]).toBe(7500)
+    expect(normalizeAiSettings({ [key]: -1 })[key]).toBe(1000)
+    expect(normalizeAiSettings({ [key]: 2000000 })[key]).toBe(1000000)
+    expect(normalizeAiSettings({ [key]: Number.NaN })[key]).toBe(normalizeAiSettings({})[key])
+  })
+})

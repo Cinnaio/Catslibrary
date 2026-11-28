@@ -107,11 +107,11 @@ describe('AI settings confirmation', () => {
   })
   it('saves independent graph controls and preserves archive settings', async () => {
     render(<AiParamsPanel settings={settings} loading={false} onReload={vi.fn()} />)
-    fireEvent.click(screen.getByRole('tab', { name: 'AI 创作' }))
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'AI 创作' }))
     expect(screen.getByLabelText('故事图谱 Token')).toHaveValue(16000)
     expect(screen.getByRole('combobox', { name: '故事图谱思考模式' })).toHaveTextContent('关闭思考')
     fireEvent.change(screen.getByLabelText('故事图谱 Token'), { target: { value: '24000' } })
-    fireEvent.click(screen.getByRole('combobox', { name: '故事图谱思考模式' }))
+    fireEvent.keyDown(screen.getByRole('combobox', { name: '故事图谱思考模式' }), { key: 'ArrowDown' })
     fireEvent.click(screen.getByRole('option', { name: '低强度思考' }))
     expect(api.saveSettings).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: '保存所有参数' }))
@@ -126,7 +126,7 @@ describe('AI settings confirmation', () => {
   })
   it('角色和图片配额先编辑后保存，取消全部角色可关闭功能', async () => {
     config()
-    fireEvent.click(screen.getByRole('tab', { name: '读者生成策略' }))
+    fireEvent.mouseDown(screen.getByRole('tab', { name: '读者生成策略' }))
     expect(screen.getByRole('checkbox', { name: '管理员' })).toBeChecked()
     expect(screen.getByRole('checkbox', { name: '读者' })).not.toBeChecked()
     fireEvent.click(screen.getByRole('checkbox', { name: '管理员' }))
@@ -142,7 +142,7 @@ describe('AI settings confirmation', () => {
   })
   it('does not write quota or switch changes until confirmed, supports revert and preserves zero', async () => {
     config()
-    fireEvent.click(screen.getByRole('tab', { name: '读者生成策略' }))
+    fireEvent.mouseDown(screen.getByRole('tab', { name: '读者生成策略' }))
     fireEvent.change(screen.getByLabelText('每人每日生成上限'), { target: { value: '0' } })
     fireEvent.click(screen.getByRole('switch'))
     expect(api.saveSettings).not.toHaveBeenCalled()
@@ -151,7 +151,7 @@ describe('AI settings confirmation', () => {
   })
   it('rejects empty and out-of-range policy fields and keeps drafts on failed save', async () => {
     config()
-    fireEvent.click(screen.getByRole('tab', { name: '读者生成策略' }))
+    fireEvent.mouseDown(screen.getByRole('tab', { name: '读者生成策略' }))
     fireEvent.change(screen.getByLabelText('每人每日生成上限'), { target: { value: '' } })
     fireEvent.click(screen.getByRole('button', { name: '保存配置' }))
     expect(api.saveSettings).not.toHaveBeenCalled()
@@ -234,11 +234,11 @@ describe('AI settings confirmation', () => {
   it('keeps edits across categories, marks changed groups and submits the combined draft', async () => {
     render(<AiParamsPanel settings={settings} loading={false} onReload={vi.fn()} />)
     fireEvent.change(screen.getByLabelText('最大输出 Token', { selector: '#recap-tokens' }), { target: { value: '600' } })
-    fireEvent.click(screen.getByRole('tab', { name: '任务与运维' }))
+    fireEvent.mouseDown(screen.getByRole('tab', { name: '任务与运维' }))
     fireEvent.change(screen.getByLabelText('创作任务并发上限'), { target: { value: '4' } })
     expect(screen.getByText('2 项参数待保存 · 切换分类保留修改')).toBeInTheDocument()
     expect(screen.getAllByRole('img', { name: '1 项待保存' })).toHaveLength(2)
-    fireEvent.click(screen.getByRole('tab', { name: /前情提要/ }))
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /前情提要/ }))
     expect(screen.getByLabelText('最大输出 Token', { selector: '#recap-tokens' })).toHaveValue(600)
     fireEvent.click(screen.getByRole('button', { name: '保存所有参数' }))
     await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith({ recapMaxTokens: 600, maxConcurrentWritingTasks: 4 }))
@@ -246,14 +246,45 @@ describe('AI settings confirmation', () => {
 
   it('reveals an invalid hidden category before saving and supports keyboard tab navigation', async () => {
     render(<AiParamsPanel settings={settings} loading={false} onReload={vi.fn()} />)
-    fireEvent.click(screen.getByRole('tab', { name: '任务与运维' }))
+    fireEvent.mouseDown(screen.getByRole('tab', { name: '任务与运维' }))
     fireEvent.change(screen.getByLabelText('创作任务并发上限'), { target: { value: '11' } })
-    fireEvent.click(screen.getByRole('tab', { name: '前情提要' }))
+    fireEvent.mouseDown(screen.getByRole('tab', { name: '前情提要' }))
     fireEvent.click(screen.getByRole('button', { name: '保存所有参数' }))
     expect(api.saveSettings).not.toHaveBeenCalled()
     expect(screen.getByRole('tab', { name: /任务与运维/ })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByLabelText('创作任务并发上限')).toHaveFocus()
     fireEvent.keyDown(screen.getByRole('tab', { name: /任务与运维/ }), { key: 'Home' })
     await waitFor(() => expect(screen.getByRole('tab', { name: '前情提要' })).toHaveAttribute('aria-selected', 'true'))
+  })
+})
+
+
+describe('novel analysis output limits', () => {
+  it('shows defaults for old settings, retains edits across groups and saves only changed caps', async () => {
+    render(<AiParamsPanel settings={settings} loading={false} onReload={vi.fn()} group="writing" />)
+    expect(screen.getByLabelText('阅读记录输出上限（Token）')).toHaveValue(6000)
+    expect(screen.getByLabelText('整理记录输出上限（Token）')).toHaveValue(6000)
+    expect(screen.getByLabelText('最终报告输出上限（Token）')).toHaveValue(8000)
+    expect(api.saveSettings).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByLabelText('阅读记录输出上限（Token）'), { target: { value: '7000' } })
+    fireEvent.change(screen.getByLabelText('整理记录输出上限（Token）'), { target: { value: '9000' } })
+    fireEvent.change(screen.getByLabelText('最终报告输出上限（Token）'), { target: { value: '12000' } })
+    fireEvent.mouseDown(screen.getByRole('tab', { name: '前情提要' }))
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /AI 创作/ }))
+    expect(screen.getByLabelText('整理记录输出上限（Token）')).toHaveValue(9000)
+    fireEvent.click(screen.getByRole('button', { name: '保存所有参数' }))
+    await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith({
+      novelAnalysisReadingMaxTokens: 7000, novelAnalysisCondenseMaxTokens: 9000, novelAnalysisReportMaxTokens: 12000,
+    }))
+  })
+  it.each(['', '999', '1000001', '1500.5'])('blocks invalid output limit %j even after changing groups', raw => {
+    render(<AiParamsPanel settings={settings} loading={false} onReload={vi.fn()} group="writing" />)
+    const input = screen.getByLabelText('整理记录输出上限（Token）')
+    fireEvent.change(input, { target: { value: raw } })
+    fireEvent.mouseDown(screen.getByRole('tab', { name: '前情提要' }))
+    fireEvent.click(screen.getByRole('button', { name: '保存所有参数' }))
+    expect(api.saveSettings).not.toHaveBeenCalled()
+    expect(input).toBeInvalid()
+    expect(screen.getByRole('tab', { name: /AI 创作/ })).toHaveAttribute('aria-selected', 'true')
   })
 })

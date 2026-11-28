@@ -8,6 +8,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { MotionDetails } from '@/components/ui/motion'
 import FormField from '@/components/shared/FormField'
 import { ReadingDialog, ReadingDialogText } from '@/components/shared/ReadingDialog'
+import NovelAnalysisProgress from './NovelAnalysisProgress'
 import NovelAnalysisMarkdown from './NovelAnalysisMarkdown'
 import NovelAnalysisEvidence from './NovelAnalysisEvidence'
 import { taskStatusLabel } from './labels'
@@ -98,8 +99,7 @@ export default function NovelAnalysisReport({ novelId, reportId, onChange, onRea
       {report.sourceChanged && <p className={styles.notice}>正文或章节顺序已变化。这份报告仍对应生成时的原文；需要反映修改时，请新建报告。</p>}
       {!report.content && <div className={styles.progress}>
         <p role="status">{report.step || (report.status === 'interrupted' ? '任务记录已移除，可继续已保存的阅读记录' : taskStatusLabel(report.status))}</p>
-        <progress max={Math.max(1, report.total)} value={report.processed} aria-label="已保存的阅读段数" />
-        <span className={styles.meta}>已保存 {report.processed} / {report.total} 段阅读记录{report.processed === report.total && running(report) ? '，正在整理报告' : ''}</span>
+        <NovelAnalysisProgress report={report} />
         {report.error && <p role="alert">{report.error}</p>}
         <div className={styles.actions}>{running(report)
           ? <Button variant="outline" disabled={busy} onClick={() => void act(() => api.stop(novelId, reportId))}>停止分析</Button>

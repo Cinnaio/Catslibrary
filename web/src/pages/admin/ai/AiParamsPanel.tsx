@@ -1,4 +1,5 @@
 import { MotionView } from '@/components/ui/motion'
+import { ANALYSIS_OUTPUT_TOKENS } from '@shared/novel-analysis'
 import { Panel } from '@/components/ui/panel'
 /** 创作参数：按用途分组编辑，跨分类保留草稿并确认保存。 */
 import FormField from "@/components/shared/FormField"
@@ -39,6 +40,9 @@ const PARAM_GROUPS = [
       'storyGraphMaxTokens',
       'storyGraphReasoningMode',
       'storyMemoryTimeoutSeconds',
+      'novelAnalysisReadingMaxTokens',
+      'novelAnalysisCondenseMaxTokens',
+      'novelAnalysisReportMaxTokens',
       'storyMemoryEngine',
       'storyMemoryAutoUpdate',
       'storyMemoryChapterMaxTokens',
@@ -324,8 +328,18 @@ export default function AiParamsPanel(props: { settings: AiSettings | null; load
                 />
               </FormField>
             </ParameterSection>
-            <ParameterSection title="小说分析" description="分析报告按选择的章节范围生成，供阅读、核对和创作参考。" wide>
+            <ParameterSection title="小说分析" description="按阶段设置每次请求的输出上限，包含模型思考与正文，不是目标字数。保存后用于新建或继续分析，运行中的任务保持原参数；实际可用上限受模型限制。" wide>
               <div className={styles.fields}>
+                {([
+                  ['novelAnalysisReadingMaxTokens', '阅读记录输出上限（Token）', ANALYSIS_OUTPUT_TOKENS.reading, '分段阅读原文时使用，默认 6,000。'],
+                  ['novelAnalysisCondenseMaxTokens', '整理记录输出上限（Token）', ANALYSIS_OUTPUT_TOKENS.condensing, '合并阅读记录时使用，默认 6,000；达到上限时会在有限次数内拆小分组重试。'],
+                  ['novelAnalysisReportMaxTokens', '最终报告输出上限（Token）', ANALYSIS_OUTPUT_TOKENS.report, '直接分析短篇范围及最终成稿时使用，默认 8,000。'],
+                ] as const).map(([key, label, fallback, hint]) => <FormField key={key} label={label} htmlFor={key} hint={`${hint} 高强度思考也使用此上限，不会自动翻倍。`}>
+                  <Input id={key} required type="number" min={ANALYSIS_OUTPUT_TOKENS.min} max={ANALYSIS_OUTPUT_TOKENS.max} step={1}
+                    value={Number.isFinite(localSettings[key] ?? fallback) ? localSettings[key] ?? fallback : ''}
+                    disabled={props.loading || saving}
+                    onChange={event => setLocalSettings({ ...localSettings, [key]: event.target.value === '' ? Number.NaN : Number(event.target.value) })} />
+                </FormField>)}
                 <FormField label="小说分析超时（秒）" htmlFor="memory-timeout" hint="小说分析每次模型请求的等待上限，默认 300 秒，范围 30–600 秒；超时后停止自动重试，保留检查点供手动继续。">
                   <Input
                     id="memory-timeout"
