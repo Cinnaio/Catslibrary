@@ -1,4 +1,4 @@
-import BookshelfOrganization from './BookshelfOrganization'
+import BookshelfOrganization, { type ShelfBookOrganization } from './BookshelfOrganization'
 import type { ShelfOrganization } from '@shared/bookshelf-organization'
 import { MotionView } from '@/components/ui/motion'
 import { Spinner } from '@/components/ui/spinner'
@@ -392,11 +392,11 @@ export default function Bookshelf() {
             <h2 className="bookshelf-subtitle sr-only">
               收藏 <span className="text-muted">· {favorites.length}</span>
             </h2>
-            {loadedMode === safeMode && <BookshelfOrganization key={`${user?.id}:${safeMode}`} favorites={favorites} safeMode={safeMode} disabled={syncing || pending.size > 0} mutate={organize} renderBook={f => {
+            {loadedMode === safeMode && <BookshelfOrganization key={`${user?.id}:${safeMode}`} favorites={favorites} safeMode={safeMode} disabled={syncing || pending.size > 0} mutate={organize} renderBook={(f, organization) => {
               const latest = recent.find(h => h.novelId === f.novelId)
               const reading = latest && latest.timestamp >= (f.progressUpdatedAt || 0) ? latest : f
               return <ShelfBookCard novelId={f.novelId} title={f.title || f.novelTitle || f.novelId}
-                author={f.author} coverUpdatedAt={f.novelUpdatedAt} reading={reading} favorite
+                author={f.author} coverUpdatedAt={f.novelUpdatedAt} reading={reading} favorite organization={organization}
                 time={f.updatedAt ? `收藏于 ${timeAgo(f.updatedAt)}` : undefined}
                 pending={pending.size > 0} onRemove={() => void deleteFavorite(f.novelId)} />
             }} />}
@@ -474,25 +474,29 @@ export default function Bookshelf() {
   )
 }
 
-function ShelfBookCard({ novelId, title, author, coverUpdatedAt, reading, favorite, recentView, time, pending, onRemove, onFavorite }: {
+function ShelfBookCard({ novelId, title, author, coverUpdatedAt, reading, favorite, recentView, time, pending, onRemove, onFavorite, organization }: {
   novelId: string; title: string; author?: string; coverUpdatedAt?: number
   reading: { chapterId?: string; chapterTitle?: string }; favorite: boolean; recentView?: boolean
-  time?: string; pending: boolean; onRemove: () => void; onFavorite?: () => void
+  time?: string; pending: boolean; onRemove: () => void; onFavorite?: () => void; organization?: ShelfBookOrganization
 }) {
   const detail = `/novel/${encodeURIComponent(novelId)}`
   const resume = reading.chapterId ? `/read/${encodeURIComponent(novelId)}/${encodeURIComponent(reading.chapterId)}` : detail
   const target = recentView ? resume : detail
   const positionLabel = reading.chapterId ? `读至 ${reading.chapterTitle || '上次阅读的章节'}` : '尚未开始阅读'
-  return <article className={`${cardStyles.card} ${shelfStyles.card}`} data-motion-item={novelId} aria-label={title} aria-busy={pending}>
-    <Link to={target} className={shelfStyles.coverLink} aria-label={`${recentView ? '继续阅读' : '查看作品'}《${title}》封面`}>
-      <CoverOrPlaceholder novelId={novelId} title={title} updatedAt={coverUpdatedAt} />
-    </Link>
+  return <article className={`${cardStyles.card} ${shelfStyles.card}${organization ? ` ${shelfStyles.organizedCard}` : ''}`} data-selected={organization?.selected || undefined} data-motion-item={novelId} aria-label={title} aria-busy={pending}>
+    {organization?.selection && <div className={shelfStyles.selection}>{organization.selection}</div>}
+    <div className={shelfStyles.coverArea}>
+      <Link to={target} className={shelfStyles.coverLink} aria-label={`${recentView ? '继续阅读' : '查看作品'}《${title}》封面`}>
+        <CoverOrPlaceholder novelId={novelId} title={title} updatedAt={coverUpdatedAt} />
+      </Link>
+      {organization?.badge}
+    </div>
     <div className={shelfStyles.body}>
       <div className={shelfStyles.heading}>
         <Link to={target} className={shelfStyles.title} title={title}>{title}</Link>
         <DropdownMenu>
-          <DropdownMenuTrigger asChild><button type="button" className={shelfStyles.more} aria-label={`更多操作：《${title}》`} disabled={pending}><MoreHorizontal size={16} aria-hidden="true" /></button></DropdownMenuTrigger>
-          <DropdownMenuContent align="end"><DropdownMenuItem variant="destructive" onSelect={onRemove}>{recentView ? '清除记录' : '取消收藏'}</DropdownMenuItem></DropdownMenuContent>
+          <DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" className={shelfStyles.more} aria-label={`更多操作：《${title}》`} disabled={pending}><MoreHorizontal size={16} aria-hidden="true" /></Button></DropdownMenuTrigger>
+          <DropdownMenuContent align="end">{organization?.menu}<DropdownMenuItem variant="destructive" onSelect={onRemove}>{recentView ? '清除记录' : '取消收藏'}</DropdownMenuItem></DropdownMenuContent>
         </DropdownMenu>
       </div>
       {!recentView && <p className={shelfStyles.meta} title={author || '作者未知'}>{author || '作者未知'}</p>}
@@ -503,6 +507,7 @@ function ShelfBookCard({ novelId, title, author, coverUpdatedAt, reading, favori
         <Button asChild size="sm" variant={reading.chapterId ? 'default' : 'secondary'}><Link to={resume} aria-label={`${reading.chapterId ? '继续阅读' : '查看作品'}《${title}》`}>{reading.chapterId ? '继续阅读' : '查看作品'}</Link></Button>
       </div>
     </div>
+    {organization?.footer && <div className={shelfStyles.annotation}>{organization.footer}</div>}
   </article>
 }
 
