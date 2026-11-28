@@ -12,7 +12,7 @@ expect.extend(matchers)
 
 const mocks = vi.hoisted(() => ({
   policy: { mode: 'adult', checking: false, policyError: '', adultContentEnabled: true, isAllowed: () => true, setMode: vi.fn(), refreshPolicy: vi.fn() },
-  chapter: vi.fn(), novel: vi.fn(), chapters: vi.fn(), thoughts: vi.fn(),
+  chapter: vi.fn(), novel: vi.fn(), chapters: vi.fn(), thoughts: vi.fn(), request: vi.fn(), thoughtPanel: vi.fn(),
   session: { user: null as null | { id: string; role: UserRole }, loading: false },
   playing: false, dispose: vi.fn(), stats: vi.fn(), echoEnabled: false, echoes: vi.fn(), characterEnabled: false, characterCard: vi.fn(),
 }))
@@ -44,6 +44,7 @@ vi.mock('../hooks/useReaderSettings', () => ({
 }))
 vi.mock('../lib/api', async (importOriginal) => ({
   ...await importOriginal<typeof import('../lib/api')>(),
+  request: mocks.request,
   chaptersApi: { get: mocks.chapter, list: mocks.chapters },
   novelsApi: { get: mocks.novel },
   thoughtsApi: { chapter: mocks.thoughts, list: mocks.thoughts },
@@ -51,7 +52,7 @@ vi.mock('../lib/api', async (importOriginal) => ({
 vi.mock('../components/reader/ReadingKeepsakes', () => ({ default: ({ onClose }: { onClose: () => void }) => <div role="dialog" aria-label="合上书以后"><button onClick={onClose}>关闭余温页</button></div> }))
 vi.mock('../components/ThemeMenu', () => ({ ThemeMenu: () => null }))
 vi.mock('../components/reader/ChapterRecap', () => ({ default: () => null }))
-vi.mock('../components/reader/ThoughtPanel', () => ({ default: () => null }))
+vi.mock('../components/reader/ThoughtPanel', () => ({ default: (props: unknown) => { mocks.thoughtPanel(props); return null } }))
 import Reader from './Reader'
 
 function readerTree() {
@@ -68,6 +69,7 @@ beforeEach(() => {
   mocks.echoEnabled = false
   mocks.characterEnabled = false
   mocks.thoughts.mockResolvedValue({ thoughts: [] })
+  mocks.request.mockResolvedValue({ available: false, paragraphs: [], unmatchedCount: 0 })
   mocks.policy.mode = 'adult'
   mocks.policy.checking = false
   mocks.policy.policyError = ''
@@ -421,5 +423,28 @@ describe('阅读器余温页入口', () => {
     mocks.chapters.mockResolvedValue({ chapters: [{ id: 'chapter', novelId: 'book', title: '测试章节', order: 1 }, { id: 'second', novelId: 'book', title: '下一章', order: 2 }] })
     mount(); await screen.findByText('正文')
     expect(screen.queryByRole('button', { name: '合上书以后 · 留一页余温' })).not.toBeInTheDocument()
+  })
+})
+
+describe('阅读器合并来源想法', () => {
+  beforeEach(() => { mocks.novel.mockResolvedValue({ novel: { id: 'book', title: '测试小说' } }) })
+  it('合计段落数量且不污染正文哈希，点击进入同一想法面板', async () => {
+    const hash = hashParagraphText('正文')
+    mocks.thoughts.mockResolvedValue({ thoughts: [{ id: 'local', paragraphIndex: 0, paragraphHash: hash, selectedText: '', thoughtText: '本站内容' }] })
+    mocks.request.mockResolvedValue({ available: true, source: { id: 'fanqie', label: '番茄小说' }, paragraphs: [{ paragraphIndex: 0, paragraphHash: hash, count: 3 }], unmatchedCount: 0 })
+    mount()
+    const marker = await screen.findByRole('button', { name: '本段想法 4 条，本站 1 条，番茄小说 3 条' })
+    const paragraph = marker.closest('p')!
+    expect(paragraph.textContent).toBe('正文')
+    expect(paragraph.dataset.paragraphHash).toBe(hash)
+    fireEvent.click(marker)
+    await waitFor(() => expect(mocks.thoughtPanel.mock.lastCall?.[0]).toMatchObject({ open: true, sourceAnchor: { chapterId: 'chapter', paragraphIndex: 0, paragraphHash: hash } }))
+  })
+  it('来源统计与当前正文哈希不一致时不显示入口', async () => {
+    mocks.request.mockResolvedValue({ available: true, source: { id: 'fanqie', label: '番茄小说' }, paragraphs: [{ paragraphIndex: 0, paragraphHash: 'outdated', count: 3 }], unmatchedCount: 0 })
+    mount()
+    await screen.findByText('正文')
+    await waitFor(() => expect(mocks.request).toHaveBeenCalled())
+    expect(screen.queryByRole('button', { name: /本段想法.*番茄小说/ })).toBeNull()
   })
 })

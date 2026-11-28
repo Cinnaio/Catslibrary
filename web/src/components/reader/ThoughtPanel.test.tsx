@@ -7,7 +7,7 @@ it('无法定位的想法仍可查看原引用和删除，禁止在旧下标继�
   expect(screen.getByText('历史想法')).toBeVisible()
   expect(screen.getByText('原引用')).toBeVisible()
   expect(screen.getByRole('button', { name: '删除' })).toBeVisible()
-  expect(screen.queryByRole('button', { name: '发布想法' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: '发布到本站' })).not.toBeInTheDocument()
 })
 
 it('划词写想法只展示所选引用，不同时展示整段摘要', () => {

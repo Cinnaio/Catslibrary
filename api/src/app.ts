@@ -1,3 +1,4 @@
+import { sourceThoughtsRoutes } from './routes/source-thoughts'
 import { notificationRoutes } from './routes/notifications'
 import { accountEmailRoutes } from './routes/account-email'
 import { securityAdminRoutes, securityPublicRoutes } from './routes/security'
@@ -106,6 +107,7 @@ app.route('/api/bookshelf', bookshelfRoutes)
 app.route('/api/notifications', notificationRoutes)
 app.route('/api/bookmarks', bookmarksRoutes)
 app.route('/api/thoughts', thoughtsRoutes)
+app.route('/api/source-thoughts', sourceThoughtsRoutes)
 app.route('/api/ratings', ratingsRoutes)
 app.route('/api/comments', commentsRoutes)
 app.route('/api/scrape', scrapeRoutes)

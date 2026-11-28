@@ -1,3 +1,4 @@
+import { useSourceThoughts } from '../hooks/useSourceThoughts'
 import ReadingKeepsakes from '../components/reader/ReadingKeepsakes'
 import type { StoryEchoInput, StoryEchoSource } from '@shared/story-echoes'
 import StoryEchoes from '../components/reader/StoryEchoes'
@@ -172,6 +173,7 @@ function ReaderContent() {
 
   // 段评
   const [chapterThoughts, setChapterThoughts] = useState<Thought[]>([])
+  const sourceThoughts = useSourceThoughts(chapter?.id || '', !!chapter && !loading && !blocked && !checking && !chapter.id.startsWith('dc'), `${user?.id || ''}:${mode}`)
   const [loadedThoughtChapter, setLoadedThoughtChapter] = useState('')
   const [activeThoughtParagraph, setActiveThoughtParagraph] = useState<number | null>(null)
   const [pendingSelection, setPendingSelection] = useState<{ paragraphIndex: number; paragraphHash: string; selectedText: string } | null>(null)
@@ -466,7 +468,7 @@ function ReaderContent() {
   useLayoutEffect(() => {
     const body = bodyRef.current
     if (!body || !chapter || loading) return
-    const stamp = chapter.id + '|' + chapterThoughts.map((t) => t.id).join(',')
+    const stamp = chapter.id + '|' + chapterThoughts.map((t) => t.id).join(',') + '|' + JSON.stringify(sourceThoughts.data?.paragraphs || [])
     const firstP = body.querySelector('p')
     const domIntact = firstP === null || firstP.hasAttribute('data-paragraph-index')
     if (indexStampRef.current === stamp && domIntact) return
@@ -543,7 +545,17 @@ function ReaderContent() {
     body.querySelectorAll('p').forEach((p) => {
       const idx = p.getAttribute('data-paragraph-index')
       const thoughts = idx !== null ? thoughtsByParagraph[idx] || [] : []
-      p.classList.toggle('thought-highlight', thoughts.length > 0)
+      const source = sourceThoughts.data?.paragraphs.find(row => row.paragraphIndex === Number(p.dataset.sourceParagraphIndex ?? idx) && row.paragraphHash === p.dataset.paragraphHash)
+      const total = thoughts.length + (source?.count || 0)
+      p.querySelector('.source-thought-marker')?.remove()
+      if (source && source.count > 0) {
+        const button = document.createElement('button')
+        button.type = 'button'; button.className = 'thought-marker source-thought-marker'
+        button.dataset.count = String(total)
+        button.setAttribute('aria-label', `本段想法 ${total} 条，本站 ${thoughts.length} 条，${sourceThoughts.data?.source?.label || '来源'} ${source.count} 条`)
+        p.appendChild(button)
+      }
+      p.classList.toggle('thought-highlight', total > 0)
       p.classList.toggle('thought-highlight--paragraph', thoughts.some((thought) => !thought.selectedText?.trim()))
       quotedRanges.push(...thoughtQuoteRanges(p, thoughts.map((thought) => thought.selectedText || '')))
     })
@@ -551,7 +563,7 @@ function ReaderContent() {
       CSS.highlights.set('reader-thought-quotes', new Highlight(...quotedRanges))
       CSS.highlights.delete('reader-thought-hover')
     }
-  }, [thoughtsByParagraph])
+  }, [thoughtsByParagraph, sourceThoughts.data])
 
   useEffect(() => {
     if (typeof CSS === 'undefined' || !CSS.highlights || typeof Highlight === 'undefined') return
@@ -1692,6 +1704,12 @@ function ReaderContent() {
       {activeThoughtParagraph !== null && (
         <ThoughtPanel
           key={`${chapter?.id}:${activeThoughtParagraph}`}
+          sourceState={sourceThoughts}
+          sourceAnchor={(() => {
+            const element = bodyRef.current?.querySelector<HTMLElement>(`p[data-paragraph-index="${activeThoughtParagraph}"]`)
+            const row = sourceThoughts.data?.paragraphs.find(p => p.paragraphIndex === Number(element?.dataset.sourceParagraphIndex ?? activeThoughtParagraph) && p.paragraphHash === element?.dataset.paragraphHash)
+            return row ? { chapterId: chapter.id, paragraphIndex: row.paragraphIndex, paragraphHash: row.paragraphHash } : undefined
+          })()}
           open={thoughtPanelOpen}
           readOnly={activeThoughtParagraph < 0}
           thoughts={thoughtsByParagraph[String(activeThoughtParagraph)] || []}

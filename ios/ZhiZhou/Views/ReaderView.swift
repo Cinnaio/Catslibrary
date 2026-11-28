@@ -137,6 +137,8 @@ struct ReaderView: View {
     private var readerChromeHeight: CGFloat { measuredChromeSize.height }
     /// Scroll target before the chapter title. Paragraph IDs start at zero.
     private let readerTopScrollID = -1
+    @StateObject private var sourceThoughts = SourceThoughtsStore()
+    @State private var sourceThoughtsAttempt = 0
     @State private var chapterThoughts: [Thought] = []
     @State private var thoughtParagraphPositions: [String: Int] = [:]
     @State private var thoughtsLoadTask: Task<Void, Never>?
@@ -232,6 +234,35 @@ struct ReaderView: View {
     private var readerTitleUIFont: UIFont { settings.titleUIFont(for: dynamicTypeSize) }
     private var readerLineSpacing: CGFloat { settings.lineSpacing(for: dynamicTypeSize) }
     private var readerParagraphSpacing: CGFloat { settings.paragraphSpacing(for: dynamicTypeSize) }
+
+    private var sourceThoughtsKey: String {
+        "\(chapter?.id ?? ""):\(ContentAccessStore.shared.revision):\(offlineOnly)"
+    }
+    private var currentSourceCounts: SourceThoughtCounts? {
+        sourceThoughts.key == sourceThoughtsKey && !offlineOnly ? sourceThoughts.counts : nil
+    }
+    private func sourceCount(for index: Int) -> Int {
+        guard paragraphs.indices.contains(index) else { return 0 }
+        return currentSourceCounts?.paragraphs.first {
+            $0.paragraphIndex == index && $0.paragraphHash == Self.paragraphHash(paragraphs[index])
+        }?.count ?? 0
+    }
+    private func sourcePanelContext(for index: Int) -> SourceThoughtPanelContext? {
+        guard paragraphs.indices.contains(index), sourceThoughts.key == sourceThoughtsKey, !offlineOnly, let chapter else { return nil }
+        let row = currentSourceCounts?.paragraphs.first {
+            $0.paragraphIndex == index && $0.paragraphHash == Self.paragraphHash(paragraphs[index])
+        }
+        let anchor = row.map { SourceThoughtAnchor(chapterID: chapter.id, paragraphIndex: index, paragraphHash: $0.paragraphHash) }
+        return SourceThoughtPanelContext(counts: currentSourceCounts, anchor: anchor, loading: sourceThoughts.loading,
+                                         error: sourceThoughts.error, retry: { sourceThoughtsAttempt += 1 })
+    }
+    private var mergedThoughtSelections: [Int: [String]] {
+        var result = thoughtsByParagraph.mapValues { $0.map(\.selectedText) }
+        for row in currentSourceCounts?.paragraphs ?? [] where sourceCount(for: row.paragraphIndex) > 0 {
+            if !(result[row.paragraphIndex] ?? []).contains("") { result[row.paragraphIndex, default: []].append("") }
+        }
+        return result
+    }
 
     private var thoughtsByParagraph: [Int: [Thought]] {
         Dictionary(grouping: chapterThoughts) {
@@ -557,6 +588,7 @@ struct ReaderView: View {
                     try await submitThought(text: text, displayName: displayName, context: context)
                 },
                 onDelete: { id in try await deleteThought(id: id) },
+                sourceContext: sourcePanelContext(for: index),
                 onClose: { showThoughtPanel = false }
             )
             .id(context)
@@ -599,6 +631,10 @@ struct ReaderView: View {
             chapterID: chapter?.id, mode: offlineOnly ? "safe" : ContentAccessStore.shared.mode,
             visible: statisticsVisible))
         .task(id: "\(novel.id)-\(chapterOrder)-\(requestedChapterID)-\(ContentAccessStore.shared.mode)-\(echoNavigationRevision)") { await load() }
+        .task(id: "\(sourceThoughtsKey):\(sourceThoughtsAttempt)") {
+            await sourceThoughts.load(chapterID: chapter?.id ?? "", key: sourceThoughtsKey,
+                                      enabled: chapter != nil && !offlineOnly)
+        }
         .task(id: ContentAccessStore.shared.revision) {
             thoughtDrafts.removeAll()
             showThoughtPanel = false
@@ -816,7 +852,7 @@ struct ReaderView: View {
             textColor: inkUIColor,
             isThoughtActionEnabled: !offlineOnly,
             accessibilityID: "reader.paragraph.\(index)",
-            thoughtCount: thoughts.count,
+            thoughtCount: thoughts.count + sourceCount(for: index),
             thoughtMarkerColor: UIColor(AppTheme.primary),
             onThoughtMarkerTap: { openThoughtPanel(for: index) },
             onBodyTap: { handleScrollTap(x: $0.x, width: width) },
@@ -1042,7 +1078,7 @@ struct ReaderView: View {
         // 页面高度固定；底部安全区单独给阅读控制，不参与正文分页。
         let contentHeight = max(120, geo.size.height - 8 - readerChromeHeight)
         let pageSize = CGSize(width: contentWidth, height: contentHeight)
-        let thoughtIDs = chapterThoughts.map(\.id).joined(separator: ",")
+        let thoughtIDs = chapterThoughts.map(\.id).joined(separator: ",") + (currentSourceCounts?.paragraphs.map { "\($0.paragraphIndex):\($0.count)" }.joined(separator: ",") ?? "")
         let mediaKey = resolvedIllustrations.map { "\($0.item.id):\($0.item.version):\($0.position)" }.joined(separator: ",")
         let key = "\(chapter?.id ?? "-"):\(Int(contentWidth)):\(Int(contentHeight)):\(settings.fontSizeIndex):\(settings.lineHeight):\(readerParagraphSpacing):\(settings.useSerif):\(dynamicTypeSize):\(fontRevision):\(thoughtIDs):\(mediaKey):\(isLoading):\(searchQuery):\(pendingSearchCharacter ?? -1)"
 
@@ -1595,9 +1631,7 @@ struct ReaderView: View {
             paragraphSpacing: readerParagraphSpacing,
             title: chapter.title,
             paragraphs: paragraphs,
-            thoughtSelectionsByParagraph: thoughtsByParagraph.mapValues {
-                $0.map(\.selectedText)
-            },
+            thoughtSelectionsByParagraph: mergedThoughtSelections,
             thoughtUnderlineColor: UIColor(AppTheme.primary).withAlphaComponent(0.78),
             illustrations: placements,
             searchQuery: searchQuery

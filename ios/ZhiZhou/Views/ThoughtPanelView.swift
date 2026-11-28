@@ -3,6 +3,8 @@ import SwiftUI
 
 /// 阅读器中的段评面板：展示当前段落的讨论，并负责输入、校验和删除操作。
 struct ThoughtPanelView: View {
+    let sourceContext: SourceThoughtPanelContext?
+    @State private var sourceFilter = "all"
     let chapterTitle: String
     let paragraphExcerpt: String
     let selectedText: String
@@ -43,9 +45,11 @@ struct ThoughtPanelView: View {
         onRetry: @escaping () -> Void,
         onSubmit: @escaping (String, String) async throws -> Void,
         onDelete: @escaping (String) async throws -> Void,
-        panelTitle: String = "本段段评",
+        panelTitle: String = "本段想法",
+        sourceContext: SourceThoughtPanelContext? = nil,
         onClose: (() -> Void)? = nil
     ) {
+        self.sourceContext = sourceContext
         self.chapterTitle = chapterTitle
         self.paragraphExcerpt = paragraphExcerpt
         self.selectedText = selectedText
@@ -75,7 +79,31 @@ struct ThoughtPanelView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     ReaderPanelHeading(panelTitle)
                     paragraphHeader
-                    thoughtsContent
+                    if let sourceContext, sourceContext.visible {
+                        Picker("想法来源", selection: $sourceFilter) {
+                            Text("全部").tag("all")
+                            Text("本站").tag("local")
+                            Text(sourceContext.label).tag("source")
+                        }
+                        .pickerStyle(.menu)
+                        .frame(minHeight: AppLayout.minimumTouchTarget)
+                    }
+                    if sourceFilter != "source" || sourceContext?.visible != true { thoughtsContent }
+                    if sourceFilter != "local", let sourceContext, sourceContext.visible {
+                        if sourceContext.loading { ProgressView("正在核对来源段落…") }
+                        if let error = sourceContext.error {
+                            Text(error).font(.caption).foregroundStyle(ReadingSpace.profileMuted)
+                            Button("重试来源想法", action: sourceContext.retry).frame(minHeight: AppLayout.minimumTouchTarget)
+                        }
+                        if sourceContext.counts?.available == true {
+                            if let anchor = sourceContext.anchor {
+                                SourceThoughtListView(anchor: anchor, label: sourceContext.label).id(anchor)
+                            } else {
+                                Text("原文已变化或无法唯一定位，此段暂不显示来源想法。")
+                                    .font(.caption).foregroundStyle(ReadingSpace.profileMuted)
+                            }
+                        }
+                    }
                     if dynamicTypeSize.isAccessibilitySize { composer }
                 }
                 .padding(.horizontal, 22)
@@ -180,7 +208,7 @@ struct ThoughtPanelView: View {
                 Image(systemName: "text.bubble")
                     .font(.title3)
                     .foregroundStyle(ReadingSpace.profileMuted)
-                Text("这一段还没有段评")
+                Text("这一段还没有本站想法")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(ReadingSpace.profileMuted)
                 Text("写下你的第一条想法吧")
@@ -323,7 +351,7 @@ struct ThoughtPanelView: View {
                     .font(.title3.weight(.semibold))
                     .buttonStyle(.plain)
                     .disabled(!canSubmit)
-                    .accessibilityLabel(isSubmitting ? "正在发布段评" : "发布段评")
+                    .accessibilityLabel(isSubmitting ? "正在发布到本站" : "发布到本站")
                     .accessibilityIdentifier("thought.publish")
                 }
                 .padding(8)
@@ -335,6 +363,8 @@ struct ThoughtPanelView: View {
                 }
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: composerFocused)
 
+                Text(sourceContext?.visible == true ? "发布到本站，其他读者可见；不会同步到番茄" : "发布到本站，其他读者可见")
+                    .font(.caption2).foregroundStyle(ReadingSpace.profileMuted)
                 if draft.count >= 240 {
                     Text("\(draft.count)/300")
                         .font(.caption2.monospacedDigit())
@@ -349,7 +379,7 @@ struct ThoughtPanelView: View {
                         .textSelection(.enabled)
                 }
             } else {
-                Label(currentUserID == nil ? "登录后才能发布段评" : "此处仅供查看已有段评", systemImage: "person.crop.circle")
+                Label(currentUserID == nil ? "登录后才能发布到本站" : "此处仅供查看已有段评", systemImage: "person.crop.circle")
                     .font(.subheadline)
                     .foregroundStyle(ReadingSpace.profileMuted)
                     .frame(maxWidth: .infinity, alignment: .center)

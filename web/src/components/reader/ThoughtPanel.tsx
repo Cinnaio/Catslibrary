@@ -1,3 +1,5 @@
+import SourceThoughtList from './SourceThoughtList'
+import type { SourceThoughtAnchor, SourceThoughtState } from '@/hooks/useSourceThoughts'
 import '@/styles/thoughts.css'
 import '@/styles/input-fields.css'
 import { Button } from '@/components/ui/button'
@@ -14,6 +16,8 @@ import { timeText } from '../../lib/format'
 import ThoughtImage from './ThoughtImage'
 
 interface ThoughtPanelProps {
+  sourceState?: SourceThoughtState
+  sourceAnchor?: SourceThoughtAnchor
   open: boolean
   readOnly?: boolean
   thoughts: Thought[]
@@ -29,7 +33,11 @@ interface ThoughtPanelProps {
   onGenerateImage?: (text: string, displayName: string) => Promise<void>
 }
 
-export default function ThoughtPanel({ open, readOnly = false, thoughts, selectedText, paragraphExcerpt, canDelete, onClose, onSubmit, onDelete, canGenerateImage = false, imageGenerating = false, imageStatus = '', onGenerateImage }: ThoughtPanelProps) {
+export default function ThoughtPanel({ sourceState, sourceAnchor, open, readOnly = false, thoughts, selectedText, paragraphExcerpt, canDelete, onClose, onSubmit, onDelete, canGenerateImage = false, imageGenerating = false, imageStatus = '', onGenerateImage }: ThoughtPanelProps) {
+  const [filter, setFilter] = useState<'all' | 'local' | 'source'>('all')
+  const hasSource = !readOnly && !!sourceState && (sourceState.data?.available || sourceState.loading || !!sourceState.error)
+  const sourceLabel = sourceState?.data?.source?.label || '书源'
+  const showLocal = filter !== 'source' || !hasSource
   const restoreFocusRef = useRef<HTMLElement | null>(null)
   const [text, setText] = useState('')
   const [name, setName] = useState('')
@@ -100,9 +108,15 @@ export default function ThoughtPanel({ open, readOnly = false, thoughts, selecte
             <Button variant="ghost" size="icon" type="button" className="thought-panel__close" aria-label="关闭想法面板"><X size={16} aria-hidden="true" /></Button>
           </DialogPrimitive.Close>
         </div>
-        <div className="thought-list">
+        {hasSource && <div className="source-thought-tabs" role="group" aria-label="想法来源">
+          {([['all', '全部'], ['local', '本站'], ['source', sourceLabel]] as const).map(([value, label]) =>
+            <Button key={value} variant={filter === value ? 'secondary' : 'ghost'} size="sm" aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</Button>)}
+        </div>}
+        <div className="thought-list" key={filter}>
+        {showLocal && <>
+
           {thoughts.length === 0 ? (
-            <div className="thought-empty">这一段还没有想法，写下第一条吧。</div>
+            <div className="thought-empty">这一段还没有本站想法，写下第一条吧。</div>
           ) : (
             thoughts.map((thought) => {
               const name = thought.displayName || '匿名读者'
@@ -127,6 +141,13 @@ export default function ThoughtPanel({ open, readOnly = false, thoughts, selecte
               )
             })
           )}
+        </>}
+        {hasSource && filter !== 'local' && <>
+          {sourceState?.loading && <p role="status" className="source-thought-muted">正在核对来源段落…</p>}
+          {sourceState?.error && <p role="status">{sourceState.error} <Button size="sm" variant="ghost" onClick={sourceState.retry}>重试来源想法</Button></p>}
+          {sourceState?.data?.available && sourceAnchor && <SourceThoughtList key={`${sourceAnchor.chapterId}:${sourceAnchor.paragraphIndex}:${sourceAnchor.paragraphHash}`} anchor={sourceAnchor} label={sourceLabel} />}
+          {sourceState?.data?.available && !sourceAnchor && <p className="source-thought-muted">原文已变化或无法唯一定位，此段暂不显示来源想法。</p>}
+        </>}
         </div>
         {!readOnly && <form className="thought-compose" onSubmit={(event) => { event.preventDefault(); void submit() }}>
           <div className={`thought-selected-text${selectedText ? '' : ' hidden'}`}>
@@ -160,13 +181,13 @@ export default function ThoughtPanel({ open, readOnly = false, thoughts, selecte
           />
             <span className="thought-editor__count" aria-label={`已输入 ${text.length} 字，最多 300 字`}>{text.length}<span> / 300</span></span>
             <Button type="submit" className="thought-publish" disabled={submitting}>
-              发布想法
+              发布到本站
               <ArrowUp size={16} aria-hidden="true" />
             </Button>
           </div>
           </div>
           <div className="thought-compose__footer">
-            <span className="thought-status" role="status" aria-live="polite">{status || imageStatus || '想法会公开显示给其他读者'}</span>
+            <span className="thought-status" role="status" aria-live="polite">{status || imageStatus || (hasSource ? '发布到本站，其他读者可见；不会同步到番茄' : '想法会公开显示给其他读者')}</span>
           </div>
         </form>}
         </DialogPrimitive.Content>

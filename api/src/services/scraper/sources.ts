@@ -1,3 +1,4 @@
+import type { SourceThoughtProvider } from '../source-thoughts'
 import type { Db, DbClient } from '../../db/pool'
 import type { SourceChapterCandidate } from '../novel-update-summary'
 import type { DiscoverDeps, DiscoverResult, TitleSearchResult } from './enrich'
@@ -57,6 +58,7 @@ export interface ScrapeAdapter {
   search?(query: string, type: string, page: number, deps: DiscoverDeps): Promise<DiscoverResult>
   searchTitles?(title: string, author: string, deps: DiscoverDeps): Promise<TitleSearchResult>
   titles?(url: string, fetchHtml: HtmlFetcher): Promise<{ titles: Array<{ order: number; title: string; url: string }> }>
+  paragraphComments?: SourceThoughtProvider
   chapters?: ChapterReader
   account?: AccountActions
   fetch?(db: Db, fetchHtml: HtmlFetcher): HtmlFetcher
