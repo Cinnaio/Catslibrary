@@ -1,5 +1,13 @@
 # 发布与版本管理
 
+## iOS 1.5.1 fast 构建与下载验收（2026-11-28）
+
+- 用户明确授权推送、fast 构建及下载工件；`main` 推送到 `c53839e7cea9ed3dd9ff83edbfd6796625a450f9`，包含 `e35edecd` 的本段想法面板、`111a0390` 的共享加载提示及 `c53839e7` 的手机书架长按修复。App／Widget 沿用本轮候选 `1.5.1 / build 37`，相较此前已构建的 `1.5.0 / build 36` 已递增版本和构建号。
+- [Build iOS fast #84](https://github.com/Cinnaio/Catslibrary/actions/runs/46121901217) 于北京时间 2026-11-28 15:35:22 启动，15:37:28 完成，约 2 分 6 秒。核心单测、缓存脚本检查、Xcode 编译、Release 包版本／隐私／ATS 检查、IPA 打包及上传成功；本次 workflow 不运行 UI 测试，新增 iPhone 长按操作用例仍待模拟器执行。
+- 工件 `ZhiZhou-unsigned-ipa-fast`，ID `15253787806`，已保存到本机下载目录 `Catslibrary-iOS-1.5.1-build37-fast-run84`。归档 SHA-256 与 GitHub digest 一致：`4936b85380c37ced0c907c188fff21271cb572f04e351e18a31867810c94bf73`；外层 ZIP 与 IPA CRC、主 App／Widget 版本与可执行文件、隐私清单及 Release ATS 均通过校验。
+- 提取后的 `ZhiZhou-1.5.1-build37-fast.ipa` 为 25,779,538 字节，SHA-256 为 `fb18f8dd5dafdcf3139126608d018ae956e8f83a54924cff8fde32c89f35d69e`；同目录保留原始工件 ZIP 和 `verification.json`。包内两端版本均为 `1.5.1 (37)`；这是未签名 fast 包，未执行签名安装、真机长按动画或性能验收。
+- 本节补充下方三个源码候选的实际构建状态，不将编译成功等同于真机验收。未触发 API/Web 部署或修改生产数据库；后续发布记录提交仅改文档，产物仍对应 `c53839e7`，不递增构建号或重建相同 IPA。
+
 ## iOS 手机书架长按预览修复（2026-11-28，本地源码候选）
 
 - iPhone 收藏封面脱离双书共用的原生 List 行，复用按书籍标识创建的 `ReadingSpaceCoverGrid`，固定两列；iPad 继续按窗口宽度适配。手机在读列表、原生搜索、导航路径、分页和下拉刷新保留；编辑及 xxxLarge 起的字号仍用逐书原生列表和删除确认。
