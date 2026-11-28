@@ -295,6 +295,30 @@ describe('内容 API 端到端（pglite）', () => {
     expect((await jsonOf<{ total: number }>(exact)).total).toBe(1)
   })
 
+  it('大小写和全角别名与简繁标签组合筛选，保留原始标签和精确匹配', async () => {
+    const fixtures = [
+      ['1v1', '系统'], ['1V1', '系統'], ['１Ｖ１', '系统'], ['1v1', '系统流'],
+    ]
+    for (const [index, tags] of fixtures.entries()) {
+      const created = await req('/api/novels', json('POST', {
+        title: `拼写别名${index}`, author: '测试', categories: tags, contentRating: 'general', status: 'ongoing',
+      }, adminToken))
+      expect(created.status).toBe(201)
+      const { novel } = await jsonOf<{ novel: Novel }>(created)
+      await run(t.db, 'UPDATE novels SET categories = $1 WHERE id = $2', [JSON.stringify(tags), novel.id])
+    }
+    for (const category of ['1v1', '1V1', '１Ｖ１']) {
+      const query = new URLSearchParams({ categories: JSON.stringify([category, '系統', '系统']), search: '拼写别名', status: 'ongoing', limit: '2' })
+      const data = await jsonOf<{ novels: Novel[]; total: number; totalPages: number }>(await req(`/api/novels?${query}`))
+      expect(data.total).toBe(3)
+      expect(data.totalPages).toBe(2)
+      expect(data.novels).toHaveLength(2)
+      expect(data.novels.every((novel) => !novel.categories.includes('系统流'))).toBe(true)
+    }
+    const original = await jsonOf<{ novels: Novel[] }>(await req(`/api/novels?search=${encodeURIComponent('拼写别名1')}`))
+    expect(original.novels[0]!.categories).toEqual(['1V1', '系統'])
+  })
+
   it('多标签取交集，别名取并集，分页计数与内容访问规则一致', async () => {
     const fixtures = [
       { tags: ['校园', '甜文'], rating: 'general' },

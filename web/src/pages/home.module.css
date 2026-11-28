@@ -114,23 +114,6 @@
   gap: 4px;
   min-height: 36px;
 }
-.page :global(.home-category-groups) {
-  display: grid;
-  gap: 16px;
-  padding-top: 16px;
-}
-.page :global(.home-category-group) {
-  display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
-  gap: 14px;
-}
-.page :global(.home-category-group h3) {
-  padding-top: 8px;
-  font-family: var(--font-body);
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-muted);
-}
 .page :global(.home-active-filters) {
   display: flex;
   flex-wrap: wrap;

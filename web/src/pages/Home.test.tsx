@@ -162,43 +162,39 @@ describe('Home hero search', () => {
     expect(screen.getByLabelText('跳转到指定页')).toHaveValue(1)
   })
 
-  it('分类默认收敛、更多标签分组，收起后保留已选条件并可清除', async () => {
-    const availableCategories = ['现代', '古言', '校园', '校園', '言情', '玄幻', '仙侠', '重生', '快穿', '甜文', '百合', '简体版', '其他题材', 'h', 'np']
+  it('首页收敛常用标签，搜索完整面板并应用后保留已选条件', async () => {
+    const availableCategories = ['现代', '古言', '校园', '校園', '言情', '玄幻', '仙侠', '重生', '快穿', '甜文', '百合', '简体版', '其他题材', 'h', 'np', '調教']
     vi.mocked(novelsApi.list).mockResolvedValue({ novels: [], totalPages: 1, availableCategories, total: 0, page: 1, limit: 20, hasMore: false })
     const user = userEvent.setup()
     renderHome()
-    const toggle = await screen.findByRole('button', { name: '更多标签' })
+    const toggle = await screen.findByRole('button', { name: '全部标签' })
     const common = screen.getByRole('group', { name: '小说分类' })
     expect(within(common).getAllByRole('button')).toHaveLength(12)
-    expect(within(common).queryByRole('button', { name: '校園' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: '全部分类标签' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '校園' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     await user.click(toggle)
-    expect(screen.getByRole('region', { name: '全部分类标签' })).toHaveAttribute('data-motion', 'animated')
-    expect(screen.getByRole('region', { name: '全部分类标签' })).not.toHaveAttribute('inert')
-    expect(toggle).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.queryByRole('button', { name: 'h' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'np' })).not.toBeInTheDocument()
-    await user.click(within(screen.getByRole('group', { name: '其他标签' })).getByRole('button', { name: '简体版' }))
+    const dialog = screen.getByRole('dialog', { name: '全部标签' })
+    expect(within(dialog).queryByRole('button', { name: 'H' })).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: 'NP' })).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: '调教' })).not.toBeInTheDocument()
+    const requests = vi.mocked(novelsApi.list).mock.calls.length
+    await user.type(within(dialog).getByRole('searchbox', { name: '搜索标签' }), '簡體')
+    await user.click(within(dialog).getByRole('button', { name: '简体版' }))
+    expect(novelsApi.list).toHaveBeenCalledTimes(requests)
+    expect(within(dialog).getByText('已选 1 个标签')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: '应用筛选' }))
     await waitFor(() => expect(novelsApi.list).toHaveBeenLastCalledWith(expect.objectContaining({ category: '简体版', page: 1 })))
-    expect(screen.getByRole('region', { name: '全部分类标签' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: '收起标签' }))
-    await waitFor(() => expect(screen.queryByRole('region', { name: '全部分类标签' })).not.toBeInTheDocument())
-    expect(document.getElementById('homeMoreCategories')).toHaveAttribute('inert')
-    expect(document.getElementById('homeMoreCategories')).toHaveAttribute('aria-hidden', 'true')
-    expect(within(common).getByRole('button', { name: '简体版' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(toggle).toHaveFocus()
+    expect(within(common).queryByRole('button', { name: '简体版' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '取消分类 简体版' }))
     await waitFor(() => expect(novelsApi.list).toHaveBeenLastCalledWith(expect.not.objectContaining({ category: expect.anything() })))
   })
 
-  it('多选标签使用交集请求，再点取消和全部清除，展开区保持打开', async () => {
+  it('多选标签使用交集，面板关闭丢弃草稿，重置只在应用后生效', async () => {
     vi.mocked(novelsApi.list).mockResolvedValue({
-      novels: [],
-      totalPages: 1,
-      availableCategories: ['校园', '甜文', '简体版'],
-      total: 0,
-      page: 1,
-      limit: 20,
-      hasMore: false,
+      novels: [], totalPages: 1, availableCategories: ['校园', '甜文', '系統', '系统'],
+      total: 0, page: 1, limit: 20, hasMore: false,
     })
     const user = userEvent.setup()
     renderHome()
@@ -207,25 +203,61 @@ describe('Home hero search', () => {
     const sweet = within(common).getByRole('button', { name: '甜文' })
     await user.click(campus)
     await user.click(sweet)
-    expect(campus).toHaveAttribute('aria-pressed', 'true')
-    expect(sweet).toHaveAttribute('aria-pressed', 'true')
     await waitFor(() => expect(novelsApi.list).toHaveBeenLastCalledWith(expect.objectContaining({ categories: JSON.stringify(['校园', '甜文']), page: 1 })))
-    expect(screen.getByText('已选 · 同时满足')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: '更多标签' }))
-    await user.click(within(screen.getByRole('group', { name: '其他标签' })).getByRole('button', { name: '简体版' }))
-    expect(screen.getByRole('region', { name: '全部分类标签' })).toBeInTheDocument()
-    await waitFor(() =>
-      expect(novelsApi.list).toHaveBeenLastCalledWith(expect.objectContaining({ categories: JSON.stringify(['校园', '甜文', '简体版']), page: 1 })),
-    )
-    await user.click(screen.getByRole('button', { name: '取消分类 简体版' }))
-    await user.click(sweet)
-    expect(sweet).toHaveAttribute('aria-pressed', 'false')
-    await waitFor(() => expect(novelsApi.list).toHaveBeenLastCalledWith(expect.objectContaining({ category: '校园' })))
-    await user.click(within(common).getByRole('button', { name: '全部' }))
-    await waitFor(() =>
-      expect(novelsApi.list).toHaveBeenLastCalledWith(expect.not.objectContaining({ category: expect.anything(), categories: expect.anything() })),
-    )
+    const requests = vi.mocked(novelsApi.list).mock.calls.length
+    await user.click(screen.getByRole('button', { name: '全部标签' }))
+    let dialog = screen.getByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: '系统' }))
+    await user.keyboard('{Escape}')
+    expect(novelsApi.list).toHaveBeenCalledTimes(requests)
+    expect(screen.queryByRole('button', { name: '取消分类 系统' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '全部标签' }))
+    dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByRole('button', { name: '系统' })).toHaveAttribute('aria-pressed', 'false')
+    const search = within(dialog).getByRole('searchbox', { name: '搜索标签' })
+    await user.type(search, '系統')
+    await user.click(within(dialog).getByRole('button', { name: '系统' }))
+    await user.clear(search)
+    await user.type(search, '不存在的标签')
+    expect(within(dialog).getByText('没有找到相关标签')).toBeInTheDocument()
+    expect(within(dialog).getByText('已选 3 个标签')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: '应用筛选' }))
+    await waitFor(() => expect(novelsApi.list).toHaveBeenLastCalledWith(expect.objectContaining({ categories: JSON.stringify(['校园', '甜文', '系统']), page: 1 })))
+    await user.click(screen.getByRole('button', { name: '全部标签' }))
+    dialog = screen.getByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: '重置' }))
+    expect(within(dialog).getByText('不限标签')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: '关闭标签筛选' }))
+    expect(screen.getByRole('button', { name: '取消分类 系统' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '全部标签' }))
+    dialog = screen.getByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: '重置' }))
+    await user.click(within(dialog).getByRole('button', { name: '应用筛选' }))
+    await waitFor(() => expect(novelsApi.list).toHaveBeenLastCalledWith(expect.not.objectContaining({ categories: expect.anything() })))
     expect(campus).toHaveAttribute('aria-pressed', 'false')
+    expect(sweet).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByLabelText('当前筛选')).not.toBeInTheDocument()
+  })
+
+  it('面板打开时切回安全模式会丢弃受限草稿，重新打开不显示其别名', async () => {
+    policy.safeMode = false
+    vi.mocked(novelsApi.list).mockResolvedValue({ novels: [], totalPages: 1, availableCategories: ['校园', 'NP', 'np', '調教'], total: 0, page: 1, limit: 20, hasMore: false })
+    const user = userEvent.setup()
+    const view = renderHome()
+    await user.click(await screen.findByRole('button', { name: '全部标签' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'NP' }))
+    await act(async () => {
+      policy.safeMode = true
+      view.rerender(<MemoryRouter><SearchProvider><ConfirmProvider><Home /></ConfirmProvider></SearchProvider><SearchLocation /></MemoryRouter>)
+    })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '全部标签' }))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).queryByRole('button', { name: 'NP' })).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: '调教' })).not.toBeInTheDocument()
+    expect(within(dialog).getByText('不限标签')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: '应用筛选' }))
+    await waitFor(() => expect(novelsApi.list).toHaveBeenLastCalledWith(expect.not.objectContaining({ category: expect.anything() })))
   })
 
   it('已有阅读历史时首页也不显示最近阅读或请求近期进度', async () => {

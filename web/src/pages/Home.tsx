@@ -25,10 +25,11 @@ import { useContentPolicy } from '../context/ContentPolicyContext'
 import { filterVisibleCategories, isRestrictedCategoryTag } from '@shared/restricted-categories'
 import { canonicalCategory } from '@shared/category-aliases'
 import { homeCategoryOptions } from '../lib/home-categories'
+import CatalogTagFilter from '../components/catalog/CatalogTagFilter'
 import NovelCard from '../components/NovelCard'
 import ContentRestrictionNotice from '../components/ContentRestrictionNotice'
 import { SearchIcon } from '../components/icons'
-import { ArrowRight, BookOpen, ChevronDown } from 'lucide-react'
+import { ArrowRight, BookOpen } from 'lucide-react'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { inputMotion, preserveDisclosureFocus } from '../hooks/useStateChangeMotion'
@@ -65,9 +66,7 @@ export default function Home() {
   const [retryCount, setRetryCount] = useState(0)
   const [hiddenRestricted, setHiddenRestricted] = useState(false)
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
-  const [moreCategoriesOpen, setMoreCategoriesOpen] = useState(false)
   const [filterMotion, setFilterMotion] = useState<'animated' | 'instant'>('instant')
-  const [categoryMotion, setCategoryMotion] = useState<'animated' | 'instant'>('instant')
   const mobileFilters = useMediaQuery('(max-width: 700px)')
   const filterVisible = !mobileFilters || mobileFiltersOpen
 
@@ -270,11 +269,9 @@ export default function Home() {
 
   const hasFilter = !!(query || activeCategories.length || activeStatus)
   const activeFilterCount = activeCategories.length + Number(!!activeStatus)
-  const categoryOptions = homeCategoryOptions(safeMode ? filterVisibleCategories(categories) : categories)
-  const visibleCommon = [...categoryOptions.common]
-  activeCategories.forEach((category) => {
-    if (!visibleCommon.includes(category)) visibleCommon.push(category)
-  })
+  const visibleSelected = safeMode ? filterVisibleCategories(activeCategories) : activeCategories
+  const availableCategories = [...categories, ...visibleSelected]
+  const categoryOptions = homeCategoryOptions(safeMode ? filterVisibleCategories(availableCategories) : availableCategories)
 
   function selectCategory(category: string) {
     setActiveCategories((selected) => (!category ? [] : selected.includes(category) ? selected.filter((tag) => tag !== category) : [...selected, category]))
@@ -403,7 +400,7 @@ onClick={() => {
               </div>
             </div>
             <div className="filter-row">
-              <span className="filter-row__label">分类</span>
+              <span className="filter-row__label">常用</span>
               <div className="category-filter" role="group" aria-label="小说分类">
                 <FilterChip selected={activeCategories.length === 0}  aria-pressed={activeCategories.length === 0}
 onClick={() => {
@@ -412,33 +409,18 @@ onClick={() => {
                   }}>
                   全部
                 </FilterChip>
-                {visibleCommon.map(categoryButton)}
-                {categoryOptions.hasMore && (
-                  <FilterChip  className="home-category-more" type="button"
-aria-expanded={moreCategoriesOpen}
-aria-controls="homeMoreCategories"
-onClick={event => {
-                      preserveDisclosureFocus(event, 'homeMoreCategories', moreCategoriesOpen)
-                      setCategoryMotion(inputMotion(event))
-                      setMoreCategoriesOpen(open => !open)
-                    }}>
-                    {moreCategoriesOpen ? '收起标签' : '更多标签'} <ChevronDown size={14} aria-hidden="true" />
-                  </FilterChip>
-                )}
+                {categoryOptions.common.map(categoryButton)}
+                {categoryOptions.groups.length > 0 && <CatalogTagFilter
+                  key={mode}
+                  groups={categoryOptions.groups}
+                  selected={visibleSelected}
+                  onApply={(tags) => {
+                    setActiveCategories(tags)
+                    setCurrentPage(1)
+                  }}
+                />}
               </div>
             </div>
-            {categoryOptions.hasMore && (
-              <div id="homeMoreCategories" className="home-category-groups" role="region" aria-label="全部分类标签" data-motion={categoryMotion} data-motion-open={moreCategoriesOpen} aria-hidden={!moreCategoriesOpen} inert={!moreCategoriesOpen}>
-                {categoryOptions.groups.map((group) => (
-                  <div className="home-category-group" key={group.label}>
-                    <h3>{group.label}</h3>
-                    <div className="category-filter" role="group" aria-label={group.label}>
-                      {group.tags.map(categoryButton)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
           {activeFilterCount > 0 && (

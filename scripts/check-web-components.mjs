@@ -166,6 +166,7 @@ function classify(file) {
   if (name.startsWith('components/shared/')) return ['通用组合', '迁移／共享：无业务取数，使用方提供状态与动作']
   if (name.startsWith('components/identity/')) return ['业务适配', '保留：账户资源地址与基础头像呈现分离']
   if (name.startsWith('components/admin/')) return ['后台场景', '保留／拆分：管理操作、数据表面或具体作品流程']
+  if (name.startsWith('components/catalog/')) return ['书库场景', '保留：目录分类、标签草稿与检索交互']
   if (name.startsWith('components/reader/')) return ['阅读场景', '保留：阅读状态、虚拟化、图片、触摸或阅读设置契约']
   if (name.startsWith('components/workspace/')) return ['工作区场景', '保留：共享外壳或作品上下文导航']
   const reason = rootReasons[path.basename(file, '.tsx')]

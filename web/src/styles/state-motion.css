@@ -1,10 +1,10 @@
 /* Progressive enhancement: browsers without discrete transitions still toggle instantly. */
-.home-page :is(.home-filter-card, .home-category-groups)[data-motion-open='false'] {
+.home-page .home-filter-card[data-motion-open='false'] {
   display: none;
 }
 
 @supports (transition-behavior: allow-discrete) {
-  .home-page :is(.home-filter-card, .home-category-groups)[data-motion='animated'] {
+  .home-page .home-filter-card[data-motion='animated'] {
     opacity: 1;
     transform: translateY(0);
     transition:
@@ -12,30 +12,30 @@
       transform var(--motion-state-enter) var(--ease-out),
       display var(--motion-state-enter) allow-discrete;
   }
-  .home-page :is(.home-filter-card, .home-category-groups)[data-motion='animated'][data-motion-open='false'] {
+  .home-page .home-filter-card[data-motion='animated'][data-motion-open='false'] {
     opacity: 0;
     transform: translateY(var(--motion-state-offset));
     transition-duration: var(--motion-state-exit);
   }
   @starting-style {
-    .home-page :is(.home-filter-card, .home-category-groups)[data-motion='animated'][data-motion-open='true'] {
+    .home-page .home-filter-card[data-motion='animated'][data-motion-open='true'] {
       opacity: 0.6;
       transform: translateY(var(--motion-state-offset));
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .home-page :is(.home-filter-card, .home-category-groups)[data-motion='animated'] {
+    .home-page .home-filter-card[data-motion='animated'] {
       transform: none;
       transition: opacity var(--motion-state-reduced) var(--ease-out), display var(--motion-state-reduced) allow-discrete;
       /* Scoped, opacity-only exception to the global reduced-motion reset. */
       transition-duration: var(--motion-state-reduced) !important;
     }
-    .home-page :is(.home-filter-card, .home-category-groups)[data-motion='animated'][data-motion-open='false'] {
+    .home-page .home-filter-card[data-motion='animated'][data-motion-open='false'] {
       transform: none;
       transition-duration: var(--motion-state-reduced) !important;
     }
     @starting-style {
-      .home-page :is(.home-filter-card, .home-category-groups)[data-motion='animated'][data-motion-open='true'] {
+      .home-page .home-filter-card[data-motion='animated'][data-motion-open='true'] {
         opacity: 0.9;
         transform: none;
       }

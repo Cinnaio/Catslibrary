@@ -1,3 +1,5 @@
+import { canonicalCategory } from './category-aliases'
+
 /**
  * 成人向分类标签 —— 精确匹配，绝不做子串匹配。
  *
@@ -55,7 +57,7 @@ export function normalizeCategoryTag(name: string | null | undefined): string {
 
 /** 单个分类名是否为成人向标签。 */
 export function isRestrictedCategoryTag(name: string | null | undefined): boolean {
-  const key = normalizeCategoryTag(name)
+  const key = normalizeCategoryTag(canonicalCategory(String(name ?? '').trim()))
   return key !== '' && RESTRICTED_CATEGORY_TAGS.has(key)
 }
 
