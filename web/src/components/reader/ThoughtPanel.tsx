@@ -1,3 +1,4 @@
+import { sourceThoughtSyncText } from '@shared/source-thoughts'
 import SourceThoughtList from './SourceThoughtList'
 import type { SourceThoughtAnchor, SourceThoughtState } from '@/hooks/useSourceThoughts'
 import '@/styles/thoughts.css'
@@ -146,7 +147,11 @@ export default function ThoughtPanel({ sourceState, sourceAnchor, open, readOnly
           {sourceState?.loading && <p role="status" className="source-thought-muted">正在核对来源段落…</p>}
           {sourceState?.error && <p role="status">{sourceState.error} <Button size="sm" variant="ghost" onClick={sourceState.retry}>重试来源想法</Button></p>}
           {sourceState?.data?.available && sourceAnchor && <SourceThoughtList key={`${sourceAnchor.chapterId}:${sourceAnchor.paragraphIndex}:${sourceAnchor.paragraphHash}`} anchor={sourceAnchor} label={sourceLabel} />}
-          {sourceState?.data?.available && !sourceAnchor && <p className="source-thought-muted">原文已变化或无法唯一定位，此段暂不显示来源想法。</p>}
+          {sourceState?.data?.available && !sourceAnchor && <>
+            <p className="source-thought-muted">{sourceState.data.sync && !sourceState.data.sync.complete
+              ? sourceThoughtSyncText(sourceState.data.sync) : '原文已变化或无法唯一定位，此段暂不显示来源想法。'}</p>
+            {sourceState.data.sync && !sourceState.data.sync.complete && <Button variant="ghost" size="sm" onClick={sourceState.retry}>更新同步状态</Button>}
+          </>}
         </>}
         </div>
         {!readOnly && <form className="thought-compose" onSubmit={(event) => { event.preventDefault(); void submit() }}>

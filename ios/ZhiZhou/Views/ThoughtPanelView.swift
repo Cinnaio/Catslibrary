@@ -186,8 +186,15 @@ struct ThoughtPanelView: View {
                             }
                         }
                         if sourceContext.counts?.available == true && sourceContext.anchor == nil {
-                            Text("原文已变化或无法唯一定位，此段暂不显示来源想法。")
-                                .font(.caption).foregroundStyle(ReadingSpace.profileMuted)
+                            if let sync = sourceContext.counts?.sync, !sync.complete {
+                                Text(sync.summary).font(.caption).foregroundStyle(ReadingSpace.profileMuted)
+                                Button(action: sourceContext.retry) {
+                                    Text("更新同步状态").frame(minHeight: AppLayout.minimumTouchTarget)
+                                }
+                            } else {
+                                Text("原文已变化或无法唯一定位，此段暂不显示来源想法。")
+                                    .font(.caption).foregroundStyle(ReadingSpace.profileMuted)
+                            }
                         }
                     }
                 }

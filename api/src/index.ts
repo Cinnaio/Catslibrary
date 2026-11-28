@@ -1,3 +1,4 @@
+import { runSourceThoughtTick } from './services/source-thought-storage'
 import { runNotificationTick } from './services/notification-push'
 import { assertSuperAdministrator } from './services/account-security'
 import { pruneImportSnapshots } from './services/book-import-state'
@@ -165,6 +166,15 @@ async function start() {
   }, 60000)
   followupTimer.unref()
   void checkFollowups()
+  let sourceThoughtsRunning = false
+  const sourceThoughtsTimer = setInterval(() => {
+    if (sourceThoughtsRunning || !loadConfig().configured) return
+    sourceThoughtsRunning = true
+    void withBusinessActivity(getDb(), () => runSourceThoughtTick(getDb()))
+      .catch(() => console.error('[source-thoughts] synchronization unavailable'))
+      .finally(() => { sourceThoughtsRunning = false })
+  }, 2000)
+  sourceThoughtsTimer.unref()
   let rankingsRunning = false
   const checkRankings = () => {
     if (rankingsRunning || !loadConfig().configured) return
@@ -236,6 +246,7 @@ async function start() {
     clearInterval(importPruneTimer)
     clearInterval(followupTimer)
     clearInterval(rankingTimer)
+    clearInterval(sourceThoughtsTimer)
     clearInterval(supplementaryTimer)
     clearInterval(backupTimer)
     if (aiTaskReclaimTimer) clearInterval(aiTaskReclaimTimer)

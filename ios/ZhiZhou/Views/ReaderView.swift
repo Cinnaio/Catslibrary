@@ -633,7 +633,7 @@ struct ReaderView: View {
         .task(id: "\(novel.id)-\(chapterOrder)-\(requestedChapterID)-\(ContentAccessStore.shared.mode)-\(echoNavigationRevision)") { await load() }
         .task(id: "\(sourceThoughtsKey):\(sourceThoughtsAttempt)") {
             await sourceThoughts.load(chapterID: chapter?.id ?? "", key: sourceThoughtsKey,
-                                      enabled: chapter != nil && !offlineOnly)
+                                      enabled: chapter != nil && !offlineOnly, refresh: sourceThoughtsAttempt > 0)
         }
         .task(id: ContentAccessStore.shared.revision) {
             thoughtDrafts.removeAll()

@@ -1,3 +1,4 @@
+import { queueSourceThoughtChapter, sourceChapter } from '../source-thought-storage'
 import type { SourceChapterCandidate } from '../novel-update-summary'
 /**
  * ScrapeStore —— 爬虫数据访问层。
@@ -621,6 +622,8 @@ export class PgScrapeStore implements ScrapeStore {
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
             [ch.id, novelId, ch.title, ch.content, order, ch.wordCount, ch.sourceUrl || '', ch.createdAt],
           )
+          const savedChapter = await sourceChapter({ query: q }, ch.id)
+          if (savedChapter) await queueSourceThoughtChapter({ query: q }, savedChapter)
           result.insertedUrls.push(ch.sourceUrl)
         }
         if (jobId) {

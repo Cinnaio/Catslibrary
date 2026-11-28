@@ -81,16 +81,18 @@ private struct SourceThoughtRow: View {
     @Published var loading = false
     @Published var error: String?
     private var generation = UUID()
-    func load(anchor: SourceThoughtAnchor, cursor: String, commentID: String? = nil) async {
+    func load(anchor: SourceThoughtAnchor, cursor: String, commentID: String? = nil, refresh: Bool = false) async {
         let generation = UUID()
         self.generation = generation
         loading = true; error = nil
         do {
-            var next = try await SourceThoughtsAPI.page(anchor: anchor, cursor: cursor, commentID: commentID)
+            var next = try await SourceThoughtsAPI.page(anchor: anchor, cursor: cursor, commentID: commentID, refresh: refresh)
             guard !Task.isCancelled, self.generation == generation else { return }
             let old = page?.items ?? []
             let ids = Set(old.map(\.id))
-            next.items = old + next.items.filter { !ids.contains($0.id) }
+            next.items = cursor.isEmpty ? next.items : old.map { item in
+                next.items.first(where: { $0.id == item.id }) ?? item
+            } + next.items.filter { !ids.contains($0.id) }
             page = next
         } catch {
             guard !Task.isCancelled, self.generation == generation else { return }
@@ -111,9 +113,17 @@ private struct SourceReplyList: View {
             ForEach(Array((store.page?.items ?? []).enumerated()), id: \.element.id) { index, item in
                 SourceThoughtText(item: item, label: label).readingSpaceEntrance(index)
             }
+            if let sync = store.page?.sync {
+                Text(sync.summary).font(.caption).foregroundStyle(ReadingSpace.profileMuted)
+                if let updated = sync.updatedText {
+                    Text("更新于 \(updated)").font(.caption2).foregroundStyle(ReadingSpace.profileMuted)
+                }
+                Button("更新回复") { cursor = ""; attempt += 1 }.disabled(store.loading)
+                    .frame(minHeight: AppLayout.minimumTouchTarget)
+            }
             SourcePageFooter(loading: store.loading, error: store.error, hasMore: store.page?.hasMore == true,
                 onRetry: { attempt += 1 }, onMore: { cursor = store.page?.cursor ?? "" })
-        }.task(id: "\(cursor):\(attempt)") { await store.load(anchor: anchor, cursor: cursor, commentID: commentID) }
+        }.task(id: "\(cursor):\(attempt)") { await store.load(anchor: anchor, cursor: cursor, commentID: commentID, refresh: attempt > 0) }
     }
 }
 private struct SourcePageFooter: View {
@@ -147,10 +157,18 @@ struct SourceThoughtListView: View {
             ForEach(Array((store.page?.items ?? []).enumerated()), id: \.element.id) { index, item in
                 SourceThoughtRow(item: item, anchor: anchor, label: label).readingSpaceEntrance(index)
             }
-            if !store.loading && store.error == nil && store.page?.items.isEmpty == true {
+            if !store.loading && store.error == nil && store.page?.items.isEmpty == true && store.page?.sync?.complete != false {
                 Text(emptyMessage ?? "这一段暂时没有\(label)想法。")
                     .font(.subheadline).foregroundStyle(ReadingSpace.profileMuted)
                     .padding(.vertical, 12)
+            }
+            if let sync = store.page?.sync {
+                Text(sync.summary).font(.caption).foregroundStyle(ReadingSpace.profileMuted)
+                if let updated = sync.updatedText {
+                    Text("更新于 \(updated)").font(.caption2).foregroundStyle(ReadingSpace.profileMuted)
+                }
+                Button("更新来源评论") { cursor = ""; attempt += 1 }.disabled(store.loading)
+                    .frame(minHeight: AppLayout.minimumTouchTarget)
             }
             SourcePageFooter(loading: store.loading, error: store.error, hasMore: store.page?.hasMore == true,
                 onRetry: { attempt += 1 }, onMore: { cursor = store.page?.cursor ?? "" })
@@ -161,6 +179,6 @@ struct SourceThoughtListView: View {
         .opacity(isVisible ? 1 : 0)
         .allowsHitTesting(isVisible)
         .accessibilityHidden(!isVisible)
-        .task(id: "\(cursor):\(attempt)") { await store.load(anchor: anchor, cursor: cursor) }
+        .task(id: "\(cursor):\(attempt)") { await store.load(anchor: anchor, cursor: cursor, refresh: attempt > 0) }
     }
 }

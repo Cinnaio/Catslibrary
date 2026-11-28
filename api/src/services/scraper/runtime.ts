@@ -1,3 +1,4 @@
+import { queueNovelSourceThoughts } from '../source-thought-storage'
 import { getDb } from '../../db/pool'
 import { fetchHtml as fetchHtmlImpl, type FetchHtmlOptions } from './fetch'
 import { runScrapeJob, type ScrapeDeps } from './engine'
@@ -33,6 +34,10 @@ export function fireJob(jobId: string, deps: ScrapeDeps, db: ReturnType<typeof g
         await store.saveJob(j, true)
       }
     })
-    .finally(() => finishFollowup(db, jobId))
+    .finally(async () => {
+      await finishFollowup(db, jobId)
+      const job = await deps.store.loadJob(jobId)
+      if (job?.novelId && job.status !== 'cancelled') await queueNovelSourceThoughts(db, job.novelId)
+    })
     .catch((err) => console.error('[followup] result persistence failed:', err))
 }
